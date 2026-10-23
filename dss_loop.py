@@ -19,6 +19,7 @@ class Resolution:
 @dataclass
 class Trace:
     intended: Any
+    incoming: Any
     resolution: Resolution
     observed: Optional[Any] = None
     check: Optional[CheckResult] = None
@@ -27,20 +28,15 @@ class Trace:
 
 class DSSLoop:
     def __init__(self, resolve_fn, operate_fn, check_fn, epsilon: float = 0.0):
-        """
-        resolve_fn: (I) -> Resolution
-        operate_fn: (candidate) -> observed
-        check_fn: (I, observed, epsilon) -> CheckResult
-        """
         self.resolve_fn = resolve_fn
         self.operate_fn = operate_fn
         self.check_fn = check_fn
         self.epsilon = epsilon
 
-    def land(self, intended: Any) -> Trace:
-        # Step 2: Resolution
-        resolution = self.resolve_fn(intended)
-        trace = Trace(intended=intended, resolution=resolution)
+    def land(self, intended: Any, incoming: Any) -> Trace:
+        # Step 2: Resolution resolves the *incoming* data
+        resolution = self.resolve_fn(incoming)
+        trace = Trace(intended=intended, incoming=incoming, resolution=resolution)
 
         if resolution.candidate is None:
             trace.terminal = "UNRESOLVED"
@@ -55,7 +51,6 @@ class DSSLoop:
 
         # Step 5: Terminal State
         if trace.check == "PASS":
-            # Check if this was a corrected match or a clean match
             if resolution.evidence and "CORRECTED" in " ".join(resolution.evidence):
                 trace.terminal = "CORRECTED"
                 trace.rule = "Recoverable mismatch detected and resolved."
@@ -72,24 +67,52 @@ class DSSLoop:
         return trace
 
 
-# --- Helper functions for the address domain ---
+# --- Normalisation & Levenshtein ---
 
 def normalise(s: str) -> str:
     s = s.upper().strip()
     s = re.sub(r"\s+", " ", s)
+    # Normalise compressed postcodes: "ST87RF" -> "ST8 7RF"
+    s = re.sub(r"([A-Z]{1,2}\d{1,2}[A-Z]?)(\d[A-Z]{2})$", r"\1 \2", s)
     return s
+
+def levenshtein(a: str, b: str) -> int:
+    if len(a) < len(b):
+        return levenshtein(b, a)
+    if len(b) == 0:
+        return len(a)
+    previous_row = range(len(b) + 1)
+    for i, c1 in enumerate(a):
+        current_row = [i + 1]
+        for j, c2 in enumerate(b):
+            insertions = previous_row[j + 1] + 1
+            deletions = current_row[j] + 1
+            substitutions = previous_row[j] + (c1 != c2)
+            current_row.append(min(insertions, deletions, substitutions))
+        previous_row = current_row
+    return previous_row[-1]
 
 def field_match(a: str, b: str) -> CheckResult:
     a, b = normalise(a), normalise(b)
     if a == b:
         return "PASS"
-    # single-character transposition is recoverable
-    if len(a) == len(b) and sum(1 for x, y in zip(a, b) if x != y) == 1:
+    if levenshtein(a, b) == 1:
         return "CORRECTED"
     return "FAIL"
 
+
+# --- Address Domain Helpers ---
+
+AUTHORITY = [
+    {"id": "A001", "num": "35", "street": "PATRICK PLACE", "postcode": "ST8 7RF"},
+    {"id": "A002", "num": "33", "street": "REDRIFFE ROAD", "postcode": "E14 8BX"},
+    {"id": "A003", "num": "13", "street": "NAYLOR STREET", "postcode": "ST6 6LS"},
+    {"id": "A004", "num": "1",  "street": "MEDIA WAY",     "postcode": "ST1 5ST"},
+    {"id": "A005", "num": "23", "street": "ELM GROVE",     "postcode": "LS1 4AB"},
+]
+
 def resolve_address(incoming: str) -> Resolution:
-    parts = incoming.upper().split()
+    parts = normalise(incoming).split()
     if len(parts) < 3:
         return Resolution(candidate=None, evidence=["Input too short."])
 
@@ -122,14 +145,3 @@ def check_address(intended, observed, eps):
     if observed is None:
         return "INCONCLUSIVE"
     return "PASS" if observed == intended else "FAIL"
-
-
-# --- The Authority List ---
-# (In a real deployment, this is your database / PAF / master index)
-AUTHORITY = [
-    {"id": "A001", "num": "35", "street": "PATRICK PLACE", "postcode": "ST8 7RF"},
-    {"id": "A002", "num": "33", "street": "REDRIFFE ROAD", "postcode": "E14 8BX"},
-    {"id": "A003", "num": "13", "street": "NAYLOR STREET", "postcode": "ST6 6LS"},
-    {"id": "A004", "num": "1",  "street": "MEDIA WAY",     "postcode": "ST1 5ST"},
-    {"id": "A005", "num": "23", "street": "ELM GROVE",     "postcode": "LS1 4AB"},
-]
