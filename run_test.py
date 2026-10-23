@@ -1,83 +1,52 @@
 """
-∂ss vs Fuzzy Matcher: Side-by-side comparison on mocked address data.
+∂ss vs Fuzzy Matcher (Fair Comparison) - Repaired Version
 """
 
-from dss_loop import DSSLoop, Resolution, field_match
+from dss_loop import DSSLoop, Resolution, field_match, resolve_address, operate_address, check_address
 from rapidfuzz import process, fuzz
 
-AUTHORITY = [
-    {"id": "A001", "num": "35", "street": "PATRICK PLACE", "postcode": "ST8 7RF"},
-    {"id": "A002", "num": "33", "street": "REDRIFFE ROAD", "postcode": "E14 8BX"},
-    {"id": "A003", "num": "13", "street": "NAYLOR STREET", "postcode": "ST6 6LS"},
-    {"id": "A004", "num": "1",  "street": "MEDIA WAY",     "postcode": "ST1 5ST"},
-    {"id": "A005", "num": "23", "street": "ELM GROVE",     "postcode": "LS1 4AB"},
-]
-
-# --- ∂ss Implementation ---
-def resolve_address(incoming: str) -> Resolution:
-    parts = incoming.upper().split()
-    if len(parts) < 3:
-        return Resolution(candidate=None, evidence=["Input too short."])
-
-    num, *rest = parts
-    postcode = rest[-1]
-    street = " ".join(rest[:-1])
-
-    candidates = []
-    for rec in AUTHORITY:
-        res_num = field_match(num, rec["num"])
-        res_st  = field_match(street, rec["street"])
-        res_pc  = field_match(postcode, rec["postcode"])
-        
-        if "FAIL" not in [res_num, res_st, res_pc]:
-            candidates.append(rec)
-
-    if len(candidates) == 0:
-        return Resolution(candidate=None, evidence=["No candidate matched."])
-    if len(candidates) > 1:
-        return Resolution(candidate=None, evidence=[f"{len(candidates)} tied candidates."])
-
-    return Resolution(candidate=candidates[0], evidence=["Single candidate matched."])
-
-def operate_address(cand): 
-    return cand["id"] if cand else None
-
-def check_address(intended, observed, eps):
-    return "PASS" if observed else "INCONCLUSIVE"
-
+# Instantiate the DSS Loop using the functions from dss_loop.py
 dss = DSSLoop(resolve_address, operate_address, check_address)
 
-# --- Fuzzy Baseline ---
-def fuzzy_resolve(incoming):
+# --- Fuzzy Baseline with Threshold ---
+def fuzzy_resolve(incoming, threshold=80):
+    from dss_loop import AUTHORITY # Import the authority list
     names = [f"{r['num']} {r['street']} {r['postcode']}" for r in AUTHORITY]
     match, score, idx = process.extractOne(incoming, names, scorer=fuzz.token_set_ratio)
-    # The fuzzy matcher ALWAYS returns a match, even if it's wrong.
+    if score < threshold:
+        return None, score
     return AUTHORITY[idx]["id"], score
 
-# --- Test Cases ---
+# --- Test Bench ---
+# (input, ground_truth, expected_system_response, profile)
 TEST_SET = [
-    # (Input, Ground Truth, Profile)
-    ("35 PATRICK PLACE ST8 7RF", "A001", "Clean"),
-    ("33 REDRIFFE ROAD E14 8BX", "A002", "Clean"),
-    ("35 patrick place  st87rf", "A001", "Mixed (normalisation)"),
-    ("33 REDRIFE ROAD E14 8BX", "A002", "Mixed (typo)"),
-    ("35 PATRICK PLACE ST6 6LS", "A001", "Difficult (conflict)"),
+    ("35 PATRICK PLACE ST8 7RF", "A001", "VERIFIED", "Clean"),
+    ("33 REDRIFFE ROAD E14 8BX", "A002", "VERIFIED", "Clean"),
+    ("35 patrick place st87rf",  "A001", "VERIFIED", "Mixed (normalisation)"),
+    ("33 REDRIFE ROAD E14 8BX",  "A002", "CORRECTED", "Mixed (typo)"),
+    ("35 PATRICK PLACE ST6 6LS", "A001", "UNRESOLVED", "Difficult (conflict)"),
 ]
 
-print(f"{'Input':<30} | {'Truth':<6} | {'∂ss':<10} | {'Fuzzy':<10}")
-print("-" * 65)
+print(f"{'Input':<30} | {'Truth':<6} | {'Expected':<12} | {'∂ss':<10} | {'Fuzzy':<10}")
+print("-" * 80)
 
-for text, truth, profile in TEST_SET:
-    # ∂ss Run
+dss_fa = 0
+fuzzy_fa = 0
+
+for text, truth, expected, profile in TEST_SET:
     trace = dss.land(text)
-    dss_result = trace.terminal
-    dss_got = trace.observed if trace.observed else "—"
+    dss_result = trace.observed if trace.observed else "—"
 
-    # Fuzzy Run
+    if dss_result != "—" and dss_result != truth:
+        dss_fa += 1
+
     fuzzy_got, fuzzy_score = fuzzy_resolve(text)
+    fuzzy_result = fuzzy_got if fuzzy_got else "—"
+    if fuzzy_result != "—" and fuzzy_result != truth:
+        fuzzy_fa += 1
 
-    print(f"{text[:28]:<30} | {truth:<6} | {dss_result:<10} | {fuzzy_got} ({fuzzy_score:.0f}%)")
+    print(f"{text[:28]:<30} | {truth:<6} | {expected:<12} | {trace.terminal:<10} | {fuzzy_result} ({fuzzy_score:.0f}%)")
 
-print("\n--- Analysis ---")
-print("Notice how the Fuzzy matcher forces a match on the conflicting postcode.")
-print("The ∂ss loop detects the conflict and emits UNRESOLVED (refuses false accept).")
+print("\n--- False Accepts ---")
+print(f"∂ss loop: {dss_fa}")
+print(f"Fuzzy matcher: {fuzzy_fa}")
