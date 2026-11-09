@@ -60,6 +60,47 @@ class VehicleCollisionBenchTests(unittest.TestCase):
         )
         self.assertEqual(result["terminal_state"], "UNRESOLVED")
 
+    def test_every_emitted_reason_has_provenance_under_malformed_inputs(self):
+        invalid_values = (None, "", "   ", 0, False, [], {})
+        cases = []
+        for field in ("journey_id", "expected_parcel_id", "expected_destination_id", "events"):
+            for invalid in invalid_values:
+                journey = make_journey(69)
+                journey[field] = copy.deepcopy(invalid)
+                cases.append(journey)
+        event_fields = ("type", "parcel_id", "destination_id", "timestamp",
+                        "gps_distance_m", "proof_id")
+        for event_index in range(3):
+            for field in event_fields:
+                for invalid in invalid_values:
+                    journey = make_journey(70 + event_index)
+                    journey["events"][event_index][field] = copy.deepcopy(invalid)
+                    cases.append(journey)
+        malformed_lists = (
+            ["bad-record"],
+            [None, *make_journey(74)["events"]],
+            make_journey(75)["events"][:2],
+            make_journey(76)["events"] + [{"type": "unexpected"}],
+        )
+        for events in malformed_lists:
+            journey = make_journey(77)
+            journey["events"] = copy.deepcopy(events)
+            cases.append(journey)
+
+        for index, journey in enumerate(cases):
+            with self.subTest(case=index):
+                result = evaluate_journey(journey)
+                provenance_codes = [
+                    item["reason_code"] for item in result["evidence_provenance"]
+                ]
+                self.assertEqual(provenance_codes, sorted(result["reason_codes"]))
+                original_events = journey.get("events")
+                if isinstance(original_events, list):
+                    for item in result["evidence_provenance"]:
+                        for event_index in item["event_indices"]:
+                            self.assertGreaterEqual(event_index, 0)
+                            self.assertLess(event_index, len(original_events))
+
     def test_each_declared_disturbance_is_unresolved(self):
         for anomaly in ANOMALIES:
             with self.subTest(anomaly=anomaly):
