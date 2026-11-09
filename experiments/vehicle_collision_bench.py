@@ -7,10 +7,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import random
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
+
+# Make the repository-level shared contract importable when run as a script.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from dss_core.evidence import classify_evidence
 
