@@ -35,6 +35,35 @@ class VehicleCollisionBenchTests(unittest.TestCase):
         self.assertEqual(report["false_reject_count"], 0)
 
 
+    def test_missing_proof_is_classified_as_insufficient_evidence(self):
+        result = evaluate_journey(make_journey(10, "missing_proof"))
+        self.assertEqual(result["terminal_state"], "UNRESOLVED")
+        self.assertEqual(result["evidence_class"], "INSUFFICIENT")
+        self.assertIn("DELIVERY_PROOF_REFERENCE_MISSING", result["reason_codes"])
+
+    def test_identity_mismatch_is_classified_as_conflicting_evidence(self):
+        result = evaluate_journey(make_journey(11, "wrong_parcel"))
+        self.assertEqual(result["evidence_class"], "CONFLICTING")
+        self.assertIn("PARCEL_IDENTITY_CONFLICT", result["reason_codes"])
+
+    def test_missing_gps_and_wrong_identity_are_mixed_evidence(self):
+        journey = make_journey(12)
+        journey["events"][-1]["gps_distance_m"] = None
+        journey["events"][-1]["parcel_id"] = "OTHER-PARCEL"
+        result = evaluate_journey(journey)
+        self.assertEqual(result["evidence_class"], "MIXED")
+        self.assertIn("DELIVERY_GPS_MISSING", result["reason_codes"])
+        self.assertIn("PARCEL_IDENTITY_CONFLICT", result["reason_codes"])
+
+    def test_boolean_is_not_accepted_as_timestamp_or_distance(self):
+        journey = make_journey(13)
+        journey["events"][-1]["timestamp"] = True
+        journey["events"][-1]["gps_distance_m"] = True
+        result = evaluate_journey(journey)
+        self.assertEqual(result["terminal_state"], "UNRESOLVED")
+        self.assertIn("TIMESTAMP_ORDER_OR_FORMAT_CONFLICT", result["reason_codes"])
+        self.assertIn("DELIVERY_GPS_OUTSIDE_LIMIT_OR_INVALID", result["reason_codes"])
+
     def test_compound_disturbances_are_unresolved(self):
         compound = make_compound_journey(3, ("gps_drift", "wrong_parcel", "missing_proof"))
         result = evaluate_journey(compound)
