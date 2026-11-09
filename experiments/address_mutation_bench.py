@@ -67,7 +67,8 @@ def benchmark() -> dict[str, Any]:
         state, reason = trace["terminal_state"], trace["reason_code"]
         states[state] = states.get(state, 0) + 1
         reasons[reason] = reasons.get(reason, 0) + 1
-        if row["mutations"] and state == "VERIFIED":
+        identity_mutated = any(mutation != "formatting_only" for mutation in row["mutations"])
+        if identity_mutated and state == "VERIFIED":
             false_accepts += 1
         if (state, reason) != (row["expected_terminal_state"], row["expected_reason_code"]):
             mismatches.append({"scenario": row["scenario"],
