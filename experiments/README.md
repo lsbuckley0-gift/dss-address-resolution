@@ -11,6 +11,7 @@ address data are used.
 ```bash
 python experiments/vehicle_collision_bench.py
 python experiments/vehicle_collision_bench.py --total 10000 --seed 88 --json-out vehicle-bench.json
+python -c "from experiments.vehicle_collision_bench import benchmark, generate_compound_dataset; import json; print(json.dumps(benchmark(generate_compound_dataset(1200)), indent=2))"
 python -m unittest discover -s tests -v
 ```
 
@@ -28,6 +29,23 @@ The default dataset contains 10,000 deterministic journeys:
 The evaluator returns `VERIFIED` only when all six declared checks pass.
 Otherwise it returns `UNRESOLVED` and names the failed checks. This benchmark
 does not attempt fuzzy correction.
+
+## Compound-disturbance experiment
+
+The `generate_compound_dataset(1200)` experiment contains 400 clean journeys and
+800 journeys carrying two or three simultaneous disturbances. It covers every
+pair and every triple drawn from the five disturbance classes, with balanced
+representation. This tests combinations rather than only isolated faults. Run it
+from Python with:
+
+```python
+from experiments.vehicle_collision_bench import benchmark, generate_compound_dataset
+report = benchmark(generate_compound_dataset(1200, seed=88))
+print(report)
+```
+
+The generated compound cases are still rule-shaped synthetic tests; they are not
+independent evidence of field performance.
 
 ## Reported measures
 
