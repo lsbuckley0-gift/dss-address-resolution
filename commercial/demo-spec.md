@@ -29,7 +29,7 @@ For each case, display:
 - Input/intended record.
 - Candidate(s) and provenance.
 - Normalisation applied.
-- Field-by-field comparison.
+- Field-by-field comparison for every candidate, including normalised equality, retrieval eligibility, protected-field checks, disposition and candidate-level reason codes.
 - Operation performed or refused.
 - Return-check result.
 - Terminal state and reason code.
@@ -51,5 +51,6 @@ A reviewer unfamiliar with ∂ss can:
 3. Reproduce the same output from the same code and configuration.
 4. Confirm that conflicting or ambiguous cases are not silently auto-accepted.
 5. Export a machine-readable trace and summary metrics.
+6. Inspect every candidate's field evidence and understand why it was selected, refused or left ambiguous.
 
 The demo is not complete until the executable implementation, automated tests, and documented results are present. This specification alone is not evidence of working software.
