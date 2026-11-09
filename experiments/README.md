@@ -75,6 +75,19 @@ independent evidence of field performance.
 - **Reason-code frequency:** number of evaluated journeys carrying each reason code
 - **Reason combinations:** frequency of each exact, sorted reason-code set (joined with ` + `)
 - **Condition-level fingerprints:** reason-code and exact-combination counts grouped by the synthetic injected condition
+- **Anomaly-to-invariant matrix:** each injected disturbance is mapped to its declared evaluator reason code; matrix rows show all reason codes observed in journeys carrying that disturbance
+- **Per-anomaly detection:** injected, detected, missed and detection-rate counts for each disturbance
+- **Clean reason-code counts:** any evaluator refusal reason appearing in journeys labelled clean
+
+The declared oracle mapping is explicit: `gps_drift` → `DELIVERY_GPS_OUTSIDE_LIMIT`,
+`wrong_parcel` → `PARCEL_IDENTITY_CONFLICT`, `wrong_destination` →
+`DESTINATION_IDENTITY_CONFLICT`, `reordered_events` → `TIMESTAMP_ORDER_CONFLICT`,
+and `missing_proof` → `DELIVERY_PROOF_REFERENCE_MISSING`. For compound journeys,
+each injected disturbance is counted as one occurrence. A disturbance is detected only
+when its mapped reason code appears in the evaluator's reason list. Other reason codes
+in that same row remain visible, exposing co-occurrence and unexpected classifications.
+This is a test-oracle mapping for the synthetic generator, not a claim that every real
+operational fault has one unique diagnostic signature.
 
 `by_condition` is the oracle-condition × evaluator-terminal-state matrix: the left-hand labels
 come from the generator's `injected_condition` metadata, while terminal states and reason
