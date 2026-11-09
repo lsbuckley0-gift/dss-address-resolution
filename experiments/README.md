@@ -133,7 +133,10 @@ consume injected labels. The clean success marker is checked directly against th
 journey invariants rather than by asking the evaluator to re-verify itself. The
 checker also refuses malformed trace collections and malformed event-index lists
 without crashing. It can also audit the refusal trace for a non-object journey
-input. Audit failures are reported as data and do not change evaluator
+input. It verifies the exact declared rule text for each finding, not merely that
+the explanation is non-empty. Mutation tests alter evidence kind, source, field,
+event index and rule independently; duplicate entries and fabricated findings
+must also be rejected. Audit failures are reported as data and do not change evaluator
 terminal states.
 
 Each evaluator trace now includes `evidence_provenance`, a deterministic list with
