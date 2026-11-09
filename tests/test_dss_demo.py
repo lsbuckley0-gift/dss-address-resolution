@@ -32,6 +32,7 @@ class DemoDecisionTests(unittest.TestCase):
         self.assertEqual(first["trace_id"], second["trace_id"])
         self.assertTrue(first["trace_id"].startswith("addr-"))
         self.assertEqual(first["ruleset_version"], "synthetic-address-demo/1.0")
+        self.assertEqual(first["trace_schema_version"], "candidate-trace/1.0")
         self.assertEqual(
             first["normalisation_rule"],
             "text-only Unicode casefold plus whitespace collapse",
@@ -390,6 +391,15 @@ class DemoDecisionTests(unittest.TestCase):
         trace = evaluate_case(case)
         audit = audit_candidate_trace(case, trace)
         self.assertTrue(audit["valid"], audit["mismatches"])
+
+    def test_independent_candidate_trace_audit_detects_schema_version_tampering(self):
+        case = self.by_id["01-exact"]
+        trace = evaluate_case(case)
+        trace["trace_schema_version"] = "candidate-trace/9.9"
+        audit = audit_candidate_trace(case, trace)
+        self.assertFalse(audit["valid"])
+        self.assertIn("TRACE_SCHEMA_VERSION_MISMATCH", audit["mismatches"])
+        self.assertIn("TRACE_ID_MISMATCH", audit["mismatches"])
 
     def test_independent_candidate_trace_audit_detects_trace_id_tampering(self):
         case = self.by_id["01-exact"]
