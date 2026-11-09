@@ -243,7 +243,7 @@ python experiments/address_mutation_bench.py
 python experiments/address_mutation_bench.py --json-out address-mutation-report.json
 ```
 
-The matrix contains 15 fictional cases: one clean baseline, one case/whitespace
+The matrix contains 18 fictional cases: one clean baseline, one case/whitespace
 formatting-only case, eight isolated mutations (premise, street deletion/substitution/insertion,
 multiple-edit street, adjacent transposition, locality and postcode), and six pairwise combinations across identity fields. Two additional cases exercise
 multiple exact candidates and multiple near candidates, including reversed candidate
