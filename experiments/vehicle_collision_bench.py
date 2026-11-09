@@ -39,6 +39,28 @@ ANOMALY_REASON_CODES = {
     "missing_proof": "DELIVERY_PROOF_REFERENCE_MISSING",
 }
 
+# Exact rule language is part of the provenance contract. The auditor checks
+# this independently rather than accepting any non-empty explanation.
+PROVENANCE_RULES = {
+    "JOURNEY_ID_MISSING_OR_INVALID": "A non-empty journey identifier is required.",
+    "EXPECTED_IDENTITY_FIELDS_MISSING_OR_INVALID": "Both expected identity references are required for full verification.",
+    "EXPECTED_PARCEL_ID_MISSING_OR_INVALID": "Expected parcel reference must be non-empty text.",
+    "EXPECTED_DESTINATION_ID_MISSING_OR_INVALID": "Expected destination reference must be non-empty text.",
+    "EVENT_RECORDS_MISSING_OR_INVALID": "Events must be a non-empty list of object records.",
+    "EVENT_SEQUENCE_MISMATCH": "Observed event types must match pickup, in_transit, delivered in order.",
+    "PARCEL_ID_MISSING_OR_INVALID": "Every event must carry a non-empty parcel identifier.",
+    "PARCEL_IDENTITY_CONFLICT": "Observed parcel identifiers must equal expected_parcel_id.",
+    "DESTINATION_ID_MISSING_OR_INVALID": "Every event must carry a non-empty destination identifier.",
+    "DESTINATION_IDENTITY_CONFLICT": "Observed destination identifiers must equal expected_destination_id.",
+    "TIMESTAMP_MISSING_OR_INVALID": "Exactly three finite numeric timestamps are required.",
+    "TIMESTAMP_ORDER_CONFLICT": "Adjacent event timestamps must be non-decreasing.",
+    "DELIVERY_GPS_MISSING": "A delivery GPS distance is required.",
+    "DELIVERY_GPS_INVALID": "GPS distance must be a finite non-negative number.",
+    "DELIVERY_GPS_OUTSIDE_LIMIT": f"Delivery GPS distance must be <= {GPS_LIMIT_METRES:g} metres.",
+    "DELIVERY_PROOF_REFERENCE_MISSING": "A non-empty delivery proof reference is required.",
+    "ALL_DECLARED_CHECKS_PASSED": "All declared checks passed; this is a success marker, not a failure.",
+}
+
 
 def _decode_injected_condition(condition: str) -> tuple[str, ...]:
     if condition == "clean":
@@ -620,7 +642,7 @@ def audit_provenance_trace(
         if (
             entry.get("evidence_kind") != kind or entry.get("source") != source
             or entry.get("fields") != fields or entry.get("event_indices") != indices
-            or not isinstance(entry.get("rule"), str) or not entry.get("rule")
+            or entry.get("rule") != PROVENANCE_RULES.get(code)
         ):
             invalid_pointers.append(code)
         raw_events = journey.get("events")
