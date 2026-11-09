@@ -1,12 +1,16 @@
+import io
 import json
 import sys
+import tempfile
 import unittest
+from contextlib import redirect_stdout
+from unittest.mock import patch
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "demo"))
 
-from dss_demo import audit_candidate_trace, edit_distance_at_most_one, evaluate_case  # noqa: E402
+from dss_demo import audit_candidate_trace, edit_distance_at_most_one, evaluate_case, main  # noqa: E402
 
 
 class DemoDecisionTests(unittest.TestCase):
@@ -298,6 +302,17 @@ class DemoDecisionTests(unittest.TestCase):
                         self.assertIn("intended_normalised", comparison)
                         self.assertIn("candidate_normalised", comparison)
                         self.assertIn("normalised_equal", comparison)
+
+    def test_cli_json_export_contains_machine_readable_audit_results(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output_path = Path(directory) / "candidate-traces.json"
+            with patch("sys.argv", ["dss_demo.py", "--json-out", str(output_path)]):
+                with redirect_stdout(io.StringIO()):
+                    main()
+            exported = json.loads(output_path.read_text(encoding="utf-8"))
+        self.assertEqual(len(exported), len(self.cases))
+        self.assertTrue(all(item["candidate_trace_audit"]["valid"] for item in exported))
+        self.assertTrue(all("candidate_trace" in item for item in exported))
 
     def test_independent_candidate_trace_audit_accepts_all_demo_cases(self):
         for case in self.cases:
