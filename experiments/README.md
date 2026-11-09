@@ -141,7 +141,7 @@ states; the audit must reject each altered decision contract. Non-object result
 values and non-string reason-code entries are also treated as malformed findings;
 the audit returns an invalid trace rather than raising an exception. Dataset-level
 auditing preserves one result per journey and aggregates these malformed-result
-failures without aborting the full audit. Additional mutation coverage replaces
+failures without aborting the full audit. The aggregate auditor also validates its outer inputs: `journeys` must be a list and `results` must be a list or `None`; malformed collection containers are rejected explicitly rather than being iterated accidentally. Additional mutation coverage replaces
 decision fields and trace collections with nulls, scalars, lists and mappings of
 the wrong shape; each altered result must be rejected. Clean dataset audits also
 assert zero decision mismatches in their aggregate counters.
