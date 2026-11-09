@@ -122,6 +122,9 @@ def make_interaction_journey(
         # Keep the wrong delivery identity but remove the middle event's parcel
         # field. The evaluator should report both independently observable facts.
         journey["events"][1]["parcel_id"] = ""
+    elif interaction == "missing_destination_with_separate_conflict" and primary_anomaly == "wrong_destination":
+        # Same precedence test for destination identity, independent of parcel logic.
+        journey["events"][1]["destination_id"] = ""
     else:
         raise ValueError(
             f"Unsupported interaction {interaction!r} for {primary_anomaly!r}"
