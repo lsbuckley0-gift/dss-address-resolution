@@ -365,6 +365,29 @@ class VehicleCollisionBenchTests(unittest.TestCase):
         self.assertEqual(detection["detected_occurrences"], 1)
         self.assertEqual(detection["missed_occurrences"], 0)
 
+    def test_malformed_expected_identity_values_do_not_mask_other_conflicts(self):
+        invalid_values = (None, "   ", 17, True)
+        for invalid in invalid_values:
+            with self.subTest(missing_parcel_reference=invalid):
+                journey = make_journey(49)
+                journey["expected_parcel_id"] = invalid
+                journey["events"][-1]["destination_id"] = "OTHER-DESTINATION"
+                result = evaluate_journey(journey)
+                self.assertIn("EXPECTED_PARCEL_ID_MISSING_OR_INVALID", result["reason_codes"])
+                self.assertIn("DESTINATION_IDENTITY_CONFLICT", result["reason_codes"])
+                self.assertNotIn("PARCEL_IDENTITY_CONFLICT", result["reason_codes"])
+                self.assertEqual(result["terminal_state"], "UNRESOLVED")
+
+            with self.subTest(missing_destination_reference=invalid):
+                journey = make_journey(50)
+                journey["expected_destination_id"] = invalid
+                journey["events"][-1]["parcel_id"] = "OTHER-PARCEL"
+                result = evaluate_journey(journey)
+                self.assertIn("EXPECTED_DESTINATION_ID_MISSING_OR_INVALID", result["reason_codes"])
+                self.assertIn("PARCEL_IDENTITY_CONFLICT", result["reason_codes"])
+                self.assertNotIn("DESTINATION_IDENTITY_CONFLICT", result["reason_codes"])
+                self.assertEqual(result["terminal_state"], "UNRESOLVED")
+
     def test_missing_secondary_symptom_can_mask_primary_fault(self):
         journey = make_interaction_journey(
             33, "wrong_parcel", "missing_parcel_masks_conflict"
