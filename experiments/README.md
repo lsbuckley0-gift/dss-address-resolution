@@ -129,8 +129,11 @@ against its underlying journey/event field and original event index, and reports
 when distinct findings legitimately share an event. The independent audit mapping
 covers every evaluator reason code, including malformed records, missing expected
 identity references, interaction fixtures and the clean success marker. It does not
-consume injected labels. Audit failures are reported as data and do not change
-evaluator terminal states.
+consume injected labels. The clean success marker is checked directly against the
+journey invariants rather than by asking the evaluator to re-verify itself. The
+checker also refuses malformed trace collections and malformed event-index lists
+without crashing. Audit failures are reported as data and do not change evaluator
+terminal states.
 
 Each evaluator trace now includes `evidence_provenance`, a deterministic list with
 one entry per emitted reason code. Each entry identifies the evidence kind
