@@ -731,7 +731,9 @@ def audit_provenance_trace(
     unsupported, invalid_pointers = [], []
     if malformed_result:
         unsupported.append("<malformed-result-object>")
-    if not isinstance(reasons, list) or not isinstance(entries, list):
+    if not isinstance(result.get("reason_codes", []), list) or not isinstance(
+        result.get("evidence_provenance", []), list
+    ):
         unsupported.append("<malformed-trace-collections>")
     if invalid_reason_values:
         unsupported.extend("<invalid-reason-code>" for _ in invalid_reason_values)
