@@ -365,6 +365,14 @@ class DemoDecisionTests(unittest.TestCase):
         audit = audit_candidate_trace(case, trace)
         self.assertTrue(audit["valid"], audit["mismatches"])
 
+    def test_independent_candidate_trace_audit_detects_trace_id_tampering(self):
+        case = self.by_id["01-exact"]
+        trace = evaluate_case(case)
+        trace["trace_id"] = "addr-tampered"
+        audit = audit_candidate_trace(case, trace)
+        self.assertFalse(audit["valid"])
+        self.assertIn("TRACE_ID_MISMATCH", audit["mismatches"])
+
     def test_independent_candidate_trace_audit_detects_field_tampering(self):
         case = self.by_id["02-formatting"]
         trace = evaluate_case(case)
