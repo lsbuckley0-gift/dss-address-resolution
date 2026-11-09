@@ -62,7 +62,7 @@ def audit_candidate_trace(case: Any, trace: Any) -> dict[str, Any]:
         }
 
     intended = case.get("intended")
-    if trace.get("intended") != intended:
+    if "intended" not in trace or trace.get("intended") != intended:
         mismatches.append("INTENDED_RECORD_MISMATCH")
     raw_candidates = case.get("candidates", [])
     candidates = raw_candidates if isinstance(raw_candidates, list) else []
