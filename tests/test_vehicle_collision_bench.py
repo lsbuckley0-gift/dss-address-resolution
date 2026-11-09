@@ -1,4 +1,5 @@
 import copy
+import random
 import sys
 from itertools import combinations, permutations
 import unittest
@@ -293,6 +294,39 @@ class VehicleCollisionBenchTests(unittest.TestCase):
             with self.subTest(events=events):
                 self.assertEqual(result["terminal_state"], "UNRESOLVED")
                 self.assertTrue(audit["valid"], msg=audit)
+    def test_seeded_mutation_walk_preserves_evaluator_audit_agreement(self):
+        """Run reproducible multi-field evidence mutations across varied baselines."""
+        rng = random.Random(20261109)
+        mutations = (
+            lambda j: j.update(journey_id=None),
+            lambda j: j.update(expected_parcel_id=[]),
+            lambda j: j.update(expected_destination_id=0),
+            lambda j: j["events"][0].update(type="unknown"),
+            lambda j: j["events"][1].update(parcel_id={"bad": True}),
+            lambda j: j["events"][2].update(destination_id="OTHER"),
+            lambda j: j["events"][0].update(timestamp=float("nan")),
+            lambda j: j["events"][2].update(gps_distance_m=float("inf")),
+            lambda j: j["events"][2].update(proof_id=[]),
+            lambda j: j["events"][1].update(timestamp=-1),
+        )
+        for index in range(256):
+            base = (
+                make_journey(940 + index)
+                if index % 2 == 0
+                else make_compound_journey(940 + index, ("gps_drift", "wrong_parcel"))
+            )
+            journey = copy.deepcopy(base)
+            for mutation_index in rng.sample(range(len(mutations)), rng.randint(1, 4)):
+                mutations[mutation_index](journey)
+            result = evaluate_journey(journey)
+            audit = audit_provenance_trace(journey, result)
+            with self.subTest(case=index, seed=20261109):
+                self.assertEqual(result["terminal_state"], "UNRESOLVED")
+                self.assertTrue(audit["valid"], msg=audit)
+                self.assertEqual(
+                    [item["reason_code"] for item in result["evidence_provenance"]],
+                    sorted(result["reason_codes"]),
+                )
     def test_provenance_audit_handles_non_object_journeys(self):
         for malformed in (None, "not-a-journey", 17, []):
             with self.subTest(malformed=malformed):
