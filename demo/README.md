@@ -22,7 +22,7 @@ No third-party packages are required.
 - `CORRECTED`: one candidate is unique under the demonstration retrieval rule, and the return check passes.
 - `UNRESOLVED`: no candidate, multiple candidates, or a failed return check.
 
-The return check requires exact agreement on premise, locality and postcode, and permits at most one edit in the street field for the typo-correction example. Address fields must be text: non-string values are not converted into strings, malformed case/intended/candidate containers are refused, and a malformed candidate record is not silently skipped beside a possible exact match. Non-text or blank candidate identifiers receive deterministic trace labels rather than being copied into the selected-candidate field. This is a deliberately narrow teaching rule, not a universal address-identity policy.
+The return check requires exact agreement on premise, locality and postcode, and permits at most one edit in the street field for the typo-correction example. The edit-distance helper also rejects non-text operands rather than normalising two malformed values into an apparent match. Address fields must be text: non-string values are not converted into strings, malformed case/intended/candidate containers are refused, and a malformed candidate record is not silently skipped beside a possible exact match. Non-text or blank candidate identifiers receive deterministic trace labels rather than being copied into the selected-candidate field. This is a deliberately narrow teaching rule, not a universal address-identity policy.
 
 ## Shared evidence trace
 
