@@ -230,11 +230,25 @@ def generate_dataset(total: int = 10_000, seed: int = 88) -> list[dict[str, Any]
 def benchmark(journeys: list[dict[str, Any]]) -> dict[str, Any]:
     outcomes = []
     matrix: dict[str, Counter[str]] = defaultdict(Counter)
+    reason_counts: Counter[str] = Counter()
+    reason_combinations: Counter[str] = Counter()
+    condition_reason_counts: dict[str, Counter[str]] = defaultdict(Counter)
+    condition_reason_combinations: dict[str, Counter[str]] = defaultdict(Counter)
+
     for journey in journeys:
         result = evaluate_journey(journey)
+        # injected_condition is benchmark oracle metadata only. It labels the
+        # generated case; evaluate_journey never reads it when deciding outcome.
         expected = journey["injected_condition"]
         observed = result["terminal_state"]
         matrix[expected][observed] += 1
+
+        reasons = tuple(sorted(result["reason_codes"]))
+        combination = " + ".join(reasons)
+        reason_counts.update(reasons)
+        reason_combinations[combination] += 1
+        condition_reason_counts[expected].update(reasons)
+        condition_reason_combinations[expected][combination] += 1
         outcomes.append(result)
 
     clean = matrix["clean"]
@@ -253,8 +267,19 @@ def benchmark(journeys: list[dict[str, Any]]) -> dict[str, Any]:
         "false_reject_count": false_rejects,
         "anomaly_detection_rate": detected / injected if injected else None,
         "clean_acceptance_rate": clean["VERIFIED"] / sum(clean.values()) if sum(clean.values()) else None,
+        # by_condition is the oracle-condition x evaluator-terminal-state matrix.
         "by_condition": {
             condition: dict(counts) for condition, counts in sorted(matrix.items())
+        },
+        "reason_code_counts": dict(sorted(reason_counts.items())),
+        "reason_combinations": dict(sorted(reason_combinations.items())),
+        "condition_reason_code_counts": {
+            condition: dict(sorted(counts.items()))
+            for condition, counts in sorted(condition_reason_counts.items())
+        },
+        "condition_reason_combinations": {
+            condition: dict(sorted(counts.items()))
+            for condition, counts in sorted(condition_reason_combinations.items())
         },
     }
 
