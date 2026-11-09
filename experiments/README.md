@@ -99,8 +99,15 @@ Two interaction fixtures are available through `make_interaction_journey`:
 
 - `reordered_events` + `sequence_echo`: the journey carries both a timestamp-order conflict and an event-sequence mismatch. The primary invariant remains detectable while the secondary symptom is exposed.
 - `wrong_parcel` + `missing_parcel_masks_conflict`: the delivery parcel field is then made blank. The evaluator reports the missing field rather than the underlying identity conflict. The primary injected fault is therefore refused but not specifically diagnosed by its expected reason code.
+- `wrong_parcel` + `missing_parcel_with_separate_conflict`: a different event's parcel field is made blank while the wrong delivery identity remains observable. The evaluator must report both the missing field and the separate identity conflict.
 
 These are deliberately constructed diagnostic stress cases, not statistical models of how often such interactions occur. A refusal can be correct while its diagnostic attribution is incomplete; the per-anomaly detection measure makes that distinction visible.
+
+Identity diagnosis is field-aware rather than mutually exclusive: a missing value
+must not suppress a contradictory non-empty value observed in another event. When
+the only conflicting value itself is erased, the evaluator cannot infer it and
+reports only what remains observable. This distinguishes evidence loss from
+reason-code precedence.
 
 The report's `interaction_diagnostic_summary` keeps these fixture outcomes separate:
 it counts primary detections and misses, diagnostic statuses and observed secondary
