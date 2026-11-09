@@ -296,6 +296,32 @@ class DemoDecisionTests(unittest.TestCase):
                     len(case["candidates"]) * 4,
                 )
 
+    def test_independent_candidate_trace_audit_checks_ambiguous_dispositions(self):
+        case = self.by_id["05-ambiguous"]
+        trace = evaluate_case(case)
+        trace["candidate_trace"][0]["disposition"] = "NOT_SELECTED"
+        audit = audit_candidate_trace(case, trace)
+        self.assertFalse(audit["valid"])
+        self.assertIn("CANDIDATE_DISPOSITION_MISMATCH:0", audit["mismatches"])
+
+    def test_independent_candidate_trace_audit_reconstructs_aggregate_outcome(self):
+        case = self.by_id["03-typo-correction"]
+        trace = evaluate_case(case)
+        trace["reason_code"] = "NO_SUPPORTED_CANDIDATE"
+        trace["terminal_state"] = "UNRESOLVED"
+        audit = audit_candidate_trace(case, trace)
+        self.assertFalse(audit["valid"])
+        self.assertIn("AGGREGATE_REASON_CODE_MISMATCH", audit["mismatches"])
+        self.assertIn("CANDIDATE_DISPOSITION_MISMATCH:0", audit["mismatches"])
+
+    def test_independent_candidate_trace_audit_accepts_duplicate_exact_candidates(self):
+        case = json.loads(json.dumps(self.by_id["01-exact"]))
+        case["candidates"].append(dict(case["candidates"][0]))
+        trace = evaluate_case(case)
+        audit = audit_candidate_trace(case, trace)
+        self.assertTrue(audit["valid"], audit["mismatches"])
+        self.assertEqual(trace["reason_code"], "MULTIPLE_EXACT_CANDIDATES")
+
     def test_independent_candidate_trace_audit_detects_field_tampering(self):
         case = self.by_id["02-formatting"]
         trace = evaluate_case(case)
