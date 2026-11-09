@@ -8,7 +8,7 @@ from typing import Any
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "demo"))
-from dss_demo import evaluate_case
+from dss_demo import audit_candidate_trace, evaluate_case
 
 BASE = {"premise": "14", "street": "King Street", "locality": "Fictionton", "postcode": "ZZ1 1ZZ"}
 MUTATIONS = {
@@ -92,9 +92,18 @@ def build_dataset() -> list[dict[str, Any]]:
 
 def benchmark() -> dict[str, Any]:
     records, mismatches, states, reasons = [], [], {}, {}
+    trace_audit_mismatches = []
+    trace_audit_candidate_count = 0
     false_accepts = 0
     for row in build_dataset():
         trace = evaluate_case(row["case"])
+        trace_audit = audit_candidate_trace(row["case"], trace)
+        trace_audit_candidate_count += trace_audit["candidate_count"]
+        if not trace_audit["valid"]:
+            trace_audit_mismatches.append({
+                "scenario": row["scenario"],
+                "mismatches": trace_audit["mismatches"],
+            })
         state, reason = trace["terminal_state"], trace["reason_code"]
         states[state] = states.get(state, 0) + 1
         reasons[reason] = reasons.get(reason, 0) + 1
@@ -109,13 +118,18 @@ def benchmark() -> dict[str, Any]:
             "expected_terminal_state": row["expected_terminal_state"],
             "expected_reason_code": row["expected_reason_code"],
             "observed_terminal_state": state, "observed_reason_code": reason,
+            "candidate_trace_audit_valid": trace_audit["valid"],
             "return_check_passed": trace["return_check"]["passed"]
                 if isinstance(trace.get("return_check"), dict) else None})
     return {"benchmark": "synthetic-address-mutation-matrix", "synthetic_only": True,
         "case_count": len(records), "state_counts": dict(sorted(states.items())),
         "reason_code_counts": dict(sorted(reasons.items())),
         "mutated_false_accepts": false_accepts, "oracle_mismatches": mismatches,
-        "passed": not mismatches and false_accepts == 0, "records": records}
+        "candidate_trace_audit_valid_count": len(records) - len(trace_audit_mismatches),
+        "candidate_trace_audit_candidate_count": trace_audit_candidate_count,
+        "candidate_trace_audit_mismatches": trace_audit_mismatches,
+        "passed": not mismatches and false_accepts == 0 and not trace_audit_mismatches,
+        "records": records}
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the synthetic ∂ss address mutation benchmark.")
