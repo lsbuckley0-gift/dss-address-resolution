@@ -303,6 +303,17 @@ class DemoDecisionTests(unittest.TestCase):
                         self.assertIn("candidate_normalised", comparison)
                         self.assertIn("normalised_equal", comparison)
 
+    def test_cli_candidate_detail_prints_field_values_and_dispositions(self):
+        output = io.StringIO()
+        with patch("sys.argv", ["dss_demo.py", "--candidate-detail"]):
+            with redirect_stdout(output):
+                main()
+        rendered = output.getvalue()
+        self.assertIn("candidate A [0]: SELECTED_EXACT", rendered)
+        self.assertIn("street: intended", rendered)
+        self.assertIn('"king street"', rendered)
+        self.assertIn("protected checks:", rendered)
+
     def test_cli_json_export_contains_machine_readable_audit_results(self):
         with tempfile.TemporaryDirectory() as directory:
             output_path = Path(directory) / "candidate-traces.json"
