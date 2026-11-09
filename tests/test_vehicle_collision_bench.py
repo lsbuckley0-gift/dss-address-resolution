@@ -210,6 +210,9 @@ class VehicleCollisionBenchTests(unittest.TestCase):
                 self.assertEqual(stats["first_only"], 0)
                 self.assertEqual(stats["second_only"], 0)
                 self.assertEqual(stats["neither_detected"], 0)
+                self.assertEqual(stats["first_detection_rate"], 1.0)
+                self.assertEqual(stats["second_detection_rate"], 1.0)
+                self.assertEqual(stats["joint_detection_rate"], 1.0)
                 self.assertEqual(stats["terminal_state_counts"], {"UNRESOLVED": 160})
                 self.assertEqual(
                     set(stats["expected_reason_codes"]),
