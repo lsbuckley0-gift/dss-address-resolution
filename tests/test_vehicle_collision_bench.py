@@ -6,7 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "experiments"))
 
 from vehicle_collision_bench import (  # noqa: E402
-    ANOMALIES, benchmark, evaluate_journey, generate_dataset, make_journey,
+    ANOMALIES, benchmark, evaluate_journey, generate_compound_dataset, generate_dataset, make_compound_journey, make_journey,
 )
 
 
@@ -33,6 +33,29 @@ class VehicleCollisionBenchTests(unittest.TestCase):
         self.assertEqual(report["detected_anomaly_count"], 500)
         self.assertEqual(report["false_accept_count"], 0)
         self.assertEqual(report["false_reject_count"], 0)
+
+
+    def test_compound_disturbances_are_unresolved(self):
+        compound = make_compound_journey(3, ("gps_drift", "wrong_parcel", "missing_proof"))
+        result = evaluate_journey(compound)
+        self.assertEqual(result["terminal_state"], "UNRESOLVED")
+        self.assertFalse(result["checks"]["parcel_identity_preserved"])
+        self.assertFalse(result["checks"]["delivery_within_gps_limit"])
+        self.assertFalse(result["checks"]["delivery_proof_present"])
+
+    def test_compound_benchmark_reports_pair_and_triple_failures(self):
+        dataset = generate_compound_dataset(1200, seed=88)
+        report = benchmark(dataset)
+        self.assertEqual(report["journey_count"], 1200)
+        self.assertEqual(report["injected_anomaly_count"], 800)
+        self.assertEqual(report["detected_anomaly_count"], 800)
+        self.assertEqual(report["false_accept_count"], 0)
+        self.assertEqual(report["false_reject_count"], 0)
+        self.assertTrue(any(k.startswith("compound:") for k in report["by_condition"]))
+
+    def test_compound_generator_rejects_duplicate_anomalies(self):
+        with self.assertRaises(ValueError):
+            make_compound_journey(4, ("gps_drift", "gps_drift"))
 
     def test_invalid_dataset_size_is_rejected(self):
         with self.assertRaises(ValueError):
