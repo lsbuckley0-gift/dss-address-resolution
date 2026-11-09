@@ -1,3 +1,4 @@
+import math
 import sys
 import unittest
 from pathlib import Path
@@ -61,8 +62,47 @@ class VehicleCollisionBenchTests(unittest.TestCase):
         journey["events"][-1]["gps_distance_m"] = True
         result = evaluate_journey(journey)
         self.assertEqual(result["terminal_state"], "UNRESOLVED")
-        self.assertIn("TIMESTAMP_ORDER_OR_FORMAT_CONFLICT", result["reason_codes"])
-        self.assertIn("DELIVERY_GPS_OUTSIDE_LIMIT_OR_INVALID", result["reason_codes"])
+        self.assertIn("TIMESTAMP_MISSING_OR_INVALID", result["reason_codes"])
+        self.assertIn("DELIVERY_GPS_INVALID", result["reason_codes"])
+
+    def test_malformed_journey_and_event_records_return_refusal_traces(self):
+        for malformed in (None, [], {"journey_id": "J-x", "events": [None]}):
+            with self.subTest(malformed=malformed):
+                result = evaluate_journey(malformed)
+                self.assertEqual(result["terminal_state"], "UNRESOLVED")
+                self.assertTrue(result["reason_codes"])
+
+    def test_missing_or_blank_journey_and_expected_ids_are_refused(self):
+        journey = make_journey(20)
+        journey["journey_id"] = "  "
+        journey["expected_parcel_id"] = ""
+        result = evaluate_journey(journey)
+        self.assertEqual(result["terminal_state"], "UNRESOLVED")
+        self.assertIn("JOURNEY_ID_MISSING_OR_INVALID", result["reason_codes"])
+        self.assertIn("EXPECTED_IDENTITY_FIELDS_MISSING_OR_INVALID", result["reason_codes"])
+
+    def test_duplicate_event_type_is_not_silently_reordered(self):
+        journey = make_journey(21)
+        journey["events"][1]["type"] = "pickup"
+        result = evaluate_journey(journey)
+        self.assertEqual(result["terminal_state"], "UNRESOLVED")
+        self.assertIn("EVENT_SEQUENCE_MISMATCH", result["reason_codes"])
+
+    def test_non_finite_and_negative_gps_distances_are_rejected(self):
+        for distance in (-0.1, float("nan"), float("inf"), float("-inf")):
+            with self.subTest(distance=distance):
+                journey = make_journey(22)
+                journey["events"][-1]["gps_distance_m"] = distance
+                result = evaluate_journey(journey)
+                self.assertEqual(result["terminal_state"], "UNRESOLVED")
+                self.assertIn("DELIVERY_GPS_INVALID", result["reason_codes"])
+
+    def test_gps_limit_is_inclusive_but_values_above_it_fail(self):
+        journey = make_journey(23)
+        journey["events"][-1]["gps_distance_m"] = 100.0
+        self.assertEqual(evaluate_journey(journey)["terminal_state"], "VERIFIED")
+        journey["events"][-1]["gps_distance_m"] = 100.0001
+        self.assertEqual(evaluate_journey(journey)["terminal_state"], "UNRESOLVED")
 
     def test_compound_disturbances_are_unresolved(self):
         compound = make_compound_journey(3, ("gps_drift", "wrong_parcel", "missing_proof"))
