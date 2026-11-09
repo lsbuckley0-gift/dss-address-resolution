@@ -431,6 +431,160 @@ def evaluate_journey(journey: Any) -> dict[str, Any]:
     }
 
 
+
+def _expected_provenance_pointer(
+    journey: dict[str, Any], reason_code: str
+) -> tuple[str, str, list[str], list[int]] | None:
+    """Independently derive the supported pointer for generated benchmark findings."""
+    raw_events = journey.get("events")
+    indexed = (
+        [(i, event) for i, event in enumerate(raw_events) if isinstance(event, dict)]
+        if isinstance(raw_events, list) else []
+    )
+    if reason_code == "ALL_DECLARED_CHECKS_PASSED":
+        result = evaluate_journey(journey)
+        if result["terminal_state"] != "VERIFIED":
+            return None
+        return (
+            "consistent", "journey",
+            ["journey_id", "expected_parcel_id", "expected_destination_id",
+             "events", "type", "parcel_id", "destination_id", "timestamp",
+             "gps_distance_m", "proof_id"],
+            [i for i, _ in indexed],
+        )
+    if not indexed:
+        return None
+    last_index, last_event = indexed[-1]
+    if reason_code == "DELIVERY_GPS_OUTSIDE_LIMIT":
+        value = last_event.get("gps_distance_m")
+        if _finite_number(value) and value > GPS_LIMIT_METRES:
+            return ("conflict", "events", ["gps_distance_m"], [last_index])
+    elif reason_code == "PARCEL_IDENTITY_CONFLICT":
+        expected = journey.get("expected_parcel_id")
+        indices = [i for i, event in indexed if _nonempty_text(expected)
+                   and _nonempty_text(event.get("parcel_id"))
+                   and event.get("parcel_id") != expected]
+        if indices:
+            return ("conflict", "events", ["parcel_id"], indices)
+    elif reason_code == "DESTINATION_IDENTITY_CONFLICT":
+        expected = journey.get("expected_destination_id")
+        indices = [i for i, event in indexed if _nonempty_text(expected)
+                   and _nonempty_text(event.get("destination_id"))
+                   and event.get("destination_id") != expected]
+        if indices:
+            return ("conflict", "events", ["destination_id"], indices)
+    elif reason_code == "TIMESTAMP_ORDER_CONFLICT":
+        conflicts = [
+            (indexed[pos][0], indexed[pos + 1][0])
+            for pos in range(min(2, len(indexed) - 1))
+            if _finite_number(indexed[pos][1].get("timestamp"))
+            and _finite_number(indexed[pos + 1][1].get("timestamp"))
+            and indexed[pos][1]["timestamp"] > indexed[pos + 1][1]["timestamp"]
+        ]
+        indices = sorted({i for pair in conflicts for i in pair})
+        if indices:
+            return ("conflict", "events", ["timestamp"], indices)
+    elif reason_code == "DELIVERY_PROOF_REFERENCE_MISSING":
+        if not _nonempty_text(last_event.get("proof_id")):
+            return ("missing", "events", ["proof_id"], [last_index])
+    return None
+
+
+def audit_provenance_trace(
+    journey: dict[str, Any], result: dict[str, Any]
+) -> dict[str, Any]:
+    """Check exact reason coverage and independently validate generated pointers."""
+    reasons = result.get("reason_codes", [])
+    entries = result.get("evidence_provenance", [])
+    reason_counts = Counter(reasons)
+    entry_counts = Counter(
+        entry.get("reason_code") for entry in entries if isinstance(entry, dict)
+    )
+    missing = sorted(code for code, count in reason_counts.items()
+                     for _ in range(max(0, count - entry_counts[code])))
+    orphaned = sorted(code for code, count in entry_counts.items()
+                      for _ in range(max(0, count - reason_counts[code])))
+    duplicates = sorted(code for code, count in entry_counts.items() if count > 1)
+    unsupported, invalid_pointers = [], []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            unsupported.append("<non-object-entry>")
+            continue
+        code = entry.get("reason_code")
+        expected = _expected_provenance_pointer(journey, code)
+        if expected is None:
+            unsupported.append(code)
+            continue
+        kind, source, fields, indices = expected
+        if (
+            entry.get("evidence_kind") != kind or entry.get("source") != source
+            or entry.get("fields") != fields or entry.get("event_indices") != indices
+            or not isinstance(entry.get("rule"), str) or not entry.get("rule")
+        ):
+            invalid_pointers.append(code)
+        raw_events = journey.get("events")
+        if any(
+            not isinstance(index, int) or isinstance(index, bool)
+            or not isinstance(raw_events, list) or index < 0 or index >= len(raw_events)
+            for index in entry.get("event_indices", [])
+        ):
+            invalid_pointers.append(code)
+    event_reason_counts = Counter(
+        index for entry in entries if isinstance(entry, dict)
+        for index in entry.get("event_indices", [])
+        if isinstance(index, int) and not isinstance(index, bool)
+    )
+    shared_event_indices = sorted(
+        index for index, count in event_reason_counts.items() if count > 1
+    )
+    distinct_findings = len(set(reasons) - {"ALL_DECLARED_CHECKS_PASSED"})
+    return {
+        "valid": not (missing or orphaned or duplicates or unsupported or invalid_pointers),
+        "reason_count": len(reasons),
+        "provenance_entry_count": len(entries),
+        "missing_reason_entries": missing,
+        "orphaned_provenance_entries": orphaned,
+        "duplicate_reason_entries": duplicates,
+        "unsupported_findings": unsupported,
+        "invalid_evidence_pointers": sorted(set(invalid_pointers)),
+        "shared_event_indices": shared_event_indices,
+        "distinct_finding_count": distinct_findings,
+    }
+
+
+def audit_provenance(
+    journeys: list[dict[str, Any]], results: list[dict[str, Any]] | None = None
+) -> dict[str, Any]:
+    """Audit dataset traces without consulting injected oracle labels."""
+    evaluated = results if results is not None else [
+        evaluate_journey(journey) for journey in journeys
+    ]
+    if len(evaluated) != len(journeys):
+        raise ValueError("results must contain exactly one trace per journey")
+    traces = [audit_provenance_trace(j, r) for j, r in zip(journeys, evaluated)]
+    return {
+        "journey_count": len(journeys),
+        "valid_journey_count": sum(trace["valid"] for trace in traces),
+        "invalid_journey_count": sum(not trace["valid"] for trace in traces),
+        "reason_count": sum(trace["reason_count"] for trace in traces),
+        "provenance_entry_count": sum(trace["provenance_entry_count"] for trace in traces),
+        "missing_reason_entry_count": sum(len(trace["missing_reason_entries"]) for trace in traces),
+        "orphaned_entry_count": sum(len(trace["orphaned_provenance_entries"]) for trace in traces),
+        "duplicate_entry_count": sum(len(trace["duplicate_reason_entries"]) for trace in traces),
+        "unsupported_finding_count": sum(len(trace["unsupported_findings"]) for trace in traces),
+        "invalid_pointer_count": sum(len(trace["invalid_evidence_pointers"]) for trace in traces),
+        "journeys_with_shared_event_findings": sum(
+            bool(trace["shared_event_indices"]) for trace in traces
+        ),
+        "shared_event_reference_count": sum(
+            len(trace["shared_event_indices"]) for trace in traces
+        ),
+        "all_findings_distinct_by_reason_code": all(
+            not trace["duplicate_reason_entries"] for trace in traces
+        ),
+    }
+
+
 def benchmark_diagnostic_record(
     injected_anomalies: tuple[str, ...], result: dict[str, Any]
 ) -> dict[str, Any]:
@@ -697,6 +851,7 @@ def benchmark(journeys: list[dict[str, Any]]) -> dict[str, Any]:
         "diagnostic_records": sorted(
             diagnostic_records, key=lambda record: (record["journey_id"] or "")
         ),
+        "provenance_audit": audit_provenance(journeys, outcomes),
     }
 
 
