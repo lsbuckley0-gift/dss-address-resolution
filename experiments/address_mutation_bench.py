@@ -62,14 +62,15 @@ def build_dataset() -> list[dict[str, Any]]:
                               "intended": deepcopy(BASE), "candidates": [candidate]}})
     # Cardinality stresses are separate from field mutations: multiple exact
     # candidates and multiple near candidates must remain unresolved.
-    duplicate = {"candidate_id": "duplicate-exact", **deepcopy(BASE)}
+    exact_candidate = {"candidate_id": "exact-a", **deepcopy(BASE)}
+    duplicate = {"candidate_id": "exact-b", **deepcopy(BASE)}
     rows.append({"scenario": "duplicate-exact-candidates",
         "mutations": ["candidate_cardinality_duplicate"],
         "expected_terminal_state": "UNRESOLVED",
         "expected_reason_code": "MULTIPLE_EXACT_CANDIDATES",
         "case": {"case_id": f"mutation-{len(rows)+1:02d}",
                  "intended": deepcopy(BASE),
-                 "candidates": [deepcopy(candidate), duplicate]}})
+                 "candidates": [exact_candidate, duplicate]}})
     near_intended = {**deepcopy(BASE), "street": "King Stret"}
     near_candidates = [
         {"candidate_id": "near-a", **deepcopy(BASE)},
