@@ -250,6 +250,40 @@ class VehicleCollisionBenchTests(unittest.TestCase):
             {"PARCEL_ID_MISSING_OR_INVALID": 1},
         )
 
+    def test_diagnostic_trace_identifies_primary_and_secondary_symptoms(self):
+        journey = make_interaction_journey(34, "reordered_events", "sequence_echo")
+        report = benchmark([journey])
+        trace = report["diagnostic_records"][0]
+        self.assertEqual(trace["primary_fault"], "reordered_events")
+        self.assertEqual(trace["expected_reason_code"], "TIMESTAMP_ORDER_CONFLICT")
+        self.assertTrue(trace["primary_fault_detected"])
+        self.assertEqual(trace["secondary_symptoms"], ["EVENT_SEQUENCE_MISMATCH"])
+        self.assertEqual(trace["diagnostic_status"], "PRIMARY_IDENTIFIED_WITH_SYMPTOMS")
+
+    def test_diagnostic_trace_marks_refusal_with_masked_primary(self):
+        journey = make_interaction_journey(
+            35, "wrong_parcel", "missing_parcel_masks_conflict"
+        )
+        report = benchmark([journey])
+        trace = report["diagnostic_records"][0]
+        self.assertEqual(trace["primary_fault"], "wrong_parcel")
+        self.assertFalse(trace["primary_fault_detected"])
+        self.assertEqual(trace["observed_reason_codes"], ["PARCEL_ID_MISSING_OR_INVALID"])
+        self.assertEqual(trace["secondary_symptoms"], ["PARCEL_ID_MISSING_OR_INVALID"])
+        self.assertEqual(trace["diagnostic_status"], "PRIMARY_MASKED")
+        self.assertEqual(report["diagnostic_status_counts"], {"PRIMARY_MASKED": 1})
+
+    def test_clean_and_compound_diagnostic_attribution_is_not_overstated(self):
+        clean = make_journey(36)
+        compound = make_compound_journey(37, ("gps_drift", "wrong_parcel"))
+        report = benchmark([clean, compound])
+        by_id = {record["journey_id"]: record for record in report["diagnostic_records"]}
+        self.assertEqual(by_id["J-000036"]["diagnostic_status"], "CLEAN")
+        self.assertIsNone(by_id["J-000036"]["primary_fault_detected"])
+        self.assertEqual(by_id["J-000037"]["diagnostic_status"], "UNATTRIBUTED")
+        self.assertIsNone(by_id["J-000037"]["primary_fault"])
+        self.assertIsNone(by_id["J-000037"]["expected_reason_code"])
+
     def test_evaluator_does_not_consume_injected_oracle_label(self):
         journey = make_journey(30)
         journey["injected_condition"] = "compound:wrong_parcel+gps_drift"
