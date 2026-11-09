@@ -121,6 +121,34 @@ class VehicleCollisionBenchTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "exactly one trace per journey"):
             audit_provenance([make_journey(913)], results=[])
 
+    def test_provenance_audit_rejects_non_object_result_and_unhashable_codes(self):
+        journey = make_journey(918)
+        for malformed in (None, "not-a-result", 17, []):
+            with self.subTest(result=malformed):
+                audit = audit_provenance_trace(journey, malformed)
+                self.assertFalse(audit["valid"], msg=audit)
+                self.assertIn(
+                    "<malformed-result-or-trace-collections>",
+                    audit["unsupported_findings"],
+                )
+                self.assertIn("checks", audit["decision_mismatches"])
+
+        result = evaluate_journey(journey)
+        result["reason_codes"] = [{"forged": "code"}]
+        audit = audit_provenance_trace(journey, result)
+        self.assertFalse(audit["valid"])
+        self.assertIn("<invalid-reason-code>", audit["unsupported_findings"])
+        self.assertEqual(audit["distinct_finding_count"], 0)
+
+    def test_provenance_audit_rejects_malformed_dataset_result_items(self):
+        journeys = [make_journey(919), make_journey(920, "wrong_parcel")]
+        for malformed in (None, "bad-result", 4, []):
+            audit = audit_provenance(journeys, results=[evaluate_journey(journeys[0]), malformed])
+            self.assertEqual(audit["journey_count"], 2)
+            self.assertEqual(audit["valid_journey_count"], 1)
+            self.assertEqual(audit["invalid_journey_count"], 1)
+            self.assertEqual(audit["decision_mismatch_count"], 3)
+
     def test_provenance_audit_handles_non_object_journeys(self):
         for malformed in (None, "not-a-journey", 17, []):
             with self.subTest(malformed=malformed):
