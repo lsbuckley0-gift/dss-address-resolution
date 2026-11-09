@@ -137,7 +137,11 @@ silently make a trace appear complete. It rejects malformed reason-code values.
 It also independently recomputes every declared check, the evidence class and
 the terminal state from the journey. Mutation tests alter or remove individual
 checks, add an unearned check, and falsify both accepted and refused terminal
-states; the audit must reject each altered decision contract.
+states; the audit must reject each altered decision contract. Non-object result
+values and non-string reason-code entries are also treated as malformed findings;
+the audit returns an invalid trace rather than raising an exception. Dataset-level
+auditing preserves one result per journey and aggregates these malformed-result
+failures without aborting the full audit.
 The checker also refuses malformed trace collections and malformed event-index lists
 without crashing. It can also audit the refusal trace for a non-object journey
 input. It verifies the exact declared rule text for each finding, not merely that
