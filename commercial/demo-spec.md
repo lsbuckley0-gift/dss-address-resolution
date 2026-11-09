@@ -29,7 +29,7 @@ For each case, display:
 - Input/intended record.
 - Candidate(s) and provenance.
 - Normalisation applied.
-- Field-by-field comparison for every candidate, including raw and normalised values, normalised equality, retrieval eligibility, protected-field checks, disposition and candidate-level reason codes.
+- Field-by-field comparison for every candidate, including its zero-based list position, raw and normalised values, normalised equality, retrieval eligibility, protected-field checks, disposition and candidate-level reason codes. Candidate position must disambiguate repeated source identifiers.
 - Operation performed or refused.
 - Return-check result.
 - Terminal state and reason code.
