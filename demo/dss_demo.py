@@ -20,6 +20,7 @@ from dss_core.evidence import classify_evidence
 
 FIELDS = ("premise", "street", "locality", "postcode")
 RULESET_VERSION = "synthetic-address-demo/1.0"
+TRACE_SCHEMA_VERSION = "candidate-trace/1.0"
 NORMALISATION_RULE = "text-only Unicode casefold plus whitespace collapse"
 
 
@@ -111,12 +112,14 @@ def finalise_trace(trace: dict[str, Any]) -> dict[str, Any]:
         "candidate_ids": trace.get("candidate_ids", []),
         "candidate_count": trace.get("candidate_count", 0),
         "selected_candidate_index": trace.get("selected_candidate_index"),
+        "trace_schema_version": TRACE_SCHEMA_VERSION,
         "terminal_state": trace.get("terminal_state"),
         "reason_code": reason,
     }
     encoded = json.dumps(identity, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
     trace["trace_id"] = "addr-" + hashlib.sha256(encoded.encode("utf-8")).hexdigest()[:16]
     trace["ruleset_version"] = RULESET_VERSION
+    trace["trace_schema_version"] = TRACE_SCHEMA_VERSION
     trace["normalisation_rule"] = NORMALISATION_RULE
     return trace
 
@@ -499,11 +502,14 @@ def audit_candidate_trace(case: Any, trace: Any) -> dict[str, Any]:
     ):
         mismatches.append("SELECTED_CANDIDATE_REFERENCE_MISMATCH")
 
+    if trace.get("trace_schema_version") != TRACE_SCHEMA_VERSION:
+        mismatches.append("TRACE_SCHEMA_VERSION_MISMATCH")
     identity = {
         "case_id": case.get("case_id") if isinstance(case.get("case_id"), str) else None,
         "candidate_ids": expected_ids,
         "candidate_count": expected_count,
         "selected_candidate_index": trace.get("selected_candidate_index"),
+        "trace_schema_version": TRACE_SCHEMA_VERSION,
         "terminal_state": trace.get("terminal_state"),
         "reason_code": trace.get("reason_code"),
     }
