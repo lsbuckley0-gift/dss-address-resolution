@@ -171,6 +171,50 @@ class VehicleCollisionBenchTests(unittest.TestCase):
             self.assertEqual(audit["invalid_journey_count"], 1)
             self.assertEqual(audit["decision_mismatch_count"], 3)
 
+    def test_provenance_audit_survives_deterministic_nested_mutation_matrix(self):
+        """Exercise JSON-shaped corruption at every nested audit boundary."""
+        journey = make_journey(917, "wrong_parcel")
+        baseline = evaluate_journey(journey)
+        mutations = (
+            ("checks", None), ("checks", [True]), ("checks", {"forged": []}),
+            ("evidence_class", {"nested": [None]}),
+            ("terminal_state", {"state": "VERIFIED"}),
+            ("reason_codes", [None]), ("reason_codes", [[]]),
+            ("reason_codes", [{}]), ("reason_codes", [17]),
+            ("reason_codes", {"not": "a-list"}),
+            ("evidence_provenance", [None]),
+            ("evidence_provenance", [{"reason_code": []}]),
+            ("evidence_provenance", {"not": "a-list"}),
+        )
+        for field, value in mutations:
+            result = copy.deepcopy(baseline)
+            result[field] = value
+            with self.subTest(field=field, value=value):
+                audit = audit_provenance_trace(journey, result)
+                self.assertFalse(audit["valid"], msg=audit)
+
+        pointer_mutations = (
+            [True], [1.5], [-1], ["0"], [{}], [[]], [None], [0, "1"],
+        )
+        for indices in pointer_mutations:
+            result = copy.deepcopy(baseline)
+            result["evidence_provenance"][0]["event_indices"] = indices
+            with self.subTest(event_indices=indices):
+                audit = audit_provenance_trace(journey, result)
+                self.assertFalse(audit["valid"], msg=audit)
+
+        entry_mutations = (
+            {"evidence_kind": []}, {"source": {}}, {"fields": [None]},
+            {"fields": {"parcel_id": True}}, {"rule": ["forged"]},
+            {"reason_code": {"nested": []}},
+        )
+        for changes in entry_mutations:
+            result = copy.deepcopy(baseline)
+            result["evidence_provenance"][0].update(changes)
+            with self.subTest(provenance_changes=changes):
+                audit = audit_provenance_trace(journey, result)
+                self.assertFalse(audit["valid"], msg=audit)
+
     def test_provenance_audit_handles_non_object_journeys(self):
         for malformed in (None, "not-a-journey", 17, []):
             with self.subTest(malformed=malformed):
