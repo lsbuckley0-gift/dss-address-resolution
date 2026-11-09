@@ -77,7 +77,7 @@ class VehicleCollisionBenchTests(unittest.TestCase):
         journeys[3]["events"].insert(1, "malformed-event")
         audit = audit_provenance(journeys)
         self.assertEqual(audit["journey_count"], 4)
-        self.assertEqual(audit["valid_journey_count"], 4)
+        self.assertEqual(audit["valid_journey_count"], 4, msg=str(audit))
         self.assertEqual(audit["invalid_journey_count"], 0)
         self.assertEqual(audit["missing_reason_entry_count"], 0)
         self.assertEqual(audit["orphaned_entry_count"], 0)
