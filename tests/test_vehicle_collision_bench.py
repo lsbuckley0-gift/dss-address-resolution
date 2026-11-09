@@ -118,6 +118,18 @@ class VehicleCollisionBenchTests(unittest.TestCase):
         self.assertEqual(audit["unreported_reason_count"], 0)
         self.assertEqual(audit["unexpected_reason_count"], 0)
 
+    def test_dataset_audit_rejects_malformed_outer_collections(self):
+        for journeys in (None, "journey", {}, 4, (make_journey(1),)):
+            with self.subTest(journeys=journeys):
+                with self.assertRaisesRegex(TypeError, "journeys must be a list"):
+                    audit_provenance(journeys)
+
+        journey_list = [make_journey(2)]
+        for results in ("result", {}, 4, (evaluate_journey(journey_list[0]),)):
+            with self.subTest(results=results):
+                with self.assertRaisesRegex(TypeError, "results must be a list or None"):
+                    audit_provenance(journey_list, results=results)
+
     def test_dataset_audit_rejects_trace_count_mismatch(self):
         with self.assertRaisesRegex(ValueError, "exactly one trace per journey"):
             audit_provenance([make_journey(913)], results=[])
