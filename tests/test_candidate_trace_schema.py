@@ -55,6 +55,8 @@ def schema_errors(value, schema, path="$", root=None):
             for index, item in enumerate(value):
                 errors.extend(schema_errors(item, schema["items"], f"{path}[{index}]", root))
     if isinstance(value, dict):
+        if len(value) > schema.get("maxProperties", float("inf")):
+            errors.append(f"{path}: too many properties")
         if len(value) < schema.get("minProperties", 0):
             errors.append(f"{path}: too few properties")
         missing = set(schema.get("required", ())) - set(value)
@@ -119,6 +121,11 @@ class CandidateTraceSchemaTests(unittest.TestCase):
         self.assertTrue(schema_errors(exported, self.schema))
         exported = self.export()
         exported[0]["trace_id"] = "addr-not-a-digest"
+        self.assertTrue(schema_errors(exported, self.schema))
+
+    def test_schema_rejects_partial_field_comparison_objects(self):
+        exported = self.export()
+        exported[0]["candidate_trace"][0]["field_comparisons"] = {"street": {}}
         self.assertTrue(schema_errors(exported, self.schema))
 
     def test_schema_rejects_unexpected_top_level_and_candidate_properties(self):
