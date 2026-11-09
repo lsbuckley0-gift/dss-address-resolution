@@ -312,7 +312,7 @@ class DemoDecisionTests(unittest.TestCase):
         audit = audit_candidate_trace(case, trace)
         self.assertFalse(audit["valid"])
         self.assertIn("AGGREGATE_REASON_CODE_MISMATCH", audit["mismatches"])
-        self.assertIn("CANDIDATE_DISPOSITION_MISMATCH:0", audit["mismatches"])
+        self.assertIn("AGGREGATE_TERMINAL_STATE_MISMATCH", audit["mismatches"])
 
     def test_independent_candidate_trace_audit_accepts_duplicate_exact_candidates(self):
         case = json.loads(json.dumps(self.by_id["01-exact"]))
