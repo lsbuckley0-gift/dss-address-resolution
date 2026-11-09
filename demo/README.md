@@ -66,7 +66,7 @@ A customer pilot must use an authorised, labelled dataset, a frozen baseline and
 
 ## Machine-readable candidate-trace schema
 
-The `--json-out` export is a JSON array of audited case traces. Its v1 structure is defined by [`schemas/candidate-trace-v1.schema.json`](schemas/candidate-trace-v1.schema.json), using JSON Schema Draft 2020-12. The schema describes the exported envelope, including the independent `candidate_trace_audit` result, rather than the evaluator's pre-audit in-memory trace.
+The `--json-out` export is a JSON array of audited case traces. Its v1 structure is defined by [`schemas/candidate-trace-v1.schema.json`](schemas/candidate-trace-v1.schema.json), using JSON Schema Draft 2020-12. The schema describes the exported envelope, including the independent `candidate_trace_audit` result, rather than the evaluator's pre-audit in-memory trace. It only accepts exports whose independent audit is successful (`valid: true`, with no mismatches), matching the CLI's fail-closed export behavior.
 
 The trace schema version (`candidate-trace/1.0`) describes field names, types, allowed terminal states/dispositions and required audit metadata. The ruleset version (`synthetic-address-demo/1.0`) describes decision policy; changing one does not automatically change the other. A breaking change to the exported structure requires a new schema version and schema file. Compatible additive changes are intentionally not accepted by this v1 contract because exported objects reject undeclared properties; publish a new schema version when adding fields so consumers can pin a stable contract.
 
