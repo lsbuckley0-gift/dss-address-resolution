@@ -729,8 +729,10 @@ def audit_provenance_trace(
                       for _ in range(max(0, count - reason_counts[code])))
     duplicates = sorted(code for code, count in entry_counts.items() if count > 1)
     unsupported, invalid_pointers = [], []
-    if malformed_trace:
-        unsupported.append("<malformed-result-or-trace-collections>")
+    if malformed_result:
+        unsupported.append("<malformed-result-object>")
+    if not isinstance(reasons, list) or not isinstance(entries, list):
+        unsupported.append("<malformed-trace-collections>")
     if invalid_reason_values:
         unsupported.extend("<invalid-reason-code>" for _ in invalid_reason_values)
     for entry in entries:
