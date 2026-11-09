@@ -241,6 +241,10 @@ def evaluate_journey(journey: Any) -> dict[str, Any]:
         missing.append("JOURNEY_ID_MISSING_OR_INVALID")
     if not expected_ids_valid:
         missing.append("EXPECTED_IDENTITY_FIELDS_MISSING_OR_INVALID")
+    if not expected_parcel_valid:
+        missing.append("EXPECTED_PARCEL_ID_MISSING_OR_INVALID")
+    if not expected_destination_valid:
+        missing.append("EXPECTED_DESTINATION_ID_MISSING_OR_INVALID")
     if not events_well_formed or not events:
         missing.append("EVENT_RECORDS_MISSING_OR_INVALID")
     if not sequence_ok:
