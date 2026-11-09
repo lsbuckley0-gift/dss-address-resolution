@@ -121,6 +121,18 @@ When the only conflicting value itself is erased, the evaluator cannot infer it
 and reports only what remains observable. This distinguishes evidence loss from
 reason-code precedence.
 
+Each evaluator trace now includes `evidence_provenance`, a deterministic list with
+one entry per emitted reason code. Each entry identifies the evidence kind
+(`missing`, `conflict` or `consistent`), source, field names, original zero-based
+event indices and the declared comparison rule. Event indices refer to the input
+list before malformed records are skipped, so an auditor can locate evidence in
+the original journey. Provenance records deliberately omit raw observed and
+expected values; they provide locations and rules without duplicating potentially
+sensitive identity data. The success marker receives a `consistent` provenance
+entry and remains distinct from failure findings. These are evaluator-produced
+evidence pointers, not cryptographic attestations or proof that upstream source
+data is authentic.
+
 The report's `interaction_diagnostic_summary` keeps these fixture outcomes separate:
 it counts primary detections and misses, diagnostic statuses and observed secondary
 symptoms for each named interaction. This makes a masking failure visible without
