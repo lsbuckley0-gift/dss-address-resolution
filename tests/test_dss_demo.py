@@ -118,6 +118,17 @@ class DemoDecisionTests(unittest.TestCase):
         self.assertEqual(result["reason_code"], "MALFORMED_CANDIDATE_RECORD")
         self.assertIsNone(result["selected_candidate"])
 
+    def test_malformed_candidate_identifiers_use_safe_trace_labels(self):
+        valid = self.by_id["01-exact"]
+        for candidate_id in (None, 0, {}, [], "   "):
+            case = json.loads(json.dumps(valid))
+            case["candidates"][0]["candidate_id"] = candidate_id
+            result = evaluate_case(case)
+            with self.subTest(candidate_id=candidate_id):
+                self.assertEqual(result["terminal_state"], "VERIFIED")
+                self.assertEqual(result["candidate_ids"], ["candidate-1"])
+                self.assertEqual(result["selected_candidate"], "candidate-1")
+
     def test_return_check_detects_wrong_postcode(self):
         case = self.by_id["07-return-check-fails"]
         result = evaluate_case(case)
