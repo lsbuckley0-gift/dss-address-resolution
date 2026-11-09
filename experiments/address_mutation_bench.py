@@ -17,7 +17,7 @@ MUTATIONS = {
     "street_multiple_edits": ("street", "Kng Strret"),
     "street_substitution": ("street", "King Streat"),
     "street_insertion": ("street", "King Streeet"),
-    "street_transposition": ("street", "King Steert"),
+    "street_transposition": ("street", "King Steret"),
     "locality_conflict": ("locality", "Elsewhere"),
     "postcode_conflict": ("postcode", "ZZ9 9ZZ"),
 }
