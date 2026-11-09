@@ -65,6 +65,30 @@ class VehicleCollisionBenchTests(unittest.TestCase):
             audit = audit_provenance_trace(journey, result)
         self.assertTrue(audit["valid"], msg=audit)
 
+    def test_dataset_audit_aggregates_malformed_and_interaction_traces(self):
+        journeys = [
+            make_interaction_journey(909, "reordered_events", "sequence_echo"),
+            make_interaction_journey(910, "wrong_parcel", "missing_parcel_masks_conflict"),
+            make_interaction_journey(
+                911, "wrong_parcel", "missing_parcel_with_separate_conflict"
+            ),
+            make_journey(912),
+        ]
+        journeys[3]["events"].insert(1, "malformed-event")
+        audit = audit_provenance(journeys)
+        self.assertEqual(audit["journey_count"], 4)
+        self.assertEqual(audit["valid_journey_count"], 4)
+        self.assertEqual(audit["invalid_journey_count"], 0)
+        self.assertEqual(audit["missing_reason_entry_count"], 0)
+        self.assertEqual(audit["orphaned_entry_count"], 0)
+        self.assertEqual(audit["duplicate_entry_count"], 0)
+        self.assertEqual(audit["unsupported_finding_count"], 0)
+        self.assertEqual(audit["invalid_pointer_count"], 0)
+
+    def test_dataset_audit_rejects_trace_count_mismatch(self):
+        with self.assertRaisesRegex(ValueError, "exactly one trace per journey"):
+            audit_provenance([make_journey(913)], results=[])
+
     def test_provenance_audit_handles_non_object_journeys(self):
         for malformed in (None, "not-a-journey", 17, []):
             with self.subTest(malformed=malformed):
