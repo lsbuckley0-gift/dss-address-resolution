@@ -2,32 +2,55 @@
 
 A strict control loop for resolving noisy, incomplete, or conflicting address and identity records.
 
-This is not a fuzzy matcher. It is a verification envelope. It refuses to guess. If the evidence does not support a single confident landing, it returns `UNRESOLVED`.
+∂ss is designed as a verification envelope around candidate generation. It distinguishes a plausible candidate from an established resolution. If the evidence does not support a safe, unique landing, the outcome is `UNRESOLVED`.
 
 ## The Core Problem
 
-In high-stakes environments (logistics, healthcare, finance, AI guardrails), a **false accept** (wrong destination accepted with high confidence) is infinitely more expensive than an **unresolved case** (left open for human review).
+Address workflows encounter incomplete, mistyped, stale, duplicated and conflicting records. A textually similar candidate is not automatically the intended destination.
 
-Most systems force a match and bolt a confidence score on the end. This method treats false accepts as a critical error class and leaves the case open when evidence is conflicting.
+An unsafe acceptance can propagate into fulfilment, customer records and downstream systems. The relative cost of a false acceptance and a human-reviewed unresolved case depends on the organisation and use case; it should be measured in each deployment rather than assumed universally.
 
 ## The Five-Step Loop
 
-1. **Intended Address (I):** State the exact destination or outcome required.
-2. **Resolution:** Apply evidence. Select a single candidate, or emit `UNRESOLVED`.
-3. **Operation:** Execute only if a candidate is selected.
-4. **Return Check (∂ss):** Compare intended vs. observed under a declared tolerance (ε). If they do not match, the landing is refused.
+1. **Intended Address (I):** Preserve the exact intended destination and its provenance.
+2. **Resolution:** Evaluate candidates and their evidence; permit no candidate or multiple candidates.
+3. **Operation:** Apply only an authorised, recorded transformation.
+4. **Return Check (∂ss):** Compare the observed result against the original intention using declared, field-aware rules.
 5. **Terminal State:** `VERIFIED` | `CORRECTED` | `UNRESOLVED`.
 
-**Governing Principle:** The forward operation must meet the return check. An unresolved outcome is a valid and preferred terminal state when evidence does not support a confident landing.
+**Governing principle:** the forward operation must satisfy the return check. An unresolved outcome is valid when evidence does not support a confident landing.
 
-## Why "UNRESOLVED" is First-Class
+## Why UNRESOLVED Is First-Class
 
-- The system must not invent certainty to force a landing.
-- False acceptance is treated as a critical error, not an acceptable trade-off.
-- Every decision, including refusals, is logged with the evidence used and the rule that produced the outcome.
+- Similarity is evidence, not proof of destination identity.
+- Conflicting or ambiguous cases must not be forced into an automatic match.
+- Decisions, including refusals, should retain the evidence, rule and reason that produced the outcome.
+- Human review remains an explicit route where automation cannot safely decide.
 
 ## Quick Start
 
-1. Install dependencies:
-   ```bash
-   pip install rapidfuzz
+The synthetic demonstration has no third-party dependencies and uses fictional records only.
+
+```bash
+python demo/dss_demo.py
+python demo/dss_demo.py --json-out demo-trace.json
+python -m unittest discover -s tests -v
+```
+
+See [the demonstration guide](demo/README.md) for its scope and limitations.
+
+## Commercial and Evaluation Documents
+
+- [Commercial market position](commercial/market-position.md)
+- [Pilot and evaluation protocol](commercial/pilot-protocol.md)
+- [Reproducible demonstration specification](commercial/demo-spec.md)
+
+## Important Scope
+
+The included demonstration is a small reference implementation of the decision discipline. It is not a production address matcher, does not use live or licensed address data, and does not establish accuracy or superiority over existing services.
+
+Production use requires representative, lawfully obtained and labelled data; agreed identity rules; security and privacy review; integration testing; and an evaluation against the customer's current baseline. Do not upload personal address data or licensed PAF data to this public repository.
+
+## Status
+
+The repository describes the method and contains a synthetic demonstration with automated tests. Customer performance, operational readiness and commercial value remain to be established through a controlled pilot.
