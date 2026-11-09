@@ -606,6 +606,84 @@ def _expected_provenance_pointer(
     return None
 
 
+def _expected_decision_contract(journey: Any) -> tuple[dict[str, bool], str, str]:
+    """Independently derive check outcomes, evidence class and terminal state."""
+    if not isinstance(journey, dict):
+        journey = {}
+    raw = journey.get("events")
+    well_formed = isinstance(raw, list) and all(isinstance(e, dict) for e in raw)
+    events = [e for e in raw if isinstance(e, dict)] if isinstance(raw, list) else []
+    parcel = journey.get("expected_parcel_id")
+    destination = journey.get("expected_destination_id")
+    parcel_ok = _nonempty_text(parcel)
+    destination_ok = _nonempty_text(destination)
+    timestamps_ok = len(events) == 3 and all(
+        _finite_number(e.get("timestamp")) for e in events
+    )
+    monotonic = timestamps_ok and all(
+        events[i]["timestamp"] <= events[i + 1]["timestamp"] for i in range(2)
+    )
+    distance = events[-1].get("gps_distance_m") if events else None
+    gps_ok = _finite_number(distance) and distance >= 0 and distance <= GPS_LIMIT_METRES
+    parcel_present = bool(events) and all(_nonempty_text(e.get("parcel_id")) for e in events)
+    destination_present = bool(events) and all(
+        _nonempty_text(e.get("destination_id")) for e in events
+    )
+    proof_present = bool(events) and _nonempty_text(events[-1].get("proof_id"))
+    checks = {
+        "journey_id_present": _nonempty_text(journey.get("journey_id")),
+        "expected_identity_fields_present": parcel_ok and destination_ok,
+        "expected_parcel_id_present": parcel_ok,
+        "expected_destination_id_present": destination_ok,
+        "event_records_well_formed": well_formed,
+        "expected_event_sequence": [e.get("type") for e in events] == [
+            "pickup", "in_transit", "delivered"
+        ],
+        "parcel_identity_preserved": bool(
+            parcel_ok and parcel_present and all(e.get("parcel_id") == parcel for e in events)
+        ),
+        "destination_identity_preserved": bool(
+            destination_ok and destination_present
+            and all(e.get("destination_id") == destination for e in events)
+        ),
+        "timestamps_monotonic": bool(monotonic),
+        "delivery_within_gps_limit": bool(gps_ok),
+        "delivery_proof_present": bool(proof_present),
+    }
+    missing = (
+        not checks["journey_id_present"]
+        or not checks["expected_identity_fields_present"]
+        or not checks["event_records_well_formed"]
+        or not events
+        or (bool(events) and not parcel_present)
+        or (bool(events) and not destination_present)
+        or not timestamps_ok
+        or not events or distance is None
+        or not proof_present
+    )
+    conflicts = (
+        not checks["expected_event_sequence"]
+        or (bool(events) and parcel_ok and any(
+            _nonempty_text(e.get("parcel_id")) and e.get("parcel_id") != parcel
+            for e in events
+        ))
+        or (bool(events) and destination_ok and any(
+            _nonempty_text(e.get("destination_id")) and e.get("destination_id") != destination
+            for e in events
+        ))
+        or (timestamps_ok and not monotonic)
+        or (bool(events) and distance is not None and (
+            not _finite_number(distance) or distance < 0 or distance > GPS_LIMIT_METRES
+        ))
+    )
+    evidence_class = classify_evidence(missing=missing, conflicting=conflicts)
+    terminal_state = (
+        "VERIFIED" if evidence_class == "SUFFICIENT_AND_CONSISTENT" and all(checks.values())
+        else "UNRESOLVED"
+    )
+    return checks, evidence_class, terminal_state
+
+
 def audit_provenance_trace(
     journey: Any, result: dict[str, Any]
 ) -> dict[str, Any]:
@@ -615,6 +693,15 @@ def audit_provenance_trace(
     reasons = result.get("reason_codes", [])
     entries = result.get("evidence_provenance", [])
     malformed_trace = not isinstance(reasons, list) or not isinstance(entries, list)
+    expected_checks, expected_class, expected_terminal = _expected_decision_contract(journey)
+    decision_mismatches = []
+    observed_checks = result.get("checks")
+    if not isinstance(observed_checks, dict) or observed_checks != expected_checks:
+        decision_mismatches.append("checks")
+    if result.get("evidence_class") != expected_class:
+        decision_mismatches.append("evidence_class")
+    if result.get("terminal_state") != expected_terminal:
+        decision_mismatches.append("terminal_state")
     if not isinstance(reasons, list):
         reasons = []
     if not isinstance(entries, list):
@@ -681,8 +768,9 @@ def audit_provenance_trace(
     return {
         "valid": not (
             missing or orphaned or duplicates or unsupported or invalid_pointers
-            or unreported_reasons or unexpected_reasons
+            or unreported_reasons or unexpected_reasons or decision_mismatches
         ),
+        "decision_mismatches": decision_mismatches,
         "reason_count": len(reasons),
         "unreported_reason_codes": unreported_reasons,
         "unexpected_reason_codes": unexpected_reasons,
@@ -720,6 +808,7 @@ def audit_provenance(
         "invalid_pointer_count": sum(len(trace["invalid_evidence_pointers"]) for trace in traces),
         "unreported_reason_count": sum(len(trace["unreported_reason_codes"]) for trace in traces),
         "unexpected_reason_count": sum(len(trace["unexpected_reason_codes"]) for trace in traces),
+        "decision_mismatch_count": sum(len(trace["decision_mismatches"]) for trace in traces),
         "journeys_with_shared_event_findings": sum(
             bool(trace["shared_event_indices"]) for trace in traces
         ),
