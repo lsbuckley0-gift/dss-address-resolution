@@ -617,6 +617,12 @@ def audit_provenance_trace(
     if not isinstance(entries, list):
         entries = []
     reason_counts = Counter(code for code in reasons if isinstance(code, str))
+    independently_expected = {
+        code for code in PROVENANCE_RULES
+        if _expected_provenance_pointer(journey, code) is not None
+    }
+    unreported_reasons = sorted(independently_expected - set(reason_counts))
+    unexpected_reasons = sorted(set(reason_counts) - independently_expected)
     entry_counts = Counter(
         entry.get("reason_code") for entry in entries
         if isinstance(entry, dict) and isinstance(entry.get("reason_code"), str)
@@ -667,8 +673,13 @@ def audit_provenance_trace(
     )
     distinct_findings = len(set(reasons) - {"ALL_DECLARED_CHECKS_PASSED"})
     return {
-        "valid": not (missing or orphaned or duplicates or unsupported or invalid_pointers),
+        "valid": not (
+            missing or orphaned or duplicates or unsupported or invalid_pointers
+            or unreported_reasons or unexpected_reasons
+        ),
         "reason_count": len(reasons),
+        "unreported_reason_codes": unreported_reasons,
+        "unexpected_reason_codes": unexpected_reasons,
         "provenance_entry_count": len(entries),
         "missing_reason_entries": missing,
         "orphaned_provenance_entries": orphaned,
@@ -701,6 +712,8 @@ def audit_provenance(
         "duplicate_entry_count": sum(len(trace["duplicate_reason_entries"]) for trace in traces),
         "unsupported_finding_count": sum(len(trace["unsupported_findings"]) for trace in traces),
         "invalid_pointer_count": sum(len(trace["invalid_evidence_pointers"]) for trace in traces),
+        "unreported_reason_count": sum(len(trace["unreported_reason_codes"]) for trace in traces),
+        "unexpected_reason_count": sum(len(trace["unexpected_reason_codes"]) for trace in traces),
         "journeys_with_shared_event_findings": sum(
             bool(trace["shared_event_indices"]) for trace in traces
         ),
