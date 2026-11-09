@@ -10,6 +10,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from dss_core.evidence import classify_evidence
+
 
 FIELDS = ("premise", "street", "locality", "postcode")
 
@@ -71,18 +73,18 @@ def return_check(intended: dict[str, Any], observed: dict[str, Any]) -> dict[str
 
 
 def finalise_trace(trace: dict[str, Any]) -> dict[str, Any]:
-    """Attach the shared evidence classification used by the experiment bench."""
+    """Attach the shared evidence classification to an address decision trace."""
     reason = trace.get("reason_code", "UNSPECIFIED")
     if reason in {"EXACT_IDENTITY_FIELDS", "UNIQUE_CANDIDATE_AND_RETURN_CHECK_PASSED"}:
-        evidence_class = "SUFFICIENT_AND_CONSISTENT"
+        evidence_class = classify_evidence()
     elif reason in {"MISSING_REQUIRED_INTENDED_FIELD", "NO_SUPPORTED_CANDIDATE"}:
-        evidence_class = "INSUFFICIENT"
+        evidence_class = classify_evidence(missing=True)
     elif reason in {"MULTIPLE_EXACT_CANDIDATES", "AMBIGUOUS_CANDIDATES"}:
-        evidence_class = "AMBIGUOUS"
+        evidence_class = classify_evidence(ambiguous=True)
     elif reason == "RETURN_CHECK_FAILED":
-        evidence_class = "CONFLICTING"
+        evidence_class = classify_evidence(conflicting=True)
     else:
-        evidence_class = "INSUFFICIENT"
+        evidence_class = classify_evidence(missing=True)
     trace["evidence_class"] = evidence_class
     trace["reason_codes"] = [reason]
     return trace
