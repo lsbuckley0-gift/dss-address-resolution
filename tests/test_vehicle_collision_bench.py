@@ -36,6 +36,7 @@ class VehicleCollisionBenchTests(unittest.TestCase):
         self.assertEqual(audit["invalid_pointer_count"], 0)
         self.assertEqual(audit["unreported_reason_count"], 0)
         self.assertEqual(audit["unexpected_reason_count"], 0)
+        self.assertEqual(audit["decision_mismatch_count"], 0)
         self.assertEqual(audit["journeys_with_shared_event_findings"], 800)
         self.assertEqual(audit["shared_event_reference_count"], 800)
         self.assertTrue(audit["all_findings_distinct_by_reason_code"])
@@ -120,6 +121,27 @@ class VehicleCollisionBenchTests(unittest.TestCase):
     def test_dataset_audit_rejects_trace_count_mismatch(self):
         with self.assertRaisesRegex(ValueError, "exactly one trace per journey"):
             audit_provenance([make_journey(913)], results=[])
+
+    def test_decision_audit_rejects_structurally_malformed_decision_fields(self):
+        journey = make_journey(921)
+        mutations = (
+            ("checks", None),
+            ("checks", []),
+            ("checks", "not-a-map"),
+            ("evidence_class", []),
+            ("evidence_class", {"status": "forged"}),
+            ("terminal_state", None),
+            ("terminal_state", ["VERIFIED"]),
+            ("reason_codes", None),
+            ("reason_codes", "ALL_DECLARED_CHECKS_PASSED"),
+            ("evidence_provenance", {}),
+        )
+        for field, value in mutations:
+            result = evaluate_journey(journey)
+            result[field] = value
+            audit = audit_provenance_trace(journey, result)
+            with self.subTest(field=field, value=value):
+                self.assertFalse(audit["valid"], msg=audit)
 
     def test_provenance_audit_rejects_non_object_result_and_unhashable_codes(self):
         journey = make_journey(918)
