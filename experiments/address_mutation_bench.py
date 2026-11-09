@@ -31,7 +31,7 @@ def _expected(mutations: tuple[str, ...]) -> tuple[str, str]:
         return "UNRESOLVED", "RETURN_CHECK_FAILED"
     if any(m in mutations for m in ("street_multiple_edits", "street_transposition")):
         return "UNRESOLVED", "NO_SUPPORTED_CANDIDATE"
-    if "street_one_edit" in mutations:
+    if any(m in mutations for m in ("street_one_edit", "street_substitution", "street_insertion")):
         return "CORRECTED", "UNIQUE_CANDIDATE_AND_RETURN_CHECK_PASSED"
     raise AssertionError(mutations)
 
