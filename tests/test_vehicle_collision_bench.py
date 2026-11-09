@@ -8,7 +8,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "experiments"))
 
 from vehicle_collision_bench import (  # noqa: E402
-    ANOMALIES, benchmark, evaluate_journey, generate_compound_dataset, generate_dataset, make_compound_journey, make_interaction_journey, make_journey,
+    ANOMALIES, audit_provenance, audit_provenance_trace, benchmark, evaluate_journey,
+    generate_compound_dataset, generate_dataset, make_compound_journey,
+    make_interaction_journey, make_journey,
 )
 
 
