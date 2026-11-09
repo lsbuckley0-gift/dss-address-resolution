@@ -168,8 +168,9 @@ def generate_compound_dataset(total: int = 1000, seed: int = 88) -> list[dict[st
     groups = [(combo, "pair") for combo in pairs] + [(combo, "triple") for combo in triples]
     if total < len(groups) or total % 3:
         raise ValueError("total must be at least 25 and divisible by 3")
-    per_group = (total // 3) // len(groups)
-    if per_group * len(groups) != total // 3:
+    compound_count = 2 * total // 3
+    per_group = compound_count // len(groups)
+    if per_group * len(groups) != compound_count:
         raise ValueError("total/3 must be divisible by the number of compound groups")
 
     clean_count = total // 3
