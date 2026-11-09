@@ -685,14 +685,19 @@ def _expected_decision_contract(journey: Any) -> tuple[dict[str, bool], str, str
 
 
 def audit_provenance_trace(
-    journey: Any, result: dict[str, Any]
+    journey: Any, result: Any
 ) -> dict[str, Any]:
     """Check exact reason coverage and independently validate generated pointers."""
     if not isinstance(journey, dict):
         journey = {}
+    malformed_result = not isinstance(result, dict)
+    if malformed_result:
+        result = {}
     reasons = result.get("reason_codes", [])
     entries = result.get("evidence_provenance", [])
-    malformed_trace = not isinstance(reasons, list) or not isinstance(entries, list)
+    malformed_trace = (
+        malformed_result or not isinstance(reasons, list) or not isinstance(entries, list)
+    )
     expected_checks, expected_class, expected_terminal = _expected_decision_contract(journey)
     decision_mismatches = []
     observed_checks = result.get("checks")
@@ -706,6 +711,7 @@ def audit_provenance_trace(
         reasons = []
     if not isinstance(entries, list):
         entries = []
+    invalid_reason_values = [code for code in reasons if not isinstance(code, str)]
     reason_counts = Counter(code for code in reasons if isinstance(code, str))
     independently_expected = {
         code for code in PROVENANCE_RULES
@@ -724,7 +730,9 @@ def audit_provenance_trace(
     duplicates = sorted(code for code, count in entry_counts.items() if count > 1)
     unsupported, invalid_pointers = [], []
     if malformed_trace:
-        unsupported.append("<malformed-trace-collections>")
+        unsupported.append("<malformed-result-or-trace-collections>")
+    if invalid_reason_values:
+        unsupported.extend("<invalid-reason-code>" for _ in invalid_reason_values)
     for entry in entries:
         if not isinstance(entry, dict):
             unsupported.append("<non-object-entry>")
@@ -764,7 +772,7 @@ def audit_provenance_trace(
     shared_event_indices = sorted(
         index for index, count in event_reason_counts.items() if count > 1
     )
-    distinct_findings = len(set(reasons) - {"ALL_DECLARED_CHECKS_PASSED"})
+    distinct_findings = len(set(reason_counts) - {"ALL_DECLARED_CHECKS_PASSED"})
     return {
         "valid": not (
             missing or orphaned or duplicates or unsupported or invalid_pointers
