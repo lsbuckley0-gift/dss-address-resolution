@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "demo"))
 
+import dss_trace_audit  # noqa: E402
 from dss_demo import audit_candidate_trace, edit_distance_at_most_one, evaluate_case, main  # noqa: E402
 
 
@@ -404,6 +405,10 @@ class DemoDecisionTests(unittest.TestCase):
             with self.subTest(field=field):
                 self.assertFalse(audit["valid"])
                 self.assertIn(expected_reason, audit["mismatches"])
+
+    def test_candidate_trace_audit_is_in_a_separate_evaluator_free_module(self):
+        self.assertEqual(audit_candidate_trace.__module__, "dss_trace_audit")
+        self.assertFalse(hasattr(dss_trace_audit, "evaluate_case"))
 
     def test_candidate_trace_audit_does_not_call_the_evaluator(self):
         case = self.by_id["03-typo-correction"]
