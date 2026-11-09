@@ -1,5 +1,6 @@
 import copy
 import sys
+from itertools import combinations, permutations
 import unittest
 from pathlib import Path
 
@@ -198,6 +199,18 @@ class VehicleCollisionBenchTests(unittest.TestCase):
                     {reason_code: 100},
                 )
         self.assertEqual(report["clean_reason_code_counts"], {})
+
+    def test_compound_anomaly_application_is_order_independent(self):
+        index = 43
+        for size in (2, 3):
+            for anomaly_set in combinations(ANOMALIES, size):
+                baseline = make_compound_journey(index, anomaly_set)
+                baseline_result = evaluate_journey(baseline)
+                for ordering in permutations(anomaly_set):
+                    with self.subTest(anomalies=anomaly_set, ordering=ordering):
+                        candidate = make_compound_journey(index, ordering)
+                        self.assertEqual(candidate["events"], baseline["events"])
+                        self.assertEqual(evaluate_journey(candidate), baseline_result)
 
     def test_pair_interaction_matrix_covers_all_pairs_and_counts_detection_outcomes(self):
         report = benchmark(generate_compound_dataset(1200, seed=88))
