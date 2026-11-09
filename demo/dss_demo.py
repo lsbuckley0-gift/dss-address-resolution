@@ -572,6 +572,22 @@ def main() -> None:
 
     cases = json.loads(Path(args.cases).read_text(encoding="utf-8"))
     traces = run(cases)
+    audits = [
+        audit_candidate_trace(case, trace)
+        for case, trace in zip(cases, traces)
+    ]
+    invalid_audits = [
+        {"case_id": trace.get("case_id"), "mismatches": audit["mismatches"]}
+        for trace, audit in zip(traces, audits) if not audit["valid"]
+    ]
+    if invalid_audits:
+        print("Candidate trace audit failed:", json.dumps(invalid_audits, sort_keys=True))
+        raise SystemExit(1)
+    audited_candidates = sum(audit["candidate_count"] for audit in audits)
+    print(
+        f"Candidate trace audit: {len(audits)} valid cases, "
+        f"{audited_candidates} candidate entries checked"
+    )
     for trace in traces:
         print(f'{trace["case_id"]:<22} {trace["terminal_state"]:<10} {trace["reason_code"]:<48} {trace["trace_id"]} {trace["ruleset_version"]}')
     counts: dict[str, int] = {}
