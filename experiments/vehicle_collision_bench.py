@@ -186,7 +186,9 @@ def evaluate_journey(journey: Any) -> dict[str, Any]:
 
     expected_parcel = journey.get("expected_parcel_id")
     expected_destination = journey.get("expected_destination_id")
-    expected_ids_valid = _nonempty_text(expected_parcel) and _nonempty_text(expected_destination)
+    expected_parcel_valid = _nonempty_text(expected_parcel)
+    expected_destination_valid = _nonempty_text(expected_destination)
+    expected_ids_valid = expected_parcel_valid and expected_destination_valid
     journey_id_valid = _nonempty_text(journey.get("journey_id"))
 
     timestamps_valid = len(events) == 3 and all(
@@ -211,17 +213,19 @@ def evaluate_journey(journey: Any) -> dict[str, Any]:
 
     sequence_ok = event_types == expected_types
     parcel_identity_ok = (
-        expected_ids_valid and parcel_ids_present
+        expected_parcel_valid and parcel_ids_present
         and all(event.get("parcel_id") == expected_parcel for event in events)
     )
     destination_identity_ok = (
-        expected_ids_valid and destination_ids_present
+        expected_destination_valid and destination_ids_present
         and all(event.get("destination_id") == expected_destination for event in events)
     )
 
     checks: dict[str, bool] = {
         "journey_id_present": journey_id_valid,
         "expected_identity_fields_present": expected_ids_valid,
+        "expected_parcel_id_present": expected_parcel_valid,
+        "expected_destination_id_present": expected_destination_valid,
         "event_records_well_formed": events_well_formed,
         "expected_event_sequence": sequence_ok,
         "parcel_identity_preserved": bool(parcel_identity_ok),
@@ -243,7 +247,7 @@ def evaluate_journey(journey: Any) -> dict[str, Any]:
         conflicts.append("EVENT_SEQUENCE_MISMATCH")
     if events and not parcel_ids_present:
         missing.append("PARCEL_ID_MISSING_OR_INVALID")
-    if events and expected_ids_valid and any(
+    if events and expected_parcel_valid and any(
         _nonempty_text(event.get("parcel_id"))
         and event.get("parcel_id") != expected_parcel
         for event in events
@@ -251,7 +255,7 @@ def evaluate_journey(journey: Any) -> dict[str, Any]:
         conflicts.append("PARCEL_IDENTITY_CONFLICT")
     if events and not destination_ids_present:
         missing.append("DESTINATION_ID_MISSING_OR_INVALID")
-    if events and expected_ids_valid and any(
+    if events and expected_destination_valid and any(
         _nonempty_text(event.get("destination_id"))
         and event.get("destination_id") != expected_destination
         for event in events
