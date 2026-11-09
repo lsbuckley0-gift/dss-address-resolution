@@ -121,6 +121,56 @@ class VehicleCollisionBenchTests(unittest.TestCase):
         self.assertEqual(report["false_reject_count"], 0)
         self.assertTrue(any(k.startswith("compound:") for k in report["by_condition"]))
 
+    def test_single_anomaly_report_has_exact_reason_frequencies(self):
+        report = benchmark(generate_dataset(1000, seed=88))
+        self.assertEqual(report["reason_code_counts"], {
+            "ALL_DECLARED_CHECKS_PASSED": 500,
+            "DELIVERY_GPS_OUTSIDE_LIMIT": 100,
+            "DELIVERY_PROOF_REFERENCE_MISSING": 100,
+            "DESTINATION_IDENTITY_CONFLICT": 100,
+            "PARCEL_IDENTITY_CONFLICT": 100,
+            "TIMESTAMP_ORDER_CONFLICT": 100,
+        })
+        self.assertEqual(report["reason_combinations"], {
+            "ALL_DECLARED_CHECKS_PASSED": 500,
+            "DELIVERY_GPS_OUTSIDE_LIMIT": 100,
+            "DELIVERY_PROOF_REFERENCE_MISSING": 100,
+            "DESTINATION_IDENTITY_CONFLICT": 100,
+            "PARCEL_IDENTITY_CONFLICT": 100,
+            "TIMESTAMP_ORDER_CONFLICT": 100,
+        })
+        self.assertEqual(
+            report["condition_reason_code_counts"]["gps_drift"],
+            {"DELIVERY_GPS_OUTSIDE_LIMIT": 100},
+        )
+
+    def test_compound_report_fingerprints_every_pair_and_triple(self):
+        report = benchmark(generate_compound_dataset(1200, seed=88))
+        self.assertEqual(report["reason_code_counts"], {
+            "ALL_DECLARED_CHECKS_PASSED": 400,
+            "DELIVERY_GPS_OUTSIDE_LIMIT": 400,
+            "DELIVERY_PROOF_REFERENCE_MISSING": 400,
+            "DESTINATION_IDENTITY_CONFLICT": 400,
+            "PARCEL_IDENTITY_CONFLICT": 400,
+            "TIMESTAMP_ORDER_CONFLICT": 400,
+        })
+        self.assertEqual(report["reason_combinations"]["ALL_DECLARED_CHECKS_PASSED"], 400)
+        self.assertEqual(len(report["reason_combinations"]), 21)
+        self.assertEqual(
+            sum(count for key, count in report["reason_combinations"].items()
+                if key != "ALL_DECLARED_CHECKS_PASSED"),
+            800,
+        )
+        for condition, counts in report["condition_reason_combinations"].items():
+            if condition.startswith("compound:"):
+                self.assertEqual(sum(counts.values()), 40)
+                self.assertEqual(len(counts), 1)
+
+    def test_evaluator_does_not_consume_injected_oracle_label(self):
+        journey = make_journey(30)
+        journey["injected_condition"] = "compound:wrong_parcel+gps_drift"
+        self.assertEqual(evaluate_journey(journey)["terminal_state"], "VERIFIED")
+
     def test_compound_generator_rejects_duplicate_anomalies(self):
         with self.assertRaises(ValueError):
             make_compound_journey(4, ("gps_drift", "gps_drift"))
