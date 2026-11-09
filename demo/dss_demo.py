@@ -132,6 +132,8 @@ def candidate_comparison(intended: Any, candidate: Any, candidate_id: str) -> di
             "intended_value": intended_value,
             "candidate_value": candidate_value,
             "both_text_and_nonblank": intended_valid and candidate_valid,
+            "intended_normalised": normalise(intended_value) if intended_valid else None,
+            "candidate_normalised": normalise(candidate_value) if candidate_valid else None,
             "normalised_equal": (
                 normalise(intended_value) == normalise(candidate_value)
                 if intended_valid and candidate_valid else None
