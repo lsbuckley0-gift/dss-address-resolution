@@ -22,6 +22,29 @@ class DemoDecisionTests(unittest.TestCase):
         self.assertTrue(edit_distance_at_most_one("High St", "High St"))
         self.assertTrue(edit_distance_at_most_one("High St", "High Stt"))
 
+    def test_trace_identity_and_ruleset_metadata_are_deterministic(self):
+        case = self.by_id["01-exact"]
+        first, second = evaluate_case(case), evaluate_case(case)
+        self.assertEqual(first["trace_id"], second["trace_id"])
+        self.assertTrue(first["trace_id"].startswith("addr-"))
+        self.assertEqual(first["ruleset_version"], "synthetic-address-demo/1.0")
+        self.assertEqual(
+            first["normalisation_rule"],
+            "text-only Unicode casefold plus whitespace collapse",
+        )
+
+    def test_trace_identity_changes_when_terminal_decision_changes(self):
+        case = json.loads(json.dumps(self.by_id["01-exact"]))
+        verified = evaluate_case(case)
+        case["candidates"][0]["postcode"] = "ZZ9 9ZZ"
+        unresolved = evaluate_case(case)
+        self.assertNotEqual(verified["trace_id"], unresolved["trace_id"])
+
+    def test_malformed_case_still_receives_trace_metadata(self):
+        result = evaluate_case(None)
+        self.assertTrue(result["trace_id"].startswith("addr-"))
+        self.assertEqual(result["ruleset_version"], "synthetic-address-demo/1.0")
+
     def test_exact_record_is_verified(self):
         result = evaluate_case(self.by_id["01-exact"])
         self.assertEqual(result["terminal_state"], "VERIFIED")
