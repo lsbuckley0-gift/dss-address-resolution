@@ -62,6 +62,8 @@ def audit_candidate_trace(case: Any, trace: Any) -> dict[str, Any]:
         }
 
     intended = case.get("intended")
+    if trace.get("intended") != intended:
+        mismatches.append("INTENDED_RECORD_MISMATCH")
     raw_candidates = case.get("candidates", [])
     candidates = raw_candidates if isinstance(raw_candidates, list) else []
     expected_ids = []
@@ -313,6 +315,33 @@ def audit_candidate_trace(case: Any, trace: Any) -> dict[str, Any]:
                 mismatches.append(f"CANDIDATE_DISPOSITION_MISMATCH:{index}")
             if entries[index].get("reason_codes") != reasons:
                 mismatches.append(f"CANDIDATE_REASON_CODE_MISMATCH:{index}")
+
+    expected_operation = "NONE"
+    expected_return_check = None
+    if expected_reason == "EXACT_IDENTITY_FIELDS":
+        expected_operation = "NO_CHANGE"
+    elif expected_reason in {
+        "UNIQUE_CANDIDATE_AND_RETURN_CHECK_PASSED", "RETURN_CHECK_FAILED",
+    }:
+        expected_operation = "PROPOSE_CANONICAL_CANDIDATE"
+
+    if expected_selected_index is not None and expected_reason in {
+        "EXACT_IDENTITY_FIELDS", "UNIQUE_CANDIDATE_AND_RETURN_CHECK_PASSED",
+        "RETURN_CHECK_FAILED",
+    }:
+        selected = candidates[expected_selected_index]
+        checks = {
+            "premise": _audit_normalise(intended.get("premise")) == _audit_normalise(selected.get("premise")),
+            "locality": _audit_normalise(intended.get("locality")) == _audit_normalise(selected.get("locality")),
+            "postcode": _audit_normalise(intended.get("postcode")) == _audit_normalise(selected.get("postcode")),
+            "street_within_one_edit": expected_street_flags[expected_selected_index],
+        }
+        expected_return_check = {"passed": all(checks.values()), "checks": checks}
+
+    if trace.get("operation") != expected_operation:
+        mismatches.append("OPERATION_MISMATCH")
+    if trace.get("return_check") != expected_return_check:
+        mismatches.append("RETURN_CHECK_MISMATCH")
 
     selected_index = trace.get("selected_candidate_index")
     selected_id = trace.get("selected_candidate")
