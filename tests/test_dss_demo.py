@@ -61,6 +61,63 @@ class DemoDecisionTests(unittest.TestCase):
         self.assertEqual(result["terminal_state"], "UNRESOLVED")
         self.assertEqual(result["reason_code"], "NO_SUPPORTED_CANDIDATE")
 
+    def test_malformed_case_and_candidate_containers_are_refused(self):
+        for malformed in (None, "case", [], 7):
+            with self.subTest(case=malformed):
+                result = evaluate_case(malformed)
+                self.assertEqual(result["terminal_state"], "UNRESOLVED")
+                self.assertEqual(result["reason_code"], "MALFORMED_CASE")
+                self.assertEqual(result["evidence_class"], "INSUFFICIENT")
+
+        valid = self.by_id["01-exact"]
+        for intended in (None, [], "address"):
+            case = dict(valid, intended=intended)
+            result = evaluate_case(case)
+            self.assertEqual(result["reason_code"], "MALFORMED_INTENDED_RECORD")
+
+        for candidates in (None, {}, "candidate-list", (valid["candidates"][0],)):
+            case = dict(valid, candidates=candidates)
+            result = evaluate_case(case)
+            self.assertEqual(result["terminal_state"], "UNRESOLVED")
+            self.assertEqual(result["reason_code"], "MALFORMED_CANDIDATE_COLLECTION")
+
+        for malformed_candidate in (None, "candidate", 12, []):
+            case = dict(valid, candidates=[valid["candidates"][0], malformed_candidate])
+            result = evaluate_case(case)
+            self.assertEqual(result["terminal_state"], "UNRESOLVED")
+            self.assertEqual(result["reason_code"], "MALFORMED_CANDIDATE_RECORD")
+
+    def test_non_text_identity_fields_are_not_coerced_to_address_text(self):
+        valid = self.by_id["01-exact"]
+        for field, malformed in (
+            ("premise", 0), ("street", False), ("locality", 17), ("postcode", []),
+        ):
+            case = json.loads(json.dumps(valid))
+            case["intended"][field] = malformed
+            result = evaluate_case(case)
+            with self.subTest(side="intended", field=field):
+                self.assertEqual(result["terminal_state"], "UNRESOLVED")
+                self.assertEqual(result["reason_code"], "MISSING_REQUIRED_INTENDED_FIELD")
+
+        for field, malformed in (
+            ("premise", 0), ("street", False), ("locality", 17), ("postcode", []),
+        ):
+            case = json.loads(json.dumps(valid))
+            case["candidates"][0][field] = malformed
+            result = evaluate_case(case)
+            with self.subTest(side="candidate", field=field):
+                self.assertEqual(result["terminal_state"], "UNRESOLVED")
+                self.assertEqual(result["reason_code"], "NO_SUPPORTED_CANDIDATE")
+
+    def test_malformed_candidate_does_not_get_silently_ignored_beside_exact_match(self):
+        valid = self.by_id["01-exact"]
+        case = json.loads(json.dumps(valid))
+        case["candidates"].append(None)
+        result = evaluate_case(case)
+        self.assertEqual(result["terminal_state"], "UNRESOLVED")
+        self.assertEqual(result["reason_code"], "MALFORMED_CANDIDATE_RECORD")
+        self.assertIsNone(result["selected_candidate"])
+
     def test_return_check_detects_wrong_postcode(self):
         case = self.by_id["07-return-check-fails"]
         result = evaluate_case(case)
