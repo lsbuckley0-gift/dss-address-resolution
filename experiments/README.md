@@ -233,3 +233,30 @@ clock and event semantics, trusted identity sources, data protection review,
 representative labelled data and independent baseline comparison.
 
 The benchmark is a deterministic test instrument, not a production tracking system.
+
+## Synthetic address mutation matrix
+
+Run the deterministic field-mutation benchmark:
+
+```bash
+python experiments/address_mutation_bench.py
+python experiments/address_mutation_bench.py --json-out address-mutation-report.json
+```
+
+The matrix contains 13 fictional cases: one clean baseline, one case/whitespace
+formatting-only case, five isolated mutations (premise, one-edit street, multiple-edit
+street, locality and postcode), and six pairwise combinations across identity fields.
+Expected terminal states and reason codes are benchmark-side oracle labels, stored
+outside the case object passed to the evaluator. Comparison occurs only after
+evaluation. The report includes state/reason counts, per-case expected and observed
+results, oracle mismatches and mutated false accepts; it exits non-zero on any mismatch
+or any mutated VERIFIED result.
+
+The cases exercise the current narrow contract: formatting normalisation is
+case-folding plus whitespace collapse; one street edit can be CORRECTED only when
+premise, locality and postcode agree; premise/locality conflicts fail candidate
+retrieval; postcode conflicts fail the return check; multiple street edits have no
+supported candidate. Pairwise cases ensure a near street cannot override a protected
+identity conflict. This is a rule-shaped synthetic conformance matrix, not a
+representative sample, calibrated error rate or real-world accuracy estimate. No
+real addresses, customer data, PAF data or external address services are used.
