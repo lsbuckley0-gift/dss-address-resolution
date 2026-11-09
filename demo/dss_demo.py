@@ -242,7 +242,8 @@ def audit_candidate_trace(case: Any, trace: Any) -> dict[str, Any]:
     if trace.get("case_id") != case.get("case_id"):
         mismatches.append("CASE_ID_MISMATCH")
     expected_count = len(candidates)
-    if trace.get("candidate_count") != expected_count:
+    observed_count = trace.get("candidate_count")
+    if not isinstance(observed_count, int) or isinstance(observed_count, bool) or observed_count != expected_count:
         mismatches.append("CANDIDATE_COUNT_MISMATCH")
     if trace.get("candidate_ids") != expected_ids:
         mismatches.append("CANDIDATE_ID_LIST_MISMATCH")
@@ -262,7 +263,11 @@ def audit_candidate_trace(case: Any, trace: Any) -> dict[str, Any]:
         if not isinstance(entry, dict):
             mismatches.append(f"CANDIDATE_ENTRY_NOT_AN_OBJECT:{index}")
             continue
-        if entry.get("candidate_index") != index:
+        observed_index = entry.get("candidate_index")
+        if (
+            not isinstance(observed_index, int) or isinstance(observed_index, bool)
+            or observed_index != index
+        ):
             mismatches.append(f"CANDIDATE_POSITION_MISMATCH:{index}")
         if entry.get("candidate_id") != expected_ids[index]:
             mismatches.append(f"CANDIDATE_LABEL_MISMATCH:{index}")
@@ -342,13 +347,21 @@ def audit_candidate_trace(case: Any, trace: Any) -> dict[str, Any]:
 
     selected_index = trace.get("selected_candidate_index")
     selected_id = trace.get("selected_candidate")
+    selected_dispositions = {
+        "SELECTED_EXACT", "SELECTED_CORRECTED", "REFUSED_RETURN_CHECK",
+    }
+    observed_selected = [
+        index for index, entry in enumerate(entries)
+        if isinstance(entry, dict) and entry.get("disposition") in selected_dispositions
+    ]
     if selected_index is None:
-        if selected_id is not None:
+        if selected_id is not None or observed_selected:
             mismatches.append("SELECTED_CANDIDATE_REFERENCE_MISMATCH")
     elif (
         not isinstance(selected_index, int) or isinstance(selected_index, bool)
         or selected_index < 0 or selected_index >= len(expected_ids)
         or selected_id != expected_ids[selected_index]
+        or observed_selected != [selected_index]
     ):
         mismatches.append("SELECTED_CANDIDATE_REFERENCE_MISMATCH")
 
