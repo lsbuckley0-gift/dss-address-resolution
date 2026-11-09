@@ -21,12 +21,16 @@ FIELDS = ("premise", "street", "locality", "postcode")
 
 
 def normalise(value: Any) -> str:
-    """Normalise case and repeated whitespace; do not discard identity-bearing text."""
-    return " ".join(str(value or "").casefold().split())
+    """Normalise text only; malformed non-string values are never coerced to identity."""
+    if not isinstance(value, str):
+        return ""
+    return " ".join(value.casefold().split())
 
 
-def required_fields_present(record: dict[str, Any]) -> bool:
-    return all(normalise(record.get(field)) for field in FIELDS)
+def required_fields_present(record: Any) -> bool:
+    return isinstance(record, dict) and all(
+        normalise(record.get(field)) for field in FIELDS
+    )
 
 
 def same_record(left: dict[str, Any], right: dict[str, Any]) -> bool:
@@ -81,7 +85,11 @@ def finalise_trace(trace: dict[str, Any]) -> dict[str, Any]:
     reason = trace.get("reason_code", "UNSPECIFIED")
     if reason in {"EXACT_IDENTITY_FIELDS", "UNIQUE_CANDIDATE_AND_RETURN_CHECK_PASSED"}:
         evidence_class = classify_evidence()
-    elif reason in {"MISSING_REQUIRED_INTENDED_FIELD", "NO_SUPPORTED_CANDIDATE"}:
+    elif reason in {
+        "MISSING_REQUIRED_INTENDED_FIELD", "NO_SUPPORTED_CANDIDATE",
+        "MALFORMED_CASE", "MALFORMED_INTENDED_RECORD",
+        "MALFORMED_CANDIDATE_COLLECTION", "MALFORMED_CANDIDATE_RECORD",
+    }:
         evidence_class = classify_evidence(missing=True)
     elif reason in {"MULTIPLE_EXACT_CANDIDATES", "AMBIGUOUS_CANDIDATES"}:
         evidence_class = classify_evidence(ambiguous=True)
@@ -94,19 +102,64 @@ def finalise_trace(trace: dict[str, Any]) -> dict[str, Any]:
     return trace
 
 
-def evaluate_case(case: dict[str, Any]) -> dict[str, Any]:
-    intended = case["intended"]
-    candidates = case.get("candidates", [])
+def evaluate_case(case: Any) -> dict[str, Any]:
+    """Evaluate one synthetic case; malformed structures are refused, never coerced."""
+    if not isinstance(case, dict):
+        return finalise_trace({
+            "case_id": None,
+            "intended": None,
+            "candidate_count": 0,
+            "candidate_ids": [],
+            "selected_candidate": None,
+            "operation": "NONE",
+            "return_check": None,
+            "terminal_state": "UNRESOLVED",
+            "reason_code": "MALFORMED_CASE",
+        })
 
+    intended = case.get("intended")
+    raw_candidates = case.get("candidates", [])
+    candidates = raw_candidates if isinstance(raw_candidates, list) else []
+    candidate_ids = [
+        (
+            candidate.get("candidate_id")
+            if isinstance(candidate, dict)
+            and isinstance(candidate.get("candidate_id"), str)
+            and candidate.get("candidate_id").strip()
+            else f"candidate-{index + 1}"
+        )
+        for index, candidate in enumerate(candidates)
+    ]
     trace: dict[str, Any] = {
-        "case_id": case["case_id"],
+        "case_id": case.get("case_id"),
         "intended": intended,
-        "candidate_count": len(candidates),
-        "candidate_ids": [c.get("candidate_id", f"candidate-{i+1}") for i, c in enumerate(candidates)],
+        "candidate_count": len(raw_candidates) if isinstance(raw_candidates, list) else 0,
+        "candidate_ids": candidate_ids,
         "selected_candidate": None,
         "operation": "NONE",
         "return_check": None,
     }
+
+    if not isinstance(intended, dict):
+        trace.update({
+            "terminal_state": "UNRESOLVED",
+            "reason_code": "MALFORMED_INTENDED_RECORD",
+        })
+        return finalise_trace(trace)
+
+    if not isinstance(raw_candidates, list):
+        trace.update({
+            "terminal_state": "UNRESOLVED",
+            "reason_code": "MALFORMED_CANDIDATE_COLLECTION",
+        })
+        return finalise_trace(trace)
+
+    if any(not isinstance(candidate, dict) for candidate in raw_candidates):
+        trace.update({
+            "terminal_state": "UNRESOLVED",
+            "reason_code": "MALFORMED_CANDIDATE_RECORD",
+        })
+        return finalise_trace(trace)
 
     if not required_fields_present(intended):
         trace.update({
@@ -115,12 +168,15 @@ def evaluate_case(case: dict[str, Any]) -> dict[str, Any]:
         })
         return finalise_trace(trace)
 
-    exact = [c for c in candidates if same_record(intended, c)]
+    exact = [candidate for candidate in candidates if same_record(intended, candidate)]
     if len(exact) == 1:
+        selected = exact[0]
         trace.update({
-            "selected_candidate": exact[0].get("candidate_id"),
+            "selected_candidate": selected.get("candidate_id") or candidate_ids[
+                candidates.index(selected)
+            ],
             "operation": "NO_CHANGE",
-            "return_check": return_check(intended, exact[0]),
+            "return_check": return_check(intended, selected),
             "terminal_state": "VERIFIED",
             "reason_code": "EXACT_IDENTITY_FIELDS",
         })
@@ -135,12 +191,12 @@ def evaluate_case(case: dict[str, Any]) -> dict[str, Any]:
     # Candidate retrieval is intentionally permissive enough to expose the
     # return-check gate: same premise/locality and a street within one edit.
     near = [
-        c for c in candidates
-        if required_fields_present(c)
-        and normalise(intended.get("premise")) == normalise(c.get("premise"))
-        and normalise(intended.get("locality")) == normalise(c.get("locality"))
+        candidate for candidate in candidates
+        if required_fields_present(candidate)
+        and normalise(intended.get("premise")) == normalise(candidate.get("premise"))
+        and normalise(intended.get("locality")) == normalise(candidate.get("locality"))
         and edit_distance_at_most_one(
-            str(intended.get("street", "")), str(c.get("street", ""))
+            intended.get("street", ""), candidate.get("street", "")
         )
     ]
 
@@ -159,7 +215,9 @@ def evaluate_case(case: dict[str, Any]) -> dict[str, Any]:
 
     selected = near[0]
     check = return_check(intended, selected)
-    trace["selected_candidate"] = selected.get("candidate_id")
+    trace["selected_candidate"] = selected.get("candidate_id") or candidate_ids[
+        candidates.index(selected)
+    ]
     trace["operation"] = "PROPOSE_CANONICAL_CANDIDATE"
     trace["return_check"] = check
 
