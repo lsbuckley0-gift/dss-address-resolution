@@ -87,6 +87,7 @@ is produced; synthetic labels remain benchmark-side oracle metadata.
 - **Per-anomaly detection:** injected, detected, missed and detection-rate counts for each disturbance
 - **Clean reason-code counts:** any evaluator refusal reason appearing in journeys labelled clean
 - **Interaction fingerprints:** exact reason-code combinations for controlled cases where one disturbance creates a secondary symptom or masks the primary diagnostic code
+- **Interaction diagnostic summaries:** per-fixture counts of primary detections, missed primary diagnoses, diagnostic statuses and secondary symptoms
 - **Pairwise interaction matrix:** for every anomaly pair appearing in compound journeys, counts cases where both expected reason codes, only the first, only the second, or neither were observed, alongside reason-code and terminal-state frequencies
 
 Two interaction fixtures are available through `make_interaction_journey`:
@@ -95,6 +96,11 @@ Two interaction fixtures are available through `make_interaction_journey`:
 - `wrong_parcel` + `missing_parcel_masks_conflict`: the delivery parcel field is then made blank. The evaluator reports the missing field rather than the underlying identity conflict. The primary injected fault is therefore refused but not specifically diagnosed by its expected reason code.
 
 These are deliberately constructed diagnostic stress cases, not statistical models of how often such interactions occur. A refusal can be correct while its diagnostic attribution is incomplete; the per-anomaly detection measure makes that distinction visible.
+
+The report's `interaction_diagnostic_summary` keeps these fixture outcomes separate:
+it counts primary detections and misses, diagnostic statuses and observed secondary
+symptoms for each named interaction. This makes a masking failure visible without
+relying on a reader to reconstruct it from individual traces.
 
 The declared oracle mapping is explicit: `gps_drift` → `DELIVERY_GPS_OUTSIDE_LIMIT`,
 `wrong_parcel` → `PARCEL_IDENTITY_CONFLICT`, `wrong_destination` →
