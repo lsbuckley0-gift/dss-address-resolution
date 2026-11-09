@@ -743,6 +743,8 @@ def main() -> None:
     if invalid_audits:
         print("Candidate trace audit failed:", json.dumps(invalid_audits, sort_keys=True))
         raise SystemExit(1)
+    for trace, audit in zip(traces, audits):
+        trace["candidate_trace_audit"] = audit
     audited_candidates = sum(audit["candidate_count"] for audit in audits)
     print(
         f"Candidate trace audit: {len(audits)} valid cases, "
