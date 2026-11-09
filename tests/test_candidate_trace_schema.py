@@ -51,6 +51,8 @@ def schema_errors(value, schema, path="$", root=None):
     if isinstance(value, list):
         if len(value) < schema.get("minItems", 0):
             errors.append(f"{path}: too few items")
+        if len(value) > schema.get("maxItems", float("inf")):
+            errors.append(f"{path}: too many items")
         if "items" in schema:
             for index, item in enumerate(value):
                 errors.extend(schema_errors(item, schema["items"], f"{path}[{index}]", root))
@@ -121,6 +123,14 @@ class CandidateTraceSchemaTests(unittest.TestCase):
         self.assertTrue(schema_errors(exported, self.schema))
         exported = self.export()
         exported[0]["trace_id"] = "addr-not-a-digest"
+        self.assertTrue(schema_errors(exported, self.schema))
+
+    def test_schema_requires_successful_independent_audit(self):
+        exported = self.export()
+        exported[0]["candidate_trace_audit"]["valid"] = False
+        self.assertTrue(schema_errors(exported, self.schema))
+        exported = self.export()
+        exported[0]["candidate_trace_audit"]["mismatches"] = ["ALTERED"]
         self.assertTrue(schema_errors(exported, self.schema))
 
     def test_schema_rejects_partial_field_comparison_objects(self):
