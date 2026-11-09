@@ -254,8 +254,11 @@ Expected terminal states and reason codes are benchmark-side oracle labels, stor
 outside the case object passed to the evaluator. Comparison occurs only after
 evaluation. The report includes state/reason counts, per-case expected and observed
 results, oracle mismatches and semantic-mutation false accepts; formatting-only equivalence
-is not counted as a false accept. It exits non-zero on any mismatch or any VERIFIED
-result after a premise, street, locality or postcode identity mutation.
+is not counted as a false accept. It also independently audits every candidate trace against
+the synthetic case evidence, reporting audited case/candidate counts and any trace mismatches.
+The audit receives no oracle labels. The benchmark exits non-zero on an oracle mismatch,
+a candidate-trace audit mismatch or any VERIFIED result after a premise, street, locality
+or postcode identity mutation.
 
 The cases exercise the current narrow contract: formatting normalisation is
 case-folding plus whitespace collapse; one street edit can be CORRECTED only when
