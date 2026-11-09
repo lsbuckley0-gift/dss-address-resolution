@@ -1,0 +1,50 @@
+[
+  {
+    "case_id": "01-exact",
+    "intended": {"premise": "14", "street": "King Street", "locality": "Fictionton", "postcode": "ZZ1 1ZZ"},
+    "candidates": [
+      {"candidate_id": "A", "premise": "14", "street": "King Street", "locality": "Fictionton", "postcode": "ZZ1 1ZZ"}
+    ]
+  },
+  {
+    "case_id": "02-formatting",
+    "intended": {"premise": "14", "street": "KING   STREET", "locality": "Fictionton", "postcode": "ZZ1 1ZZ"},
+    "candidates": [
+      {"candidate_id": "B", "premise": "14", "street": "King Street", "locality": "Fictionton", "postcode": "ZZ1 1ZZ"}
+    ]
+  },
+  {
+    "case_id": "03-typo-correction",
+    "intended": {"premise": "14", "street": "King Stret", "locality": "Fictionton", "postcode": "ZZ1 1ZZ"},
+    "candidates": [
+      {"candidate_id": "C", "premise": "14", "street": "King Street", "locality": "Fictionton", "postcode": "ZZ1 1ZZ"}
+    ]
+  },
+  {
+    "case_id": "04-postcode-conflict",
+    "intended": {"premise": "14", "street": "King Stret", "locality": "Fictionton", "postcode": "ZZ1 1ZZ"},
+    "candidates": [
+      {"candidate_id": "D", "premise": "14", "street": "King Street", "locality": "Fictionton", "postcode": "ZZ9 9ZZ"}
+    ]
+  },
+  {
+    "case_id": "05-ambiguous",
+    "intended": {"premise": "14", "street": "King Stret", "locality": "Fictionton", "postcode": "ZZ1 1ZZ"},
+    "candidates": [
+      {"candidate_id": "E1", "premise": "14", "street": "King Street", "locality": "Fictionton", "postcode": "ZZ1 1ZZ"},
+      {"candidate_id": "E2", "premise": "14", "street": "King Strete", "locality": "Fictionton", "postcode": "ZZ1 1ZZ"}
+    ]
+  },
+  {
+    "case_id": "06-no-candidate",
+    "intended": {"premise": "8", "street": "Orchard Lane", "locality": "Fictionton", "postcode": "ZZ2 2ZZ"},
+    "candidates": []
+  },
+  {
+    "case_id": "07-return-check-fails",
+    "intended": {"premise": "22", "street": "Market Road", "locality": "Fictionton", "postcode": "ZZ3 3ZZ"},
+    "candidates": [
+      {"candidate_id": "G", "premise": "22", "street": "Market Rod", "locality": "Fictionton", "postcode": "ZZ8 8ZZ"}
+    ]
+  }
+]
