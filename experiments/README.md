@@ -243,9 +243,11 @@ python experiments/address_mutation_bench.py
 python experiments/address_mutation_bench.py --json-out address-mutation-report.json
 ```
 
-The matrix contains 13 fictional cases: one clean baseline, one case/whitespace
+The matrix contains 15 fictional cases: one clean baseline, one case/whitespace
 formatting-only case, five isolated mutations (premise, one-edit street, multiple-edit
-street, locality and postcode), and six pairwise combinations across identity fields.
+street, locality and postcode), and six pairwise combinations across identity fields. Two additional cases exercise
+multiple exact candidates and multiple near candidates, including reversed candidate
+order to confirm that ambiguity does not become acceptance.
 Expected terminal states and reason codes are benchmark-side oracle labels, stored
 outside the case object passed to the evaluator. Comparison occurs only after
 evaluation. The report includes state/reason counts, per-case expected and observed
