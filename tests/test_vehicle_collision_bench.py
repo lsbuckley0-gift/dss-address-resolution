@@ -2,6 +2,7 @@ import copy
 import sys
 from itertools import combinations, permutations
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -53,6 +54,30 @@ class VehicleCollisionBenchTests(unittest.TestCase):
         audit = audit_provenance_trace(journey, result)
         self.assertFalse(audit["valid"])
         self.assertEqual(audit["orphaned_provenance_entries"], ["NOT_REPORTED_FINDING"])
+
+    def test_provenance_audit_is_independent_for_clean_success_marker(self):
+        journey = make_journey(907)
+        result = evaluate_journey(journey)
+        with patch(
+            "vehicle_collision_bench.evaluate_journey",
+            return_value={"terminal_state": "UNRESOLVED"},
+        ):
+            audit = audit_provenance_trace(journey, result)
+        self.assertTrue(audit["valid"], msg=audit)
+
+    def test_provenance_audit_rejects_malformed_trace_collections_and_indices(self):
+        journey = make_journey(908)
+        result = evaluate_journey(journey)
+        result["evidence_provenance"][0]["event_indices"] = None
+        audit = audit_provenance_trace(journey, result)
+        self.assertFalse(audit["valid"])
+        self.assertIn("ALL_DECLARED_CHECKS_PASSED", audit["invalid_evidence_pointers"])
+
+        result = evaluate_journey(journey)
+        result["evidence_provenance"] = None
+        audit = audit_provenance_trace(journey, result)
+        self.assertFalse(audit["valid"])
+        self.assertIn("<malformed-trace-collections>", audit["unsupported_findings"])
 
     def test_provenance_audit_covers_interaction_and_malformed_refusal_fixtures(self):
         journeys = [
