@@ -132,7 +132,8 @@ identity references, interaction fixtures and the clean success marker. It does 
 consume injected labels. The clean success marker is checked directly against the
 journey invariants rather than by asking the evaluator to re-verify itself. The
 checker also refuses malformed trace collections and malformed event-index lists
-without crashing. Audit failures are reported as data and do not change evaluator
+without crashing. It can also audit the refusal trace for a non-object journey
+input. Audit failures are reported as data and do not change evaluator
 terminal states.
 
 Each evaluator trace now includes `evidence_provenance`, a deterministic list with
