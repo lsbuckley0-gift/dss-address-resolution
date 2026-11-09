@@ -112,11 +112,14 @@ and destination expectations are also validated independently: an absent expecte
 parcel ID must not suppress an independently testable destination conflict, and an
 absent expected destination ID must not suppress a parcel conflict. The aggregate
 `EXPECTED_IDENTITY_FIELDS_MISSING_OR_INVALID` reason and
-`expected_identity_fields_present` check remain for compatibility, while
-the trace also exposes `expected_parcel_id_present` and
-`expected_destination_id_present` separately. When the only conflicting
-value itself is erased, the evaluator cannot infer it and reports only what remains
-observable. This distinguishes evidence loss from reason-code precedence.
+`expected_identity_fields_present` check remain for compatibility. The trace also
+exposes `expected_parcel_id_present` and
+`expected_destination_id_present` separately, with specific reason codes
+`EXPECTED_PARCEL_ID_MISSING_OR_INVALID` and
+`EXPECTED_DESTINATION_ID_MISSING_OR_INVALID` when either reference is absent.
+When the only conflicting value itself is erased, the evaluator cannot infer it
+and reports only what remains observable. This distinguishes evidence loss from
+reason-code precedence.
 
 The report's `interaction_diagnostic_summary` keeps these fixture outcomes separate:
 it counts primary detections and misses, diagnostic statuses and observed secondary
