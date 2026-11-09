@@ -499,6 +499,19 @@ def audit_candidate_trace(case: Any, trace: Any) -> dict[str, Any]:
     ):
         mismatches.append("SELECTED_CANDIDATE_REFERENCE_MISMATCH")
 
+    identity = {
+        "case_id": case.get("case_id") if isinstance(case.get("case_id"), str) else None,
+        "candidate_ids": expected_ids,
+        "candidate_count": expected_count,
+        "selected_candidate_index": trace.get("selected_candidate_index"),
+        "terminal_state": trace.get("terminal_state"),
+        "reason_code": trace.get("reason_code"),
+    }
+    encoded = json.dumps(identity, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    expected_trace_id = "addr-" + hashlib.sha256(encoded.encode("utf-8")).hexdigest()[:16]
+    if trace.get("trace_id") != expected_trace_id:
+        mismatches.append("TRACE_ID_MISMATCH")
+
     return {
         "valid": not mismatches,
         "mismatches": mismatches,
