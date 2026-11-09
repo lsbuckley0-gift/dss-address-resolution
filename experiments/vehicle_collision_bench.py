@@ -28,6 +28,30 @@ ANOMALIES = (
     "missing_proof",
 )
 
+# Explicit oracle mapping: injected synthetic disturbance -> invariant reason code.
+# This mapping is benchmark metadata; the evaluator does not consult it.
+ANOMALY_REASON_CODES = {
+    "gps_drift": "DELIVERY_GPS_OUTSIDE_LIMIT",
+    "wrong_parcel": "PARCEL_IDENTITY_CONFLICT",
+    "wrong_destination": "DESTINATION_IDENTITY_CONFLICT",
+    "reordered_events": "TIMESTAMP_ORDER_CONFLICT",
+    "missing_proof": "DELIVERY_PROOF_REFERENCE_MISSING",
+}
+
+
+def _decode_injected_condition(condition: str) -> tuple[str, ...]:
+    if condition == "clean":
+        return ()
+    if condition.startswith("compound:"):
+        anomalies = tuple(condition.removeprefix("compound:").split("+"))
+    else:
+        anomalies = (condition,)
+    if not anomalies or any(anomaly not in ANOMALY_REASON_CODES for anomaly in anomalies):
+        raise ValueError(f"Unknown injected condition: {condition}")
+    if len(set(anomalies)) != len(anomalies):
+        raise ValueError(f"Duplicate anomaly in injected condition: {condition}")
+    return anomalies
+
 
 def apply_anomaly(events: list[dict[str, Any]], index: int, anomaly: str) -> None:
     """Apply one controlled disturbance to a fresh journey's event list."""
@@ -234,12 +258,19 @@ def benchmark(journeys: list[dict[str, Any]]) -> dict[str, Any]:
     reason_combinations: Counter[str] = Counter()
     condition_reason_counts: dict[str, Counter[str]] = defaultdict(Counter)
     condition_reason_combinations: dict[str, Counter[str]] = defaultdict(Counter)
+    anomaly_reason_matrix: dict[str, Counter[str]] = {
+        anomaly: Counter() for anomaly in ANOMALIES
+    }
+    anomaly_occurrences: Counter[str] = Counter()
+    anomaly_detected: Counter[str] = Counter()
+    clean_reason_counts: Counter[str] = Counter()
 
     for journey in journeys:
         result = evaluate_journey(journey)
         # injected_condition is benchmark oracle metadata only. It labels the
         # generated case; evaluate_journey never reads it when deciding outcome.
         expected = journey["injected_condition"]
+        injected_anomalies = _decode_injected_condition(expected)
         observed = result["terminal_state"]
         matrix[expected][observed] += 1
 
@@ -249,6 +280,17 @@ def benchmark(journeys: list[dict[str, Any]]) -> dict[str, Any]:
         reason_combinations[combination] += 1
         condition_reason_counts[expected].update(reasons)
         condition_reason_combinations[expected][combination] += 1
+        if not injected_anomalies:
+            clean_reason_counts.update(
+                reason for reason in reasons
+                if reason != "ALL_DECLARED_CHECKS_PASSED"
+            )
+        for anomaly in injected_anomalies:
+            expected_reason = ANOMALY_REASON_CODES[anomaly]
+            anomaly_occurrences[anomaly] += 1
+            anomaly_reason_matrix[anomaly].update(reasons)
+            if expected_reason in reasons:
+                anomaly_detected[anomaly] += 1
         outcomes.append(result)
 
     clean = matrix["clean"]
@@ -281,6 +323,25 @@ def benchmark(journeys: list[dict[str, Any]]) -> dict[str, Any]:
             condition: dict(sorted(counts.items()))
             for condition, counts in sorted(condition_reason_combinations.items())
         },
+        # Rows are injected anomaly labels; columns are evaluator reason codes.
+        "anomaly_reason_matrix": {
+            anomaly: dict(sorted(counts.items()))
+            for anomaly, counts in sorted(anomaly_reason_matrix.items())
+        },
+        "anomaly_detection": {
+            anomaly: {
+                "expected_reason_code": ANOMALY_REASON_CODES[anomaly],
+                "injected_occurrences": anomaly_occurrences[anomaly],
+                "detected_occurrences": anomaly_detected[anomaly],
+                "missed_occurrences": anomaly_occurrences[anomaly] - anomaly_detected[anomaly],
+                "detection_rate": (
+                    anomaly_detected[anomaly] / anomaly_occurrences[anomaly]
+                    if anomaly_occurrences[anomaly] else None
+                ),
+            }
+            for anomaly in sorted(ANOMALIES)
+        },
+        "clean_reason_code_counts": dict(sorted(clean_reason_counts.items())),
     }
 
 
