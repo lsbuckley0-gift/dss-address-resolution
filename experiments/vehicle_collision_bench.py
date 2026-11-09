@@ -92,6 +92,41 @@ def make_journey(index: int, anomaly: str = "clean") -> dict[str, Any]:
     }
 
 
+def make_interaction_journey(
+    index: int,
+    primary_anomaly: str,
+    interaction: str,
+) -> dict[str, Any]:
+    """Create a labelled interaction where a secondary symptom may mask or echo a fault.
+
+    Oracle metadata is deliberately kept outside the event evidence consumed by
+    evaluate_journey. Supported interactions are narrow, named test fixtures.
+    """
+    if primary_anomaly not in ANOMALY_REASON_CODES:
+        raise ValueError(f"Unknown primary anomaly: {primary_anomaly}")
+    journey = make_journey(index)
+    apply_anomaly(journey["events"], index, primary_anomaly)
+
+    if interaction == "sequence_echo" and primary_anomaly == "reordered_events":
+        journey["events"][1], journey["events"][2] = (
+            journey["events"][2], journey["events"][1]
+        )
+        # Preserve a backwards timestamp as well as the wrong event order.
+        journey["events"][1]["timestamp"] = 900
+    elif interaction == "missing_parcel_masks_conflict" and primary_anomaly == "wrong_parcel":
+        # The missing field takes precedence in the evaluator's reason taxonomy,
+        # masking the underlying identity mismatch on that event.
+        journey["events"][-1]["parcel_id"] = ""
+    else:
+        raise ValueError(
+            f"Unsupported interaction {interaction!r} for {primary_anomaly!r}"
+        )
+
+    journey["injected_condition"] = primary_anomaly
+    journey["injected_interaction"] = interaction
+    return journey
+
+
 def make_compound_journey(index: int, anomalies: tuple[str, ...]) -> dict[str, Any]:
     """Create a journey with multiple simultaneous, independently named disturbances."""
     if len(anomalies) < 2 or len(set(anomalies)) != len(anomalies):
@@ -264,6 +299,7 @@ def benchmark(journeys: list[dict[str, Any]]) -> dict[str, Any]:
     anomaly_occurrences: Counter[str] = Counter()
     anomaly_detected: Counter[str] = Counter()
     clean_reason_counts: Counter[str] = Counter()
+    interaction_reason_combinations: dict[str, Counter[str]] = defaultdict(Counter)
 
     for journey in journeys:
         result = evaluate_journey(journey)
@@ -280,6 +316,9 @@ def benchmark(journeys: list[dict[str, Any]]) -> dict[str, Any]:
         reason_combinations[combination] += 1
         condition_reason_counts[expected].update(reasons)
         condition_reason_combinations[expected][combination] += 1
+        interaction = journey.get("injected_interaction")
+        if interaction is not None:
+            interaction_reason_combinations[interaction][combination] += 1
         if not injected_anomalies:
             clean_reason_counts.update(
                 reason for reason in reasons
@@ -342,6 +381,10 @@ def benchmark(journeys: list[dict[str, Any]]) -> dict[str, Any]:
             for anomaly in sorted(ANOMALIES)
         },
         "clean_reason_code_counts": dict(sorted(clean_reason_counts.items())),
+        "interaction_reason_combinations": {
+            interaction: dict(sorted(counts.items()))
+            for interaction, counts in sorted(interaction_reason_combinations.items())
+        },
     }
 
 
