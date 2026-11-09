@@ -695,9 +695,6 @@ def audit_provenance_trace(
         result = {}
     reasons = result.get("reason_codes", [])
     entries = result.get("evidence_provenance", [])
-    malformed_trace = (
-        malformed_result or not isinstance(reasons, list) or not isinstance(entries, list)
-    )
     expected_checks, expected_class, expected_terminal = _expected_decision_contract(journey)
     decision_mismatches = []
     observed_checks = result.get("checks")
