@@ -134,6 +134,10 @@ journey invariants rather than by asking the evaluator to re-verify itself. The
 audit independently derives the complete expected reason-code set from journey
 evidence, so deleting both a reported reason and its provenance entry cannot
 silently make a trace appear complete. It rejects malformed reason-code values.
+It also independently recomputes every declared check, the evidence class and
+the terminal state from the journey. Mutation tests alter or remove individual
+checks, add an unearned check, and falsify both accepted and refused terminal
+states; the audit must reject each altered decision contract.
 The checker also refuses malformed trace collections and malformed event-index lists
 without crashing. It can also audit the refusal trace for a non-object journey
 input. It verifies the exact declared rule text for each finding, not merely that
