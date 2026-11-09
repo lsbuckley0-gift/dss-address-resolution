@@ -145,6 +145,10 @@ failures without aborting the full audit. Additional mutation coverage replaces
 decision fields and trace collections with nulls, scalars, lists and mappings of
 the wrong shape; each altered result must be rejected. Clean dataset audits also
 assert zero decision mismatches in their aggregate counters.
+A deterministic nested-mutation matrix additionally exercises JSON-shaped corruption
+across decision fields, reason-code collections, provenance entries, and event-index
+members (including booleans, floats, negative values, strings and nested containers).
+Every mutated trace must be rejected without an audit exception.
 The checker also refuses malformed trace collections and malformed event-index lists
 without crashing. It can also audit the refusal trace for a non-object journey
 input. It verifies the exact declared rule text for each finding, not merely that
