@@ -298,6 +298,26 @@ class VehicleCollisionBenchTests(unittest.TestCase):
             {"PARCEL_ID_MISSING_OR_INVALID": 1},
         )
 
+    def test_missing_destination_does_not_mask_separate_destination_conflict(self):
+        journey = make_interaction_journey(
+            45, "wrong_destination", "missing_destination_with_separate_conflict"
+        )
+        result = evaluate_journey(journey)
+        self.assertEqual(result["terminal_state"], "UNRESOLVED")
+        self.assertIn("DESTINATION_ID_MISSING_OR_INVALID", result["reason_codes"])
+        self.assertIn("DESTINATION_IDENTITY_CONFLICT", result["reason_codes"])
+        self.assertEqual(result["evidence_class"], "MIXED")
+
+        report = benchmark([journey])
+        detection = report["anomaly_detection"]["wrong_destination"]
+        self.assertEqual(detection["detected_occurrences"], 1)
+        self.assertEqual(detection["missed_occurrences"], 0)
+        summary = report["interaction_diagnostic_summary"][
+            "missing_destination_with_separate_conflict"
+        ]
+        self.assertEqual(summary["primary_fault_detected_count"], 1)
+        self.assertEqual(summary["primary_fault_missed_count"], 0)
+
     def test_missing_secondary_symptom_can_mask_primary_fault(self):
         journey = make_interaction_journey(
             33, "wrong_parcel", "missing_parcel_masks_conflict"
