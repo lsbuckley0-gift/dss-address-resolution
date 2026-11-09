@@ -311,7 +311,7 @@ class DemoDecisionTests(unittest.TestCase):
             with redirect_stdout(output):
                 main()
         rendered = output.getvalue()
-        self.assertIn("candidate A [0]: SELECTED_EXACT", rendered)
+        self.assertIn('candidate "A" [0]: SELECTED_EXACT', rendered)
         self.assertIn("street: intended", rendered)
         self.assertIn('"king street"', rendered)
         self.assertIn("protected checks:", rendered)
