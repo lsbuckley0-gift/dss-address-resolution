@@ -108,11 +108,11 @@ def make_interaction_journey(
     apply_anomaly(journey["events"], index, primary_anomaly)
 
     if interaction == "sequence_echo" and primary_anomaly == "reordered_events":
-        journey["events"][1], journey["events"][2] = (
-            journey["events"][2], journey["events"][1]
-        )
-        # Preserve a backwards timestamp as well as the wrong event order.
-        journey["events"][1]["timestamp"] = 900
+        # Duplicate the event label without moving the delivery record, so
+        # the sequence check fails while delivery GPS/proof remain attached.
+        journey["events"][1]["type"] = "delivered"
+        # Preserve the primary backwards-timestamp symptom as well.
+        journey["events"][2]["timestamp"] = 1400
     elif interaction == "missing_parcel_masks_conflict" and primary_anomaly == "wrong_parcel":
         # The missing field takes precedence in the evaluator's reason taxonomy,
         # masking the underlying identity mismatch on that event.
