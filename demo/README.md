@@ -33,7 +33,7 @@ Every decision trace now carries the same evidence vocabulary used by the vehicl
 - `CONFLICTING`: a candidate is found but contradicts a protected identity field at return check.
 - `AMBIGUOUS`: more than one candidate satisfies the retrieval conditions.
 
-The original `terminal_state` and `reason_code` remain available; `reason_codes` is also emitted as a one-item list for a common trace shape. Each trace also includes a deterministic `trace_id`, the fixed `ruleset_version` (`synthetic-address-demo/1.0`) and a declared `normalisation_rule`. The trace ID is a convenience key derived from the case identifier, candidate labels/count and decision outcome; it is not a signature, content-integrity proof or production audit identifier. The vehicle experiment adds `MIXED` when missing and contradictory observations coexist.
+The original `terminal_state` and `reason_code` remain available; `reason_codes` is also emitted as a one-item list for a common trace shape. Each trace also includes a deterministic `trace_id`, the fixed `ruleset_version` (`synthetic-address-demo/1.0`) and a declared `normalisation_rule`. The trace ID is a convenience key derived from the case identifier, candidate labels/count, selected candidate position and decision outcome; including the position distinguishes otherwise identical source labels. It is not a signature, content-integrity proof or production audit identifier. The vehicle experiment adds `MIXED` when missing and contradictory observations coexist.
 
 ## Candidate-by-candidate evidence
 
