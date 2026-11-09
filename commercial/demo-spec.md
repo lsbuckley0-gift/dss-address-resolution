@@ -52,6 +52,11 @@ A reviewer unfamiliar with ∂ss can:
 4. Confirm that conflicting or ambiguous cases are not silently auto-accepted.
 5. Export a machine-readable trace and summary metrics.
 6. Inspect every candidate's field evidence and understand why it was selected, refused or left ambiguous.
-7. Run an independent trace audit that detects altered or missing candidate evidence, falsified candidate dispositions, invalid selection references, an incorrect aggregate outcome and an inconsistent deterministic trace ID.
+7. Run an independent trace audit that detects altered or missing candidate evidence, falsified candidate dispositions, invalid selection references, an incorrect aggregate outcome and an inconsistent deterministic trace ID.\n8. Export the audited trace array against the published Draft 2020-12 JSON Schema, with an explicit schema version separate from the decision-ruleset version.
 
 The demo is not complete until the executable implementation, automated tests, and documented results are present. This specification alone is not evidence of working software.
+
+
+## Export contract
+
+The audited `--json-out` array is specified by [`../demo/schemas/candidate-trace-v1.schema.json`](../demo/schemas/candidate-trace-v1.schema.json). Consumers should validate against the pinned schema version and treat unknown properties as incompatible. A breaking export-shape change requires a new schema version; the decision ruleset version remains independently managed.
