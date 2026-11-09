@@ -256,6 +256,9 @@ def audit_candidate_trace(case: Any, trace: Any) -> dict[str, Any]:
         mismatches.append("CANDIDATE_TRACE_COUNT_MISMATCH")
 
     field_comparison_count = 0
+    expected_retrieval_flags: list[bool] = []
+    expected_exact_flags: list[bool] = []
+    expected_street_flags: list[bool] = []
     for index, candidate in enumerate(candidates):
         if index >= len(entries):
             continue
@@ -279,6 +282,9 @@ def audit_candidate_trace(case: Any, trace: Any) -> dict[str, Any]:
                 "reason_codes": ["MALFORMED_CANDIDATE_RECORD"],
             }
             expected_protected = {"premise": False, "locality": False, "postcode": False}
+            expected_retrieval_flags.append(False)
+            expected_exact_flags.append(False)
+            expected_street_flags.append(False)
         else:
             expected_fields = {}
             for field in FIELDS:
@@ -330,6 +336,11 @@ def audit_candidate_trace(case: Any, trace: Any) -> dict[str, Any]:
                 "locality": locality_match,
                 "postcode": postcode_match,
             }
+            expected_retrieval_flags.append(expected_retrieval["eligible"])
+            expected_exact_flags.append(all(
+                expected_fields[field]["normalised_equal"] is True for field in FIELDS
+            ))
+            expected_street_flags.append(street_near)
 
         observed_fields = entry.get("field_comparisons")
         if observed_fields != expected_fields:
@@ -344,6 +355,140 @@ def audit_candidate_trace(case: Any, trace: Any) -> dict[str, Any]:
         reason_codes = entry.get("reason_codes")
         if not isinstance(reason_codes, list) or not reason_codes:
             mismatches.append(f"CANDIDATE_REASON_CODES_MISSING:{index}")
+
+    expected_reason = None
+    expected_terminal = "UNRESOLVED"
+    expected_selected_index = None
+    expected_dispositions: list[str] = []
+    expected_candidate_reasons: list[list[str]] = []
+
+    intended_valid = (
+        isinstance(intended, dict)
+        and all(
+            isinstance(intended.get(field), str)
+            and bool(_audit_normalise(intended.get(field)))
+            for field in FIELDS
+        )
+    )
+    if not isinstance(intended, dict):
+        expected_reason = "MALFORMED_INTENDED_RECORD"
+    elif not isinstance(raw_candidates, list):
+        expected_reason = "MALFORMED_CANDIDATE_COLLECTION"
+    elif any(not isinstance(candidate, dict) for candidate in raw_candidates):
+        expected_reason = "MALFORMED_CANDIDATE_RECORD"
+    elif not intended_valid:
+        expected_reason = "MISSING_REQUIRED_INTENDED_FIELD"
+    elif len(expected_exact_flags) == expected_count:
+        exact_indices = [
+            index for index, matched in enumerate(expected_exact_flags) if matched
+        ]
+        near_indices = [
+            index for index, eligible in enumerate(expected_retrieval_flags) if eligible
+        ]
+        if len(exact_indices) == 1:
+            expected_reason = "EXACT_IDENTITY_FIELDS"
+            expected_terminal = "VERIFIED"
+            expected_selected_index = exact_indices[0]
+        elif len(exact_indices) > 1:
+            expected_reason = "MULTIPLE_EXACT_CANDIDATES"
+        elif len(near_indices) == 0:
+            expected_reason = "NO_SUPPORTED_CANDIDATE"
+        elif len(near_indices) > 1:
+            expected_reason = "AMBIGUOUS_CANDIDATES"
+        else:
+            expected_selected_index = near_indices[0]
+            return_passed = (
+                expected_protected["premise"] if False else True
+            )
+            # Retrieval already establishes premise/locality/street; postcode
+            # remains the protected field that can fail the return check.
+            return_passed = (
+                isinstance(candidates[expected_selected_index], dict)
+                and expected_retrieval_flags[expected_selected_index]
+                and expected_protected_value := True
+            )
+            selected_candidate = candidates[expected_selected_index]
+            return_passed = (
+                _audit_normalise(intended.get("premise")) == _audit_normalise(selected_candidate.get("premise"))
+                and _audit_normalise(intended.get("locality")) == _audit_normalise(selected_candidate.get("locality"))
+                and _audit_normalise(intended.get("postcode")) == _audit_normalise(selected_candidate.get("postcode"))
+                and expected_street_flags[expected_selected_index]
+            )
+            if return_passed:
+                expected_reason = "UNIQUE_CANDIDATE_AND_RETURN_CHECK_PASSED"
+                expected_terminal = "CORRECTED"
+            else:
+                expected_reason = "RETURN_CHECK_FAILED"
+
+    if expected_reason is not None:
+        if trace.get("reason_code") != expected_reason:
+            mismatches.append("AGGREGATE_REASON_CODE_MISMATCH")
+        if trace.get("terminal_state") != expected_terminal:
+            mismatches.append("AGGREGATE_TERMINAL_STATE_MISMATCH")
+        if trace.get("selected_candidate_index") != expected_selected_index:
+            mismatches.append("AGGREGATE_SELECTED_POSITION_MISMATCH")
+
+        for index, candidate in enumerate(candidates):
+            if index >= len(entries) or not isinstance(entries[index], dict):
+                continue
+            if expected_reason == "MALFORMED_CANDIDATE_RECORD":
+                disposition = "REFUSED"
+                reasons = (
+                    ["MALFORMED_CANDIDATE_PRESENT"]
+                    if isinstance(candidate, dict) else ["MALFORMED_CANDIDATE_RECORD"]
+                )
+            elif expected_reason == "MALFORMED_INTENDED_RECORD":
+                disposition = "REFUSED"
+                reasons = (
+                    ["INTENDED_RECORD_MALFORMED"]
+                    if isinstance(candidate, dict) else ["MALFORMED_CANDIDATE_RECORD"]
+                )
+            elif expected_reason == "MISSING_REQUIRED_INTENDED_FIELD":
+                disposition = "REFUSED"
+                reasons = ["INTENDED_REQUIRED_FIELD_MISSING"]
+            elif expected_reason == "EXACT_IDENTITY_FIELDS":
+                if index == expected_selected_index:
+                    disposition, reasons = "SELECTED_EXACT", ["ALL_IDENTITY_FIELDS_MATCH"]
+                else:
+                    disposition, reasons = "NOT_SELECTED", entries[index]["retrieval"]["reason_codes"]
+            elif expected_reason == "MULTIPLE_EXACT_CANDIDATES":
+                if expected_exact_flags[index]:
+                    disposition, reasons = "AMBIGUOUS_EXACT", ["MULTIPLE_EXACT_CANDIDATES"]
+                else:
+                    disposition, reasons = "NOT_SELECTED", entries[index]["retrieval"]["reason_codes"]
+            elif expected_reason == "NO_SUPPORTED_CANDIDATE":
+                disposition, reasons = "REFUSED_RETRIEVAL", entries[index]["retrieval"]["reason_codes"]
+            elif expected_reason == "AMBIGUOUS_CANDIDATES":
+                if expected_retrieval_flags[index]:
+                    disposition, reasons = "AMBIGUOUS", ["MULTIPLE_RETRIEVAL_ELIGIBLE_CANDIDATES"]
+                else:
+                    disposition, reasons = "REFUSED_RETRIEVAL", entries[index]["retrieval"]["reason_codes"]
+            elif expected_reason == "RETURN_CHECK_FAILED":
+                if index == expected_selected_index:
+                    selected_candidate = candidates[index]
+                    failed = []
+                    if _audit_normalise(intended.get("premise")) != _audit_normalise(selected_candidate.get("premise")):
+                        failed.append("PREMISE_RETURN_MISMATCH")
+                    if _audit_normalise(intended.get("locality")) != _audit_normalise(selected_candidate.get("locality")):
+                        failed.append("LOCALITY_RETURN_MISMATCH")
+                    if _audit_normalise(intended.get("postcode")) != _audit_normalise(selected_candidate.get("postcode")):
+                        failed.append("POSTCODE_RETURN_MISMATCH")
+                    if not expected_street_flags[index]:
+                        failed.append("STREET_WITHIN_ONE_EDIT_RETURN_MISMATCH")
+                    disposition, reasons = "REFUSED_RETURN_CHECK", ["RETURN_CHECK_FAILED"] + failed
+                else:
+                    disposition, reasons = "REFUSED_RETRIEVAL", entries[index]["retrieval"]["reason_codes"]
+            elif expected_reason == "UNIQUE_CANDIDATE_AND_RETURN_CHECK_PASSED":
+                if index == expected_selected_index:
+                    disposition, reasons = "SELECTED_CORRECTED", ["UNIQUE_CANDIDATE_AND_RETURN_CHECK_PASSED"]
+                else:
+                    disposition, reasons = "REFUSED_RETRIEVAL", entries[index]["retrieval"]["reason_codes"]
+            else:
+                continue
+            if entries[index].get("disposition") != disposition:
+                mismatches.append(f"CANDIDATE_DISPOSITION_MISMATCH:{index}")
+            if entries[index].get("reason_codes") != reasons:
+                mismatches.append(f"CANDIDATE_REASON_CODE_MISMATCH:{index}")
 
     selected_index = trace.get("selected_candidate_index")
     selected_id = trace.get("selected_candidate")
