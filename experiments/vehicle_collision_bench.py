@@ -10,6 +10,7 @@ import json
 import math
 import sys
 import random
+from itertools import combinations
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
@@ -360,6 +361,7 @@ def benchmark(journeys: list[dict[str, Any]]) -> dict[str, Any]:
     interaction_reason_combinations: dict[str, Counter[str]] = defaultdict(Counter)
     diagnostic_status_counts: Counter[str] = Counter()
     diagnostic_records: list[dict[str, Any]] = []
+    pair_interaction_stats: dict[tuple[str, str], dict[str, Any]] = {}
 
     for journey in journeys:
         result = evaluate_journey(journey)
@@ -396,6 +398,33 @@ def benchmark(journeys: list[dict[str, Any]]) -> dict[str, Any]:
             anomaly_reason_matrix[anomaly].update(reasons)
             if expected_reason in reasons:
                 anomaly_detected[anomaly] += 1
+
+        # Pairwise interaction statistics are computed after evaluation from
+        # oracle labels and observed reason codes; labels never enter evaluator.
+        for first, second in combinations(sorted(injected_anomalies), 2):
+            key = (first, second)
+            stats = pair_interaction_stats.setdefault(key, {
+                "journey_count": 0,
+                "both_detected": 0,
+                "first_only": 0,
+                "second_only": 0,
+                "neither_detected": 0,
+                "observed_reason_codes": Counter(),
+                "terminal_states": Counter(),
+            })
+            first_detected = ANOMALY_REASON_CODES[first] in reasons
+            second_detected = ANOMALY_REASON_CODES[second] in reasons
+            stats["journey_count"] += 1
+            stats["observed_reason_codes"].update(reasons)
+            stats["terminal_states"].update([observed])
+            if first_detected and second_detected:
+                stats["both_detected"] += 1
+            elif first_detected:
+                stats["first_only"] += 1
+            elif second_detected:
+                stats["second_only"] += 1
+            else:
+                stats["neither_detected"] += 1
         outcomes.append(result)
 
     clean = matrix["clean"]
@@ -447,6 +476,23 @@ def benchmark(journeys: list[dict[str, Any]]) -> dict[str, Any]:
             for anomaly in sorted(ANOMALIES)
         },
         "clean_reason_code_counts": dict(sorted(clean_reason_counts.items())),
+        "pair_interaction_matrix": {
+            f"{first} + {second}": {
+                "anomalies": [first, second],
+                "expected_reason_codes": {
+                    first: ANOMALY_REASON_CODES[first],
+                    second: ANOMALY_REASON_CODES[second],
+                },
+                "journey_count": stats["journey_count"],
+                "both_detected": stats["both_detected"],
+                "first_only": stats["first_only"],
+                "second_only": stats["second_only"],
+                "neither_detected": stats["neither_detected"],
+                "observed_reason_code_counts": dict(sorted(stats["observed_reason_codes"].items())),
+                "terminal_state_counts": dict(sorted(stats["terminal_states"].items())),
+            }
+            for (first, second), stats in sorted(pair_interaction_stats.items())
+        },
         "interaction_reason_combinations": {
             interaction: dict(sorted(counts.items()))
             for interaction, counts in sorted(interaction_reason_combinations.items())
