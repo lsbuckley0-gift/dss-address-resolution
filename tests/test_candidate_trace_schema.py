@@ -8,7 +8,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "demo"))
-from dss_demo import main  # noqa: E402
+from dss_demo import main, RULESET_VERSION, TRACE_SCHEMA_VERSION  # noqa: E402
+from dss_trace_audit import RULESET_VERSION as AUDIT_RULESET_VERSION, TRACE_SCHEMA_VERSION as AUDIT_TRACE_SCHEMA_VERSION  # noqa: E402
 
 
 SCHEMA_PATH = ROOT / "demo" / "schemas" / "candidate-trace-v1.schema.json"
@@ -97,6 +98,11 @@ class CandidateTraceSchemaTests(unittest.TestCase):
         self.assertEqual(self.schema["$schema"], "https://json-schema.org/draft/2020-12/schema")
         self.assertEqual(self.schema["items"]["properties"]["trace_schema_version"]["const"],
                          "candidate-trace/1.0")
+        self.assertEqual(TRACE_SCHEMA_VERSION, "candidate-trace/1.0")
+        self.assertEqual(AUDIT_TRACE_SCHEMA_VERSION, TRACE_SCHEMA_VERSION)
+        self.assertEqual(self.schema["items"]["properties"]["ruleset_version"]["const"],
+                         RULESET_VERSION)
+        self.assertEqual(AUDIT_RULESET_VERSION, RULESET_VERSION)
 
     def test_complete_cli_export_conforms_to_schema(self):
         exported = self.export()
