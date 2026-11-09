@@ -11,6 +11,7 @@ From the repository root:
 ```bash
 python demo/dss_demo.py
 python demo/dss_demo.py --json-out demo-trace.json
+python demo/dss_demo.py --candidate-detail
 python -m unittest discover -s tests -v
 ```
 
@@ -34,6 +35,8 @@ Every decision trace now carries the same evidence vocabulary used by the vehicl
 - `AMBIGUOUS`: more than one candidate satisfies the retrieval conditions.
 
 The original `terminal_state` and `reason_code` remain available; `reason_codes` is also emitted as a one-item list for a common trace shape. Each trace also includes a deterministic `trace_id`, the fixed `ruleset_version` (`synthetic-address-demo/1.0`) and a declared `normalisation_rule`. The trace ID is a convenience key derived from the case identifier, candidate labels/count, selected candidate position and decision outcome; including the position distinguishes otherwise identical source labels. It is not a signature, content-integrity proof or production audit identifier. The vehicle experiment adds `MIXED` when missing and contradictory observations coexist.
+
+The optional `--candidate-detail` view prints each candidate's position, disposition, reason codes, retrieval eligibility, protected-field checks and raw-to-normalised field comparisons directly in the terminal. Use it for a human-readable walkthrough; use `--json-out` for machine-readable evidence and audit results.
 
 ## Candidate-by-candidate evidence
 
