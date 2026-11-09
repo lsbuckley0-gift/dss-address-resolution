@@ -175,7 +175,12 @@ def evaluate_journey(journey: Any) -> dict[str, Any]:
     events_well_formed = isinstance(raw_events, list) and all(
         isinstance(event, dict) for event in raw_events
     )
-    events = raw_events if events_well_formed else []
+    # Retain individually valid observations even when a sibling record is
+    # malformed; the schema defect must not erase independent evidence.
+    events = (
+        [event for event in raw_events if isinstance(event, dict)]
+        if isinstance(raw_events, list) else []
+    )
     expected_types = ["pickup", "in_transit", "delivered"]
     event_types = [event.get("type") for event in events]
 
