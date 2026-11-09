@@ -34,6 +34,8 @@ class VehicleCollisionBenchTests(unittest.TestCase):
         self.assertEqual(audit["duplicate_entry_count"], 0)
         self.assertEqual(audit["unsupported_finding_count"], 0)
         self.assertEqual(audit["invalid_pointer_count"], 0)
+        self.assertEqual(audit["unreported_reason_count"], 0)
+        self.assertEqual(audit["unexpected_reason_count"], 0)
         self.assertEqual(audit["journeys_with_shared_event_findings"], 800)
         self.assertEqual(audit["shared_event_reference_count"], 800)
         self.assertTrue(audit["all_findings_distinct_by_reason_code"])
@@ -88,6 +90,8 @@ class VehicleCollisionBenchTests(unittest.TestCase):
         self.assertEqual(audit["duplicate_entry_count"], 0)
         self.assertEqual(audit["unsupported_finding_count"], 0)
         self.assertEqual(audit["invalid_pointer_count"], 0)
+        self.assertEqual(audit["unreported_reason_count"], 0)
+        self.assertEqual(audit["unexpected_reason_count"], 0)
 
     def test_dataset_audit_rejects_trace_count_mismatch(self):
         with self.assertRaisesRegex(ValueError, "exactly one trace per journey"):
