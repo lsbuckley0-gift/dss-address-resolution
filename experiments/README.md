@@ -131,12 +131,17 @@ covers every evaluator reason code, including malformed records, missing expecte
 identity references, interaction fixtures and the clean success marker. It does not
 consume injected labels. The clean success marker is checked directly against the
 journey invariants rather than by asking the evaluator to re-verify itself. The
-checker also refuses malformed trace collections and malformed event-index lists
+audit independently derives the complete expected reason-code set from journey
+evidence, so deleting both a reported reason and its provenance entry cannot
+silently make a trace appear complete. It rejects malformed reason-code values.
+The checker also refuses malformed trace collections and malformed event-index lists
 without crashing. It can also audit the refusal trace for a non-object journey
 input. It verifies the exact declared rule text for each finding, not merely that
 the explanation is non-empty. Mutation tests alter evidence kind, source, field,
 event index and rule independently; duplicate entries and fabricated findings
-must also be rejected. Audit failures are reported as data and do not change evaluator
+must also be rejected. It also detects a reason code and its evidence entry being
+removed together, because expected findings are derived independently from the
+journey rather than only compared with the submitted trace. Audit failures are reported as data and do not change evaluator
 terminal states.
 
 Each evaluator trace now includes `evidence_provenance`, a deterministic list with
