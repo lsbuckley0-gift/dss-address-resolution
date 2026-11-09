@@ -15,6 +15,9 @@ MUTATIONS = {
     "premise_conflict": ("premise", "41"),
     "street_one_edit": ("street", "King Stret"),
     "street_multiple_edits": ("street", "Kng Strret"),
+    "street_substitution": ("street", "King Streat"),
+    "street_insertion": ("street", "King Streeet"),
+    "street_transposition": ("street", "King Steert"),
     "locality_conflict": ("locality", "Elsewhere"),
     "postcode_conflict": ("postcode", "ZZ9 9ZZ"),
 }
@@ -26,7 +29,7 @@ def _expected(mutations: tuple[str, ...]) -> tuple[str, str]:
         return "UNRESOLVED", "NO_SUPPORTED_CANDIDATE"
     if "postcode_conflict" in mutations:
         return "UNRESOLVED", "RETURN_CHECK_FAILED"
-    if "street_multiple_edits" in mutations:
+    if any(m in mutations for m in ("street_multiple_edits", "street_transposition")):
         return "UNRESOLVED", "NO_SUPPORTED_CANDIDATE"
     if "street_one_edit" in mutations:
         return "CORRECTED", "UNIQUE_CANDIDATE_AND_RETURN_CHECK_PASSED"
@@ -37,6 +40,9 @@ def build_dataset() -> list[dict[str, Any]]:
         ("clean-baseline", ()), ("formatting-only", ("formatting_only",)),
         ("premise-only", ("premise_conflict",)), ("street-one-edit-only", ("street_one_edit",)),
         ("street-multiple-edits-only", ("street_multiple_edits",)),
+        ("street-substitution", ("street_substitution",)),
+        ("street-insertion", ("street_insertion",)),
+        ("street-transposition", ("street_transposition",)),
         ("locality-only", ("locality_conflict",)), ("postcode-only", ("postcode_conflict",)),
         ("premise-plus-street", ("premise_conflict", "street_one_edit")),
         ("premise-plus-postcode", ("premise_conflict", "postcode_conflict")),
