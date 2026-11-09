@@ -39,6 +39,8 @@ python -m unittest discover -s tests -v
 
 See [the demonstration guide](demo/README.md) for its scope and limitations.
 
+A separate [synthetic vehicle-event collision benchmark](experiments/README.md) tests identity preservation across parcel-event sequences.
+
 ## Commercial and Evaluation Documents
 
 - [Commercial market position](commercial/market-position.md)
