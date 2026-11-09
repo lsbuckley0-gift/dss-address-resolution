@@ -39,7 +39,7 @@ class AddressMutationBenchmarkTests(unittest.TestCase):
 
     def test_benchmark_has_expected_counts_and_zero_false_accepts(self):
         report = benchmark()
-        self.assertTrue(report["passed"])
+        self.assertTrue(report["passed"], report["oracle_mismatches"])
         self.assertEqual(report["case_count"], 13)
         self.assertEqual(report["oracle_mismatches"], [])
         self.assertEqual(report["mutated_false_accepts"], 0)
