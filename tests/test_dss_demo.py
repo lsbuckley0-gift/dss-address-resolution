@@ -392,6 +392,26 @@ class DemoDecisionTests(unittest.TestCase):
         audit = audit_candidate_trace(case, trace)
         self.assertTrue(audit["valid"], audit["mismatches"])
 
+    def test_independent_candidate_trace_audit_rejects_ruleset_and_normalisation_tampering(self):
+        case = self.by_id["01-exact"]
+        for field, value, expected_reason in (
+            ("ruleset_version", "synthetic-address-demo/9.9", "RULESET_VERSION_MISMATCH"),
+            ("normalisation_rule", "unsafe-coercion", "NORMALISATION_RULE_MISMATCH"),
+        ):
+            trace = evaluate_case(case)
+            trace[field] = value
+            audit = audit_candidate_trace(case, trace)
+            with self.subTest(field=field):
+                self.assertFalse(audit["valid"])
+                self.assertIn(expected_reason, audit["mismatches"])
+
+    def test_candidate_trace_audit_does_not_call_the_evaluator(self):
+        case = self.by_id["03-typo-correction"]
+        trace = evaluate_case(case)
+        with patch("dss_demo.evaluate_case", side_effect=AssertionError("evaluator called")):
+            audit = audit_candidate_trace(case, trace)
+        self.assertTrue(audit["valid"], audit["mismatches"])
+
     def test_independent_candidate_trace_audit_detects_schema_version_tampering(self):
         case = self.by_id["01-exact"]
         trace = evaluate_case(case)
