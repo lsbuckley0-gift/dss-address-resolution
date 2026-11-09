@@ -166,6 +166,55 @@ class VehicleCollisionBenchTests(unittest.TestCase):
                 self.assertEqual(sum(counts.values()), 40)
                 self.assertEqual(len(counts), 1)
 
+    def test_single_anomaly_detection_matrix_maps_each_fault_to_its_invariant(self):
+        report = benchmark(generate_dataset(1000, seed=88))
+        expected = {
+            "gps_drift": "DELIVERY_GPS_OUTSIDE_LIMIT",
+            "wrong_parcel": "PARCEL_IDENTITY_CONFLICT",
+            "wrong_destination": "DESTINATION_IDENTITY_CONFLICT",
+            "reordered_events": "TIMESTAMP_ORDER_CONFLICT",
+            "missing_proof": "DELIVERY_PROOF_REFERENCE_MISSING",
+        }
+        for anomaly, reason_code in expected.items():
+            with self.subTest(anomaly=anomaly):
+                detection = report["anomaly_detection"][anomaly]
+                self.assertEqual(detection["expected_reason_code"], reason_code)
+                self.assertEqual(detection["injected_occurrences"], 100)
+                self.assertEqual(detection["detected_occurrences"], 100)
+                self.assertEqual(detection["missed_occurrences"], 0)
+                self.assertEqual(detection["detection_rate"], 1.0)
+                self.assertEqual(
+                    report["anomaly_reason_matrix"][anomaly],
+                    {reason_code: 100},
+                )
+        self.assertEqual(report["clean_reason_code_counts"], {})
+
+    def test_compound_detection_matrix_counts_each_injected_invariant(self):
+        report = benchmark(generate_compound_dataset(1200, seed=88))
+        for anomaly, detection in report["anomaly_detection"].items():
+            with self.subTest(anomaly=anomaly):
+                self.assertEqual(detection["injected_occurrences"], 400)
+                self.assertEqual(detection["detected_occurrences"], 400)
+                self.assertEqual(detection["missed_occurrences"], 0)
+                self.assertEqual(detection["detection_rate"], 1.0)
+                row = report["anomaly_reason_matrix"][anomaly]
+                self.assertEqual(row[detection["expected_reason_code"]], 400)
+                self.assertEqual(sum(row.values()), 400 + 4 * 160)
+        self.assertEqual(report["clean_reason_code_counts"], {})
+
+    def test_oracle_label_mismatch_is_visible_as_a_missed_invariant(self):
+        journey = make_journey(31, "wrong_parcel")
+        journey["injected_condition"] = "gps_drift"
+        report = benchmark([journey])
+        detection = report["anomaly_detection"]["gps_drift"]
+        self.assertEqual(detection["injected_occurrences"], 1)
+        self.assertEqual(detection["detected_occurrences"], 0)
+        self.assertEqual(detection["missed_occurrences"], 1)
+        self.assertEqual(
+            report["anomaly_reason_matrix"]["gps_drift"],
+            {"PARCEL_IDENTITY_CONFLICT": 1},
+        )
+
     def test_evaluator_does_not_consume_injected_oracle_label(self):
         journey = make_journey(30)
         journey["injected_condition"] = "compound:wrong_parcel+gps_drift"
