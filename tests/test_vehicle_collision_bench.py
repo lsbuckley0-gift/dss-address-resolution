@@ -18,6 +18,49 @@ class VehicleCollisionBenchTests(unittest.TestCase):
         self.assertEqual(result["terminal_state"], "VERIFIED")
         self.assertEqual(result["reason_codes"], ["ALL_DECLARED_CHECKS_PASSED"])
 
+    def test_full_compound_dataset_provenance_audit_is_consistent(self):
+        journeys = generate_compound_dataset(1200, seed=88)
+        audit = benchmark(journeys)["provenance_audit"]
+        self.assertEqual(audit["journey_count"], 1200)
+        self.assertEqual(audit["valid_journey_count"], 1200)
+        self.assertEqual(audit["invalid_journey_count"], 0)
+        self.assertEqual(audit["reason_count"], audit["provenance_entry_count"])
+        self.assertEqual(audit["missing_reason_entry_count"], 0)
+        self.assertEqual(audit["orphaned_entry_count"], 0)
+        self.assertEqual(audit["duplicate_entry_count"], 0)
+        self.assertEqual(audit["unsupported_finding_count"], 0)
+        self.assertEqual(audit["invalid_pointer_count"], 0)
+        self.assertGreater(audit["journeys_with_shared_event_findings"], 0)
+        self.assertTrue(audit["all_findings_distinct_by_reason_code"])
+
+    def test_provenance_audit_rejects_missing_and_unreported_entries(self):
+        journey = make_journey(901, "wrong_parcel")
+        result = evaluate_journey(journey)
+        result["evidence_provenance"] = []
+        audit = audit_provenance_trace(journey, result)
+        self.assertFalse(audit["valid"])
+        self.assertEqual(audit["missing_reason_entries"], ["PARCEL_IDENTITY_CONFLICT"])
+        self.assertEqual(audit["orphaned_provenance_entries"], [])
+
+        result["reason_codes"] = ["DELIVERY_GPS_OUTSIDE_LIMIT"]
+        audit = audit_provenance_trace(journey, result)
+        self.assertFalse(audit["valid"])
+        self.assertEqual(audit["missing_reason_entries"], ["DELIVERY_GPS_OUTSIDE_LIMIT"])
+
+    def test_provenance_audit_rejects_wrong_event_and_field_pointers(self):
+        journey = make_compound_journey(902, ("wrong_parcel", "wrong_destination"))
+        result = evaluate_journey(journey)
+        parcel = next(
+            item for item in result["evidence_provenance"]
+            if item["reason_code"] == "PARCEL_IDENTITY_CONFLICT"
+        )
+        parcel["event_indices"] = [0]
+        parcel["fields"] = ["destination_id"]
+        audit = audit_provenance_trace(journey, result)
+        self.assertFalse(audit["valid"])
+        self.assertIn("PARCEL_IDENTITY_CONFLICT", audit["invalid_evidence_pointers"])
+        self.assertEqual(audit["shared_event_indices"], [2])
+
     def test_evidence_provenance_covers_every_reason_without_copying_values(self):
         journeys = [make_journey(61)] + [
             make_journey(62 + index, anomaly)
