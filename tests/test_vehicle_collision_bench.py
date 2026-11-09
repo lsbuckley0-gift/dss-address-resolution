@@ -224,7 +224,7 @@ class VehicleCollisionBenchTests(unittest.TestCase):
             ("class", lambda result: result.update(evidence_class="SUFFICIENT_AND_CONSISTENT")),
             ("terminal", lambda result: result.update(terminal_state="VERIFIED")),
             ("reasons", lambda result: result["reason_codes"].clear()),
-            ("provenance", lambda result: result["evidence_provenance"].clear()),
+            ("provenance", lambda result: result["evidence_provenance"].append(copy.deepcopy(result["evidence_provenance"][0]))),
             ("pointer", lambda result: result["evidence_provenance"][0].update(event_indices=[True])),
             ("rule", lambda result: result["evidence_provenance"][0].update(rule="")),
         )
