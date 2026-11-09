@@ -172,9 +172,7 @@ def evaluate_case(case: Any) -> dict[str, Any]:
     if len(exact) == 1:
         selected = exact[0]
         trace.update({
-            "selected_candidate": selected.get("candidate_id") or candidate_ids[
-                candidates.index(selected)
-            ],
+            "selected_candidate": candidate_ids[candidates.index(selected)],
             "operation": "NO_CHANGE",
             "return_check": return_check(intended, selected),
             "terminal_state": "VERIFIED",
@@ -215,9 +213,7 @@ def evaluate_case(case: Any) -> dict[str, Any]:
 
     selected = near[0]
     check = return_check(intended, selected)
-    trace["selected_candidate"] = selected.get("candidate_id") or candidate_ids[
-        candidates.index(selected)
-    ]
+    trace["selected_candidate"] = candidate_ids[candidates.index(selected)]
     trace["operation"] = "PROPOSE_CANONICAL_CANDIDATE"
     trace["return_check"] = check
 
