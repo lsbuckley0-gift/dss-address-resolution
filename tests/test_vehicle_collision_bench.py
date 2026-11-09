@@ -66,6 +66,17 @@ class VehicleCollisionBenchTests(unittest.TestCase):
         self.assertIn("TIMESTAMP_MISSING_OR_INVALID", result["reason_codes"])
         self.assertIn("DELIVERY_GPS_INVALID", result["reason_codes"])
 
+    def test_malformed_event_record_does_not_erase_other_observed_conflicts(self):
+        journey = make_journey(46)
+        journey["events"][1] = None
+        journey["events"][-1]["parcel_id"] = "OTHER-000046"
+        result = evaluate_journey(journey)
+        self.assertEqual(result["terminal_state"], "UNRESOLVED")
+        self.assertEqual(result["evidence_class"], "MIXED")
+        self.assertIn("EVENT_RECORDS_MISSING_OR_INVALID", result["reason_codes"])
+        self.assertIn("PARCEL_IDENTITY_CONFLICT", result["reason_codes"])
+        self.assertIn("TIMESTAMP_MISSING_OR_INVALID", result["reason_codes"])
+
     def test_malformed_journey_and_event_records_return_refusal_traces(self):
         for malformed in (None, [], {"journey_id": "J-x", "events": [None]}):
             with self.subTest(malformed=malformed):
