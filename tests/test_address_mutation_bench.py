@@ -10,7 +10,7 @@ class AddressMutationBenchmarkTests(unittest.TestCase):
     def test_deterministic_13_case_single_and_pair_matrix(self):
         rows = build_dataset()
         self.assertEqual(rows, build_dataset())
-        self.assertEqual(len(rows), 15)
+        self.assertEqual(len(rows), 18)
         self.assertTrue(any(len(row["mutations"]) == 2 for row in rows))
 
     def test_oracle_metadata_is_not_passed_to_evaluator(self):
@@ -22,14 +22,18 @@ class AddressMutationBenchmarkTests(unittest.TestCase):
 
     def test_protected_identity_mutations_never_auto_accept(self):
         for row in build_dataset():
-            if row["mutations"] and row["scenario"] != "formatting-only" and row["scenario"] != "street-one-edit-only":
+            if row["mutations"] and row["scenario"] not in {"formatting-only", "street-one-edit-only", "street-substitution", "street-insertion"}:
                 with self.subTest(scenario=row["scenario"]):
                     self.assertNotEqual(evaluate_case(row["case"])["terminal_state"], "VERIFIED")
 
-    def test_one_street_edit_corrects_but_multiple_edits_are_refused(self):
+    def test_levenshtein_edit_operations_and_transposition_boundary(self):
         rows = {r["scenario"]: r for r in build_dataset()}
-        self.assertEqual(evaluate_case(rows["street-one-edit-only"]["case"])["terminal_state"], "CORRECTED")
-        self.assertEqual(evaluate_case(rows["street-multiple-edits-only"]["case"])["terminal_state"], "UNRESOLVED")
+        for scenario in ("street-one-edit-only", "street-substitution", "street-insertion"):
+            with self.subTest(scenario=scenario):
+                self.assertEqual(evaluate_case(rows[scenario]["case"])["terminal_state"], "CORRECTED")
+        for scenario in ("street-multiple-edits-only", "street-transposition"):
+            with self.subTest(scenario=scenario):
+                self.assertEqual(evaluate_case(rows[scenario]["case"])["terminal_state"], "UNRESOLVED")
 
     def test_postcode_conflict_survives_near_street_candidate(self):
         row = next(r for r in build_dataset() if r["scenario"] == "street-plus-postcode")
@@ -57,10 +61,10 @@ class AddressMutationBenchmarkTests(unittest.TestCase):
     def test_benchmark_has_expected_counts_and_zero_false_accepts(self):
         report = benchmark()
         self.assertTrue(report["passed"], report["oracle_mismatches"])
-        self.assertEqual(report["case_count"], 15)
+        self.assertEqual(report["case_count"], 18)
         self.assertEqual(report["oracle_mismatches"], [])
         self.assertEqual(report["mutated_false_accepts"], 0)
-        self.assertEqual(report["state_counts"], {"CORRECTED": 1, "UNRESOLVED": 12, "VERIFIED": 2})
+        self.assertEqual(report["state_counts"], {"CORRECTED": 3, "UNRESOLVED": 13, "VERIFIED": 2})
 
 if __name__ == "__main__":
     unittest.main()
