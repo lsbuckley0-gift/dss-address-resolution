@@ -582,6 +582,9 @@ def _expected_provenance_pointer(
             _nonempty_text(journey.get("journey_id"))
             and _nonempty_text(expected_parcel)
             and _nonempty_text(expected_destination)
+            and isinstance(raw_events, list)
+            and len(raw_events) == 3
+            and all(isinstance(event, dict) for event in raw_events)
             and len(indexed) == 3
             and [event.get("type") for _, event in indexed] == expected_types
             and all(event.get("parcel_id") == expected_parcel for _, event in indexed)
