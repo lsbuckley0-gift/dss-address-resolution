@@ -113,6 +113,8 @@ def finalise_trace(trace: dict[str, Any]) -> dict[str, Any]:
         "candidate_count": trace.get("candidate_count", 0),
         "selected_candidate_index": trace.get("selected_candidate_index"),
         "trace_schema_version": TRACE_SCHEMA_VERSION,
+        "ruleset_version": RULESET_VERSION,
+        "normalisation_rule": NORMALISATION_RULE,
         "terminal_state": trace.get("terminal_state"),
         "reason_code": reason,
     }
@@ -504,12 +506,18 @@ def audit_candidate_trace(case: Any, trace: Any) -> dict[str, Any]:
 
     if trace.get("trace_schema_version") != TRACE_SCHEMA_VERSION:
         mismatches.append("TRACE_SCHEMA_VERSION_MISMATCH")
+    if trace.get("ruleset_version") != RULESET_VERSION:
+        mismatches.append("RULESET_VERSION_MISMATCH")
+    if trace.get("normalisation_rule") != NORMALISATION_RULE:
+        mismatches.append("NORMALISATION_RULE_MISMATCH")
     identity = {
         "case_id": case.get("case_id") if isinstance(case.get("case_id"), str) else None,
         "candidate_ids": expected_ids,
         "candidate_count": expected_count,
         "selected_candidate_index": trace.get("selected_candidate_index"),
         "trace_schema_version": TRACE_SCHEMA_VERSION,
+        "ruleset_version": RULESET_VERSION,
+        "normalisation_rule": NORMALISATION_RULE,
         "terminal_state": trace.get("terminal_state"),
         "reason_code": trace.get("reason_code"),
     }
