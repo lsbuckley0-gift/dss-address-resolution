@@ -6,7 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "demo"))
 
-from dss_demo import edit_distance_at_most_one, evaluate_case  # noqa: E402
+from dss_demo import audit_candidate_trace, edit_distance_at_most_one, evaluate_case  # noqa: E402
 
 
 class DemoDecisionTests(unittest.TestCase):
@@ -283,6 +283,42 @@ class DemoDecisionTests(unittest.TestCase):
                         self.assertIn("intended_normalised", comparison)
                         self.assertIn("candidate_normalised", comparison)
                         self.assertIn("normalised_equal", comparison)
+
+    def test_independent_candidate_trace_audit_accepts_all_demo_cases(self):
+        for case in self.cases:
+            trace = evaluate_case(case)
+            audit = audit_candidate_trace(case, trace)
+            with self.subTest(case=case["case_id"]):
+                self.assertTrue(audit["valid"], audit["mismatches"])
+                self.assertEqual(audit["candidate_count"], len(case["candidates"]))
+                self.assertEqual(
+                    audit["field_comparison_count"],
+                    len(case["candidates"]) * 4,
+                )
+
+    def test_independent_candidate_trace_audit_detects_field_tampering(self):
+        case = self.by_id["02-formatting"]
+        trace = evaluate_case(case)
+        trace["candidate_trace"][0]["field_comparisons"]["street"]["candidate_normalised"] = "altered"
+        audit = audit_candidate_trace(case, trace)
+        self.assertFalse(audit["valid"])
+        self.assertIn("FIELD_COMPARISON_MISMATCH:0", audit["mismatches"])
+
+    def test_independent_candidate_trace_audit_detects_dropped_candidates(self):
+        case = self.by_id["05-ambiguous"]
+        trace = evaluate_case(case)
+        trace["candidate_trace"].pop()
+        audit = audit_candidate_trace(case, trace)
+        self.assertFalse(audit["valid"])
+        self.assertIn("CANDIDATE_TRACE_COUNT_MISMATCH", audit["mismatches"])
+
+    def test_independent_candidate_trace_audit_detects_selection_reference_tampering(self):
+        case = self.by_id["01-exact"]
+        trace = evaluate_case(case)
+        trace["selected_candidate_index"] = 9
+        audit = audit_candidate_trace(case, trace)
+        self.assertFalse(audit["valid"])
+        self.assertIn("SELECTED_CANDIDATE_REFERENCE_MISMATCH", audit["mismatches"])
 
     def test_candidate_trace_is_deterministic(self):
         case = self.by_id["03-typo-correction"]
