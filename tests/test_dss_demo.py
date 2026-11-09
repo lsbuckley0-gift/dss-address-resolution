@@ -312,6 +312,22 @@ class DemoDecisionTests(unittest.TestCase):
         self.assertFalse(audit["valid"])
         self.assertIn("CANDIDATE_TRACE_COUNT_MISMATCH", audit["mismatches"])
 
+    def test_independent_candidate_trace_audit_rejects_boolean_positions(self):
+        case = self.by_id["02-formatting"]
+        trace = evaluate_case(case)
+        trace["candidate_trace"][0]["candidate_index"] = True
+        audit = audit_candidate_trace(case, trace)
+        self.assertFalse(audit["valid"])
+        self.assertIn("CANDIDATE_POSITION_MISMATCH:0", audit["mismatches"])
+
+    def test_independent_candidate_trace_audit_checks_selected_disposition(self):
+        case = self.by_id["01-exact"]
+        trace = evaluate_case(case)
+        trace["candidate_trace"][0]["disposition"] = "REFUSED_RETRIEVAL"
+        audit = audit_candidate_trace(case, trace)
+        self.assertFalse(audit["valid"])
+        self.assertIn("SELECTED_CANDIDATE_REFERENCE_MISMATCH", audit["mismatches"])
+
     def test_independent_candidate_trace_audit_detects_selection_reference_tampering(self):
         case = self.by_id["01-exact"]
         trace = evaluate_case(case)
