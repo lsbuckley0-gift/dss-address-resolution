@@ -287,10 +287,12 @@
         ],
         "properties": {
           "valid": {
-            "type": "boolean"
+            "type": "boolean",
+            "const": true
           },
           "mismatches": {
             "type": "array",
+            "maxItems": 0,
             "items": {
               "type": "string"
             }
