@@ -18,6 +18,48 @@ class VehicleCollisionBenchTests(unittest.TestCase):
         self.assertEqual(result["terminal_state"], "VERIFIED")
         self.assertEqual(result["reason_codes"], ["ALL_DECLARED_CHECKS_PASSED"])
 
+    def test_evidence_provenance_covers_every_reason_without_copying_values(self):
+        journeys = [make_journey(61)] + [
+            make_journey(62 + index, anomaly)
+            for index, anomaly in enumerate(ANOMALIES)
+        ]
+        for journey in journeys:
+            with self.subTest(condition=journey["injected_condition"]):
+                result = evaluate_journey(journey)
+                provenance = result["evidence_provenance"]
+                self.assertEqual(
+                    [item["reason_code"] for item in provenance],
+                    sorted(result["reason_codes"]),
+                )
+                for item in provenance:
+                    self.assertIn(item["evidence_kind"], {"missing", "conflict", "consistent"})
+                    self.assertIn("fields", item)
+                    self.assertIn("event_indices", item)
+                    self.assertIn("rule", item)
+                    self.assertNotIn("observed_value", item)
+                    self.assertNotIn("expected_value", item)
+        clean = evaluate_journey(journeys[0])
+        self.assertEqual(clean["evidence_provenance"][0]["evidence_kind"], "consistent")
+
+    def test_evidence_provenance_uses_original_indices_after_malformed_event(self):
+        journey = make_journey(68)
+        journey["events"].insert(1, "malformed-event")
+        journey["events"][-1]["destination_id"] = "OTHER-DESTINATION"
+        result = evaluate_journey(journey)
+        provenance = {
+            item["reason_code"]: item
+            for item in result["evidence_provenance"]
+        }
+        self.assertEqual(
+            provenance["DESTINATION_IDENTITY_CONFLICT"]["event_indices"],
+            [3],
+        )
+        self.assertEqual(
+            provenance["EVENT_RECORDS_MISSING_OR_INVALID"]["event_indices"],
+            [1],
+        )
+        self.assertEqual(result["terminal_state"], "UNRESOLVED")
+
     def test_each_declared_disturbance_is_unresolved(self):
         for anomaly in ANOMALIES:
             with self.subTest(anomaly=anomaly):
