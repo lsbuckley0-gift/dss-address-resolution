@@ -459,6 +459,28 @@ class DemoDecisionTests(unittest.TestCase):
         self.assertFalse(audit["valid"])
         self.assertIn("TRACE_ID_MISMATCH", audit["mismatches"])
 
+    def test_independent_candidate_trace_audit_detects_envelope_tampering(self):
+        case = self.by_id["03-typo-correction"]
+        for field, value, expected in (
+            ("intended", dict(case["intended"], postcode="ZZ9 9ZZ"), "INTENDED_RECORD_MISMATCH"),
+            ("operation", "NO_CHANGE", "OPERATION_MISMATCH"),
+            ("return_check", {"passed": True, "checks": {}}, "RETURN_CHECK_MISMATCH"),
+        ):
+            trace = evaluate_case(case)
+            trace[field] = value
+            audit = audit_candidate_trace(case, trace)
+            with self.subTest(field=field):
+                self.assertFalse(audit["valid"])
+                self.assertIn(expected, audit["mismatches"])
+
+    def test_independent_candidate_trace_audit_requires_no_return_check_for_unresolved_cases(self):
+        case = self.by_id["05-ambiguous"]
+        trace = evaluate_case(case)
+        trace["return_check"] = {"passed": True, "checks": {}}
+        audit = audit_candidate_trace(case, trace)
+        self.assertFalse(audit["valid"])
+        self.assertIn("RETURN_CHECK_MISMATCH", audit["mismatches"])
+
     def test_independent_candidate_trace_audit_detects_field_tampering(self):
         case = self.by_id["02-formatting"]
         trace = evaluate_case(case)
