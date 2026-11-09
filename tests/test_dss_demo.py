@@ -169,6 +169,16 @@ class DemoDecisionTests(unittest.TestCase):
         for field in ("premise", "street", "locality", "postcode"):
             self.assertTrue(candidate["field_comparisons"][field]["normalised_equal"])
 
+    def test_candidate_trace_records_safe_one_edit_correction(self):
+        result = evaluate_case(self.by_id["03-typo-correction"])
+        candidate = result["candidate_trace"][0]
+        self.assertEqual(result["terminal_state"], "CORRECTED")
+        self.assertTrue(candidate["retrieval"]["eligible"])
+        self.assertTrue(candidate["street_edit_distance_at_most_one"])
+        self.assertFalse(candidate["field_comparisons"]["street"]["normalised_equal"])
+        self.assertEqual(candidate["disposition"], "SELECTED_CORRECTED")
+        self.assertTrue(all(candidate["protected_field_checks"].values()))
+
     def test_candidate_trace_explains_postcode_return_refusal(self):
         result = evaluate_case(self.by_id["04-postcode-conflict"])
         candidate = result["candidate_trace"][0]
