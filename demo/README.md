@@ -71,3 +71,6 @@ The `--json-out` export is a JSON array of audited case traces. Its v1 structure
 The trace schema version (`candidate-trace/1.0`) describes field names, types, allowed terminal states/dispositions and required audit metadata. The ruleset version (`synthetic-address-demo/1.0`) describes decision policy; changing one does not automatically change the other. A breaking change to the exported structure requires a new schema version and schema file. Compatible additive changes are intentionally not accepted by this v1 contract because exported objects reject undeclared properties; publish a new schema version when adding fields so consumers can pin a stable contract.
 
 The schema is dependency-free to consume as a standard JSON Schema document. The repository's conformance tests exercise the emitted CLI export and reject missing fields, invalid states/dispositions, version drift, malformed trace identifiers and undeclared properties. The test helper implements the JSON Schema keywords used by this contract; it is not a general-purpose JSON Schema validator.
+
+
+The independent audit also binds the exported top-level intended record to the original case and reconstructs the operation and return-check envelope. Altering any of these fields, or adding a return check to an unresolved ambiguous case, is rejected before the CLI writes an audited export.
