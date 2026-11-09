@@ -433,9 +433,11 @@ def evaluate_journey(journey: Any) -> dict[str, Any]:
 
 
 def _expected_provenance_pointer(
-    journey: dict[str, Any], reason_code: str
+    journey: Any, reason_code: str
 ) -> tuple[str, str, list[str], list[int]] | None:
     """Independently derive pointers for every evaluator rule, including malformed input."""
+    if not isinstance(journey, dict):
+        journey = {}
     raw_events = journey.get("events")
     indexed = (
         [(i, event) for i, event in enumerate(raw_events) if isinstance(event, dict)]
