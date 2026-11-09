@@ -128,7 +128,7 @@ class VehicleCollisionBenchTests(unittest.TestCase):
                 audit = audit_provenance_trace(journey, malformed)
                 self.assertFalse(audit["valid"], msg=audit)
                 self.assertIn(
-                    "<malformed-result-or-trace-collections>",
+                    "<malformed-result-object>",
                     audit["unsupported_findings"],
                 )
                 self.assertIn("checks", audit["decision_mismatches"])
