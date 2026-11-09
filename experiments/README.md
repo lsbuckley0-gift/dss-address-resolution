@@ -105,6 +105,31 @@ sorts keys for deterministic, JSON-friendly output. A clean journey's
 `ALL_DECLARED_CHECKS_PASSED` marker is counted like any other reason code for frequency
 accounting; it is a success marker, not a failure.
 
+## Oracle-relative diagnostic traces
+
+Each benchmark report now includes a deterministic `diagnostic_records` list and
+`diagnostic_status_counts`. These records are created **after** the evaluator has
+returned its evidence-derived trace. They compare the evaluator's observed reason
+codes with the generator's synthetic oracle mapping; they are not evaluator inputs.
+
+For a single injected disturbance, the record names the `primary_fault`, its
+`expected_reason_code`, whether that code was detected, all observed reason codes,
+and `secondary_symptoms` (observed codes other than the expected primary code).
+Statuses are:
+
+- `PRIMARY_IDENTIFIED`: the expected primary code appears without additional symptoms.
+- `PRIMARY_IDENTIFIED_WITH_SYMPTOMS`: the expected primary code appears alongside other findings.
+- `PRIMARY_MASKED`: the journey is refused, but the expected primary code is absent.
+- `UNATTRIBUTED`: there is no single injected primary fault, or an anomalous case was not refused.
+- `CLEAN`: no disturbance was injected.
+
+Compound cases are deliberately marked `UNATTRIBUTED` at the single-primary level;
+their injected faults and observed codes remain available in the record. No numeric
+confidence score is reported: this experiment has no calibrated probability model.
+The diagnostic trace is an oracle-relative benchmark assessment, not a claim that
+the evaluator independently knows the injected cause. A correct refusal can still
+have incomplete diagnostic attribution.
+
 ## Interpretation and limitations
 
 A perfect score on this generated dataset demonstrates only that the implementation
