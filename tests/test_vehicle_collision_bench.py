@@ -199,6 +199,23 @@ class VehicleCollisionBenchTests(unittest.TestCase):
                 )
         self.assertEqual(report["clean_reason_code_counts"], {})
 
+    def test_pair_interaction_matrix_covers_all_pairs_and_counts_detection_outcomes(self):
+        report = benchmark(generate_compound_dataset(1200, seed=88))
+        matrix = report["pair_interaction_matrix"]
+        self.assertEqual(len(matrix), 10)
+        for pair, stats in matrix.items():
+            with self.subTest(pair=pair):
+                self.assertEqual(stats["journey_count"], 160)
+                self.assertEqual(stats["both_detected"], 160)
+                self.assertEqual(stats["first_only"], 0)
+                self.assertEqual(stats["second_only"], 0)
+                self.assertEqual(stats["neither_detected"], 0)
+                self.assertEqual(stats["terminal_state_counts"], {"UNRESOLVED": 160})
+                self.assertEqual(
+                    set(stats["expected_reason_codes"]),
+                    set(stats["anomalies"]),
+                )
+
     def test_compound_detection_matrix_counts_each_injected_invariant(self):
         report = benchmark(generate_compound_dataset(1200, seed=88))
         for anomaly, detection in report["anomaly_detection"].items():
