@@ -39,7 +39,7 @@ The original `terminal_state` and `reason_code` remain available; `reason_codes`
 
 Each case trace now includes `candidate_trace`, in the same order as the supplied candidate list. Each entry records:
 
-- A safe candidate label, using a deterministic positional label when the supplied identifier is missing, blank or non-text.
+- A candidate label plus its zero-based position in the supplied list. Position keeps entries distinguishable even if source identifiers are duplicated; missing, blank or non-text identifiers receive a deterministic positional label. The aggregate selection also exposes the selected candidate position.
 - Per-field intended and candidate values, their separately exposed normalised text values, whether both are valid nonblank text, and normalised equality. Malformed values are shown as supplied but are never coerced into address text; normalised values and equality are `null` when the corresponding input is invalid.
 - Whether the street satisfies the demonstration's at-most-one-edit retrieval rule.
 - Retrieval eligibility and the reason codes that admitted or refused the candidate.
