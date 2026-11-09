@@ -60,6 +60,27 @@ def build_dataset() -> list[dict[str, Any]]:
                      "expected_terminal_state": state, "expected_reason_code": reason,
                      "case": {"case_id": f"mutation-{len(rows)+1:02d}",
                               "intended": deepcopy(BASE), "candidates": [candidate]}})
+    # Cardinality stresses are separate from field mutations: multiple exact
+    # candidates and multiple near candidates must remain unresolved.
+    duplicate = {"candidate_id": "duplicate-exact", **deepcopy(BASE)}
+    rows.append({"scenario": "duplicate-exact-candidates",
+        "mutations": ["candidate_cardinality_duplicate"],
+        "expected_terminal_state": "UNRESOLVED",
+        "expected_reason_code": "MULTIPLE_EXACT_CANDIDATES",
+        "case": {"case_id": f"mutation-{len(rows)+1:02d}",
+                 "intended": deepcopy(BASE),
+                 "candidates": [deepcopy(candidate), duplicate]}})
+    near_intended = {**deepcopy(BASE), "street": "King Stret"}
+    near_candidates = [
+        {"candidate_id": "near-a", **deepcopy(BASE)},
+        {"candidate_id": "near-b", **{**deepcopy(BASE), "street": "King Strete"}},
+    ]
+    rows.append({"scenario": "ambiguous-near-candidates",
+        "mutations": ["candidate_cardinality_ambiguous"],
+        "expected_terminal_state": "UNRESOLVED",
+        "expected_reason_code": "AMBIGUOUS_CANDIDATES",
+        "case": {"case_id": f"mutation-{len(rows)+1:02d}",
+                 "intended": near_intended, "candidates": near_candidates}})
     return rows
 
 def benchmark() -> dict[str, Any]:
@@ -70,7 +91,7 @@ def benchmark() -> dict[str, Any]:
         state, reason = trace["terminal_state"], trace["reason_code"]
         states[state] = states.get(state, 0) + 1
         reasons[reason] = reasons.get(reason, 0) + 1
-        identity_mutated = any(mutation != "formatting_only" for mutation in row["mutations"])
+        identity_mutated = any(mutation in MUTATIONS for mutation in row["mutations"])
         if identity_mutated and state == "VERIFIED":
             false_accepts += 1
         if (state, reason) != (row["expected_terminal_state"], row["expected_reason_code"]):
