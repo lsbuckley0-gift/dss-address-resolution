@@ -85,7 +85,7 @@ def finalise_trace(trace: dict[str, Any]) -> dict[str, Any]:
         evidence_class = "INSUFFICIENT"
     trace["evidence_class"] = evidence_class
     trace["reason_codes"] = [reason]
-    return finalise_trace(trace)
+    return trace
 
 
 def evaluate_case(case: dict[str, Any]) -> dict[str, Any]:
