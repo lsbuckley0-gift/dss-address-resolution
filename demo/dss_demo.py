@@ -183,7 +183,7 @@ def evaluate_case(case: Any) -> dict[str, Any]:
         return finalise_trace({
             "case_id": None, "intended": None, "candidate_count": 0,
             "candidate_ids": [], "candidate_trace": [], "selected_candidate": None,
-            "operation": "NONE", "return_check": None,
+            "selected_candidate_index": None, "operation": "NONE", "return_check": None,
             "terminal_state": "UNRESOLVED", "reason_code": "MALFORMED_CASE",
         })
 
