@@ -798,6 +798,10 @@ def audit_provenance(
     journeys: list[dict[str, Any]], results: list[dict[str, Any]] | None = None
 ) -> dict[str, Any]:
     """Audit dataset traces without consulting injected oracle labels."""
+    if not isinstance(journeys, list):
+        raise TypeError("journeys must be a list")
+    if results is not None and not isinstance(results, list):
+        raise TypeError("results must be a list or None")
     evaluated = results if results is not None else [
         evaluate_journey(journey) for journey in journeys
     ]
