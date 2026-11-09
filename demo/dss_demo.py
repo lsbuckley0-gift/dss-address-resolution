@@ -120,7 +120,7 @@ def finalise_trace(trace: dict[str, Any]) -> dict[str, Any]:
     return trace
 
 
-def candidate_comparison(intended: Any, candidate: Any, candidate_id: str) -> dict[str, Any]:
+def candidate_comparison(intended: Any, candidate: Any, candidate_id: str, candidate_index: int) -> dict[str, Any]:
     """Expose field evidence without coercing malformed values into address text."""
     comparisons: dict[str, Any] = {}
     for field in FIELDS:
@@ -160,6 +160,7 @@ def candidate_comparison(intended: Any, candidate: Any, candidate_id: str) -> di
         retrieval_reasons.append("STREET_OUTSIDE_ONE_EDIT_RETRIEVAL_RULE")
     return {
         "candidate_id": candidate_id,
+        "candidate_index": candidate_index,
         "field_comparisons": comparisons,
         "street_edit_distance_at_most_one": street_near,
         "retrieval": {
@@ -201,10 +202,11 @@ def evaluate_case(case: Any) -> dict[str, Any]:
     ]
     candidate_trace = [
         (
-            candidate_comparison(intended, candidate, candidate_ids[index])
+            candidate_comparison(intended, candidate, candidate_ids[index], index)
             if isinstance(candidate, dict)
             else {
                 "candidate_id": candidate_ids[index],
+                "candidate_index": index,
                 "field_comparisons": {},
                 "street_edit_distance_at_most_one": False,
                 "retrieval": {
@@ -227,6 +229,7 @@ def evaluate_case(case: Any) -> dict[str, Any]:
         "candidate_ids": candidate_ids,
         "candidate_trace": candidate_trace,
         "selected_candidate": None,
+        "selected_candidate_index": None,
         "operation": "NONE",
         "return_check": None,
     }
@@ -286,6 +289,7 @@ def evaluate_case(case: Any) -> dict[str, Any]:
                 )
         trace.update({
             "selected_candidate": candidate_ids[index],
+            "selected_candidate_index": index,
             "operation": "NO_CHANGE",
             "return_check": return_check(intended, selected),
             "terminal_state": "VERIFIED",
@@ -343,6 +347,7 @@ def evaluate_case(case: Any) -> dict[str, Any]:
         reason_codes=["UNIQUE_RETRIEVAL_ELIGIBLE_CANDIDATE"],
     )
     trace["selected_candidate"] = candidate_ids[index]
+    trace["selected_candidate_index"] = index
     trace["operation"] = "PROPOSE_CANONICAL_CANDIDATE"
     trace["return_check"] = check
 
