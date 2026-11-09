@@ -22,6 +22,23 @@ ANOMALIES = (
 )
 
 
+def apply_anomaly(events: list[dict[str, Any]], index: int, anomaly: str) -> None:
+    """Apply one controlled disturbance to a fresh journey's event list."""
+    delivery = events[-1]
+    if anomaly == "gps_drift":
+        delivery["gps_distance_m"] = 350.0
+    elif anomaly == "wrong_parcel":
+        delivery["parcel_id"] = f"OTHER-{index:06d}"
+    elif anomaly == "wrong_destination":
+        delivery["destination_id"] = f"OTHER-D-{index:06d}"
+    elif anomaly == "reordered_events":
+        delivery["timestamp"] = 1400
+    elif anomaly == "missing_proof":
+        delivery["proof_id"] = None
+    else:
+        raise ValueError(f"Unknown anomaly: {anomaly}")
+
+
 def make_journey(index: int, anomaly: str = "clean") -> dict[str, Any]:
     parcel = f"P-{index:06d}"
     destination = f"D-{index:06d}"
@@ -33,20 +50,8 @@ def make_journey(index: int, anomaly: str = "clean") -> dict[str, Any]:
         {"type": "delivered", "parcel_id": parcel, "destination_id": destination,
          "timestamp": 2200, "gps_distance_m": 12.0, "proof_id": f"PROOF-{index:06d}"},
     ]
-
-    if anomaly == "gps_drift":
-        events[-1]["gps_distance_m"] = 350.0
-    elif anomaly == "wrong_parcel":
-        events[-1]["parcel_id"] = f"OTHER-{index:06d}"
-    elif anomaly == "wrong_destination":
-        events[-1]["destination_id"] = f"OTHER-D-{index:06d}"
-    elif anomaly == "reordered_events":
-        events[-1]["timestamp"] = 1400
-    elif anomaly == "missing_proof":
-        events[-1]["proof_id"] = None
-    elif anomaly != "clean":
-        raise ValueError(f"Unknown anomaly: {anomaly}")
-
+    if anomaly != "clean":
+        apply_anomaly(events, index, anomaly)
     return {
         "journey_id": f"J-{index:06d}",
         "expected_parcel_id": parcel,
@@ -54,6 +59,20 @@ def make_journey(index: int, anomaly: str = "clean") -> dict[str, Any]:
         "injected_condition": anomaly,
         "events": events,
     }
+
+
+def make_compound_journey(index: int, anomalies: tuple[str, ...]) -> dict[str, Any]:
+    """Create a journey with multiple simultaneous, independently named disturbances."""
+    if len(anomalies) < 2 or len(set(anomalies)) != len(anomalies):
+        raise ValueError("A compound journey requires at least two distinct anomalies")
+    unknown = set(anomalies) - set(ANOMALIES)
+    if unknown:
+        raise ValueError(f"Unknown anomalies: {sorted(unknown)}")
+    journey = make_journey(index)
+    for anomaly in anomalies:
+        apply_anomaly(journey["events"], index, anomaly)
+    journey["injected_condition"] = "compound:" + "+".join(sorted(anomalies))
+    return journey
 
 
 def evaluate_journey(journey: dict[str, Any]) -> dict[str, Any]:
@@ -119,10 +138,11 @@ def benchmark(journeys: list[dict[str, Any]]) -> dict[str, Any]:
         outcomes.append(result)
 
     clean = matrix["clean"]
-    injected = sum(sum(matrix[a].values()) for a in ANOMALIES)
-    detected = sum(matrix[a]["UNRESOLVED"] for a in ANOMALIES)
+    injected_conditions = [condition for condition in matrix if condition != "clean"]
+    injected = sum(sum(matrix[a].values()) for a in injected_conditions)
+    detected = sum(matrix[a]["UNRESOLVED"] for a in injected_conditions)
     false_rejects = clean["UNRESOLVED"]
-    false_accepts = sum(matrix[a]["VERIFIED"] for a in ANOMALIES)
+    false_accepts = sum(matrix[a]["VERIFIED"] for a in injected_conditions)
     return {
         "journey_count": len(journeys),
         "verified_count": sum(1 for r in outcomes if r["terminal_state"] == "VERIFIED"),
@@ -137,6 +157,30 @@ def benchmark(journeys: list[dict[str, Any]]) -> dict[str, Any]:
             condition: dict(counts) for condition, counts in sorted(matrix.items())
         },
     }
+
+
+def generate_compound_dataset(total: int = 1000, seed: int = 88) -> list[dict[str, Any]]:
+    """Generate balanced clean, two-anomaly and three-anomaly journeys."""
+    from itertools import combinations
+
+    pairs = list(combinations(ANOMALIES, 2))
+    triples = list(combinations(ANOMALIES, 3))
+    groups = [(combo, "pair") for combo in pairs] + [(combo, "triple") for combo in triples]
+    if total < len(groups) or total % 3:
+        raise ValueError("total must be at least 25 and divisible by 3")
+    per_group = (total // 3) // len(groups)
+    if per_group * len(groups) != total // 3:
+        raise ValueError("total/3 must be divisible by the number of compound groups")
+
+    clean_count = total // 3
+    journeys = [make_journey(i, "clean") for i in range(clean_count)]
+    next_id = clean_count
+    for combo, _kind in groups:
+        for _ in range(per_group):
+            journeys.append(make_compound_journey(next_id, combo))
+            next_id += 1
+    random.Random(seed).shuffle(journeys)
+    return journeys
 
 
 def main() -> None:
