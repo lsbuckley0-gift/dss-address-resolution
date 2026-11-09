@@ -118,7 +118,7 @@ def evaluate_case(case: dict[str, Any]) -> dict[str, Any]:
             "terminal_state": "VERIFIED",
             "reason_code": "EXACT_IDENTITY_FIELDS",
         })
-        return trace
+        return finalise_trace(trace)
     if len(exact) > 1:
         trace.update({
             "terminal_state": "UNRESOLVED",
