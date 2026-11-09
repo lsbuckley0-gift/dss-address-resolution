@@ -66,6 +66,11 @@ print(report)
 The generated compound cases are still rule-shaped synthetic tests; they are not
 independent evidence of field performance.
 
+A permutation test applies every pair and triple in every possible injection order.
+For the current five anomaly classes, the resulting event evidence and evaluator
+trace must be identical regardless of ordering. This checks that the compound
+results are not an accidental consequence of which fixture mutation ran last.
+
 The report's `pair_interaction_matrix` evaluates every unordered anomaly pair
 co-occurring in a compound journey. Each pair records both-detected, first-only,
 second-only and neither-detected outcomes, per-fault and joint detection rates,
