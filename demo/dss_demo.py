@@ -85,7 +85,7 @@ def finalise_trace(trace: dict[str, Any]) -> dict[str, Any]:
         evidence_class = "INSUFFICIENT"
     trace["evidence_class"] = evidence_class
     trace["reason_codes"] = [reason]
-    return trace
+    return finalise_trace(trace)
 
 
 def evaluate_case(case: dict[str, Any]) -> dict[str, Any]:
@@ -124,7 +124,7 @@ def evaluate_case(case: dict[str, Any]) -> dict[str, Any]:
             "terminal_state": "UNRESOLVED",
             "reason_code": "MULTIPLE_EXACT_CANDIDATES",
         })
-        return trace
+        return finalise_trace(trace)
 
     # Candidate retrieval is intentionally permissive enough to expose the
     # return-check gate: same premise/locality and a street within one edit.
@@ -143,13 +143,13 @@ def evaluate_case(case: dict[str, Any]) -> dict[str, Any]:
             "terminal_state": "UNRESOLVED",
             "reason_code": "NO_SUPPORTED_CANDIDATE",
         })
-        return trace
+        return finalise_trace(trace)
     if len(near) > 1:
         trace.update({
             "terminal_state": "UNRESOLVED",
             "reason_code": "AMBIGUOUS_CANDIDATES",
         })
-        return trace
+        return finalise_trace(trace)
 
     selected = near[0]
     check = return_check(intended, selected)
@@ -162,7 +162,7 @@ def evaluate_case(case: dict[str, Any]) -> dict[str, Any]:
             "terminal_state": "UNRESOLVED",
             "reason_code": "RETURN_CHECK_FAILED",
         })
-        return trace
+        return finalise_trace(trace)
 
     trace.update({
         "terminal_state": "CORRECTED",
