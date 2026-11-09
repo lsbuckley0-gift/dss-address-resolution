@@ -23,3 +23,5 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Run synthetic demonstration
         run: python demo/dss_demo.py
+      - name: Run synthetic vehicle-event benchmark
+        run: python experiments/vehicle_collision_bench.py --total 1000 --seed 88
