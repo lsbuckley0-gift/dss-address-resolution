@@ -342,6 +342,10 @@ class VehicleCollisionBenchTests(unittest.TestCase):
         self.assertIn("DESTINATION_IDENTITY_CONFLICT", result["reason_codes"])
         self.assertNotIn("PARCEL_IDENTITY_CONFLICT", result["reason_codes"])
         self.assertEqual(result["evidence_class"], "MIXED")
+        journey["injected_condition"] = "wrong_destination"
+        detection = benchmark([journey])["anomaly_detection"]["wrong_destination"]
+        self.assertEqual(detection["detected_occurrences"], 1)
+        self.assertEqual(detection["missed_occurrences"], 0)
 
     def test_missing_expected_destination_does_not_mask_parcel_conflict(self):
         journey = make_journey(48)
@@ -356,6 +360,10 @@ class VehicleCollisionBenchTests(unittest.TestCase):
         self.assertIn("PARCEL_IDENTITY_CONFLICT", result["reason_codes"])
         self.assertNotIn("DESTINATION_IDENTITY_CONFLICT", result["reason_codes"])
         self.assertEqual(result["evidence_class"], "MIXED")
+        journey["injected_condition"] = "wrong_parcel"
+        detection = benchmark([journey])["anomaly_detection"]["wrong_parcel"]
+        self.assertEqual(detection["detected_occurrences"], 1)
+        self.assertEqual(detection["missed_occurrences"], 0)
 
     def test_missing_secondary_symptom_can_mask_primary_fault(self):
         journey = make_interaction_journey(
