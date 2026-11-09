@@ -115,9 +115,13 @@ def make_interaction_journey(
         # Preserve the primary backwards-timestamp symptom as well.
         journey["events"][2]["timestamp"] = 1400
     elif interaction == "missing_parcel_masks_conflict" and primary_anomaly == "wrong_parcel":
-        # The missing field takes precedence in the evaluator's reason taxonomy,
-        # masking the underlying identity mismatch on that event.
+        # Erase the only conflicting value: no evaluator can recover it from
+        # the remaining evidence, so the missing-field reason is appropriate.
         journey["events"][-1]["parcel_id"] = ""
+    elif interaction == "missing_parcel_with_separate_conflict" and primary_anomaly == "wrong_parcel":
+        # Keep the wrong delivery identity but remove the middle event's parcel
+        # field. The evaluator should report both independently observable facts.
+        journey["events"][1]["parcel_id"] = ""
     else:
         raise ValueError(
             f"Unsupported interaction {interaction!r} for {primary_anomaly!r}"
@@ -231,11 +235,19 @@ def evaluate_journey(journey: Any) -> dict[str, Any]:
         conflicts.append("EVENT_SEQUENCE_MISMATCH")
     if events and not parcel_ids_present:
         missing.append("PARCEL_ID_MISSING_OR_INVALID")
-    elif events and expected_ids_valid and not parcel_identity_ok:
+    if events and expected_ids_valid and any(
+        _nonempty_text(event.get("parcel_id"))
+        and event.get("parcel_id") != expected_parcel
+        for event in events
+    ):
         conflicts.append("PARCEL_IDENTITY_CONFLICT")
     if events and not destination_ids_present:
         missing.append("DESTINATION_ID_MISSING_OR_INVALID")
-    elif events and expected_ids_valid and not destination_identity_ok:
+    if events and expected_ids_valid and any(
+        _nonempty_text(event.get("destination_id"))
+        and event.get("destination_id") != expected_destination
+        for event in events
+    ):
         conflicts.append("DESTINATION_IDENTITY_CONFLICT")
     if not timestamps_valid:
         missing.append("TIMESTAMP_MISSING_OR_INVALID")
