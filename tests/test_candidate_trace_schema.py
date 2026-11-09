@@ -14,8 +14,14 @@ from dss_demo import main  # noqa: E402
 SCHEMA_PATH = ROOT / "demo" / "schemas" / "candidate-trace-v1.schema.json"
 
 
-def schema_errors(value, schema, path="$"):
+def schema_errors(value, schema, path="$", root=None):
     """Validate the JSON Schema keywords used by this contract (no external package)."""
+    root = schema if root is None else root
+    if "$ref" in schema:
+        target = root
+        for part in schema["$ref"].removeprefix("#/").split("/"):
+            target = target[part.replace("~1", "/").replace("~0", "~")]
+        return schema_errors(value, target, path, root)
     errors = []
     expected_type = schema.get("type")
     if expected_type is not None:
@@ -47,7 +53,7 @@ def schema_errors(value, schema, path="$"):
             errors.append(f"{path}: too few items")
         if "items" in schema:
             for index, item in enumerate(value):
-                errors.extend(schema_errors(item, schema["items"], f"{path}[{index}]"))
+                errors.extend(schema_errors(item, schema["items"], f"{path}[{index}]", root))
     if isinstance(value, dict):
         if len(value) < schema.get("minProperties", 0):
             errors.append(f"{path}: too few properties")
@@ -57,11 +63,11 @@ def schema_errors(value, schema, path="$"):
         properties = schema.get("properties", {})
         for key, item in value.items():
             if key in properties:
-                errors.extend(schema_errors(item, properties[key], f"{path}.{key}"))
+                errors.extend(schema_errors(item, properties[key], f"{path}.{key}", root))
             elif schema.get("additionalProperties") is False:
                 errors.append(f"{path}: unexpected property {key}")
         if "anyOf" in schema and not any(
-            not schema_errors(value, option, path) for option in schema["anyOf"]
+            not schema_errors(value, option, path, root) for option in schema["anyOf"]
         ):
             errors.append(f"{path}: no anyOf branch matched")
     return errors
