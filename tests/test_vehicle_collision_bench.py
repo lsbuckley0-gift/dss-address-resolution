@@ -192,6 +192,26 @@ class VehicleCollisionBenchTests(unittest.TestCase):
         self.assertIn("FABRICATED_FINDING", fabricated_audit["unsupported_findings"])
         self.assertIn("FABRICATED_FINDING", fabricated_audit["orphaned_provenance_entries"])
 
+    def test_provenance_audit_detects_silently_removed_reason_and_malformed_code(self):
+        journey = make_journey(915, "wrong_parcel")
+        result = evaluate_journey(journey)
+        result["reason_codes"].remove("PARCEL_IDENTITY_CONFLICT")
+        result["evidence_provenance"] = [
+            item for item in result["evidence_provenance"]
+            if item["reason_code"] != "PARCEL_IDENTITY_CONFLICT"
+        ]
+        audit = audit_provenance_trace(journey, result)
+        self.assertFalse(audit["valid"])
+        self.assertEqual(
+            audit["unreported_reason_codes"], ["PARCEL_IDENTITY_CONFLICT"]
+        )
+
+        result = evaluate_journey(journey)
+        result["evidence_provenance"][0]["reason_code"] = {"forged": "code"}
+        malformed_audit = audit_provenance_trace(journey, result)
+        self.assertFalse(malformed_audit["valid"])
+        self.assertIn("<invalid-reason-code>", malformed_audit["unsupported_findings"])
+
     def test_evidence_provenance_covers_every_reason_without_copying_values(self):
         journeys = [make_journey(61)] + [
             make_journey(62 + index, anomaly)
