@@ -327,6 +327,44 @@ class VehicleCollisionBenchTests(unittest.TestCase):
                     [item["reason_code"] for item in result["evidence_provenance"]],
                     sorted(result["reason_codes"]),
                 )
+    def test_dataset_audit_aggregates_seeded_evidence_and_decision_mutations(self):
+        rng = random.Random(20261110)
+        mutations = (
+            lambda j: j.update(journey_id=None),
+            lambda j: j.update(expected_parcel_id=[]),
+            lambda j: j["events"][0].update(type="unknown"),
+            lambda j: j["events"][1].update(parcel_id="OTHER"),
+            lambda j: j["events"][2].update(destination_id=None),
+            lambda j: j["events"][0].update(timestamp=float("nan")),
+            lambda j: j["events"][2].update(gps_distance_m=-1),
+            lambda j: j["events"][2].update(proof_id={}),
+        )
+        journeys, results = [], []
+        for index in range(96):
+            journey = make_journey(1200 + index)
+            for mutation_index in rng.sample(range(len(mutations)), rng.randint(1, 3)):
+                mutations[mutation_index](journey)
+            result = evaluate_journey(journey)
+            if index % 12 == 0:
+                result["terminal_state"] = "VERIFIED"
+            journeys.append(journey)
+            results.append(result)
+        individual = [
+            audit_provenance_trace(journey, result)
+            for journey, result in zip(journeys, results)
+        ]
+        aggregate = audit_provenance(journeys, results=results)
+        self.assertEqual(aggregate["journey_count"], 96)
+        self.assertEqual(aggregate["valid_journey_count"], 88)
+        self.assertEqual(aggregate["invalid_journey_count"], 8)
+        self.assertEqual(
+            aggregate["decision_mismatch_count"],
+            sum(len(trace["decision_mismatches"]) for trace in individual),
+        )
+        self.assertEqual(
+            aggregate["invalid_pointer_count"],
+            sum(len(trace["invalid_evidence_pointers"]) for trace in individual),
+        )
     def test_provenance_audit_handles_non_object_journeys(self):
         for malformed in (None, "not-a-journey", 17, []):
             with self.subTest(malformed=malformed):
