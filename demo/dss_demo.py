@@ -421,7 +421,8 @@ def main() -> None:
         f"{audited_candidates} candidate entries checked"
     )
     for trace in traces:
-        print(f'{trace["case_id"]:<22} {trace["terminal_state"]:<10} {trace["reason_code"]:<48} {trace["trace_id"]} {trace["ruleset_version"]}')
+        case_label = json.dumps(trace["case_id"], ensure_ascii=False)
+        print(f'{case_label:<22} {trace["terminal_state"]:<10} {trace["reason_code"]:<48} {trace["trace_id"]} {trace["ruleset_version"]}')
     counts: dict[str, int] = {}
     for trace in traces:
         state = trace["terminal_state"]
@@ -430,11 +431,12 @@ def main() -> None:
 
     if args.candidate_detail:
         for trace in traces:
-            print(f"\n{trace['case_id']} candidate evidence:")
+            case_label = json.dumps(trace["case_id"], ensure_ascii=False)
+            print(f"\n{case_label} candidate evidence:")
             for candidate in trace["candidate_trace"]:
                 reasons = ", ".join(candidate["reason_codes"])
                 print(
-                    f"  candidate {candidate['candidate_id']} "
+                    f"  candidate {json.dumps(candidate['candidate_id'], ensure_ascii=False)} "
                     f"[{candidate['candidate_index']}]: "
                     f"{candidate['disposition']} ({reasons})"
                 )
