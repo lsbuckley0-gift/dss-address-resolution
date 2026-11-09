@@ -44,14 +44,20 @@ class VehicleCollisionBenchTests(unittest.TestCase):
         self.assertEqual(audit["missing_reason_entries"], ["PARCEL_IDENTITY_CONFLICT"])
         self.assertEqual(audit["orphaned_provenance_entries"], [])
 
-        result["reason_codes"] = ["DELIVERY_GPS_OUTSIDE_LIMIT"]
+        result = evaluate_journey(journey)
+        orphan = copy.deepcopy(result["evidence_provenance"][0])
+        orphan["reason_code"] = "NOT_REPORTED_FINDING"
+        result["evidence_provenance"].append(orphan)
         audit = audit_provenance_trace(journey, result)
         self.assertFalse(audit["valid"])
-        self.assertEqual(audit["missing_reason_entries"], ["DELIVERY_GPS_OUTSIDE_LIMIT"])
+        self.assertEqual(audit["orphaned_provenance_entries"], ["NOT_REPORTED_FINDING"])
 
     def test_provenance_audit_rejects_wrong_event_and_field_pointers(self):
         journey = make_compound_journey(902, ("wrong_parcel", "wrong_destination"))
         result = evaluate_journey(journey)
+        valid_audit = audit_provenance_trace(journey, result)
+        self.assertTrue(valid_audit["valid"])
+        self.assertEqual(valid_audit["shared_event_indices"], [2])
         parcel = next(
             item for item in result["evidence_provenance"]
             if item["reason_code"] == "PARCEL_IDENTITY_CONFLICT"
@@ -61,7 +67,7 @@ class VehicleCollisionBenchTests(unittest.TestCase):
         audit = audit_provenance_trace(journey, result)
         self.assertFalse(audit["valid"])
         self.assertIn("PARCEL_IDENTITY_CONFLICT", audit["invalid_evidence_pointers"])
-        self.assertEqual(audit["shared_event_indices"], [2])
+        self.assertEqual(audit["shared_event_indices"], [])
 
     def test_evidence_provenance_covers_every_reason_without_copying_values(self):
         journeys = [make_journey(61)] + [
