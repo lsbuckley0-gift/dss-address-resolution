@@ -12,6 +12,8 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
+from dss_core.evidence import classify_evidence
+
 GPS_LIMIT_METRES = 100.0
 ANOMALIES = (
     "gps_drift",
@@ -139,14 +141,10 @@ def evaluate_journey(journey: dict[str, Any]) -> dict[str, Any]:
         missing.append("DELIVERY_PROOF_REFERENCE_MISSING")
 
     reasons = sorted(set(missing + conflicts))
-    if missing and conflicts:
-        evidence_class = "MIXED"
-    elif missing:
-        evidence_class = "INSUFFICIENT"
-    elif conflicts:
-        evidence_class = "CONFLICTING"
-    else:
-        evidence_class = "SUFFICIENT_AND_CONSISTENT"
+    evidence_class = classify_evidence(
+        missing=bool(missing),
+        conflicting=bool(conflicts),
+    )
 
     passed = evidence_class == "SUFFICIENT_AND_CONSISTENT" and all(checks.values())
     if passed:
