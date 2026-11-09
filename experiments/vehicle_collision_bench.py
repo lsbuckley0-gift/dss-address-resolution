@@ -488,6 +488,13 @@ def benchmark(journeys: list[dict[str, Any]]) -> dict[str, Any]:
                 "first_only": stats["first_only"],
                 "second_only": stats["second_only"],
                 "neither_detected": stats["neither_detected"],
+                "first_detection_rate": (
+                    (stats["both_detected"] + stats["first_only"]) / stats["journey_count"]
+                ),
+                "second_detection_rate": (
+                    (stats["both_detected"] + stats["second_only"]) / stats["journey_count"]
+                ),
+                "joint_detection_rate": stats["both_detected"] / stats["journey_count"],
                 "observed_reason_code_counts": dict(sorted(stats["observed_reason_codes"].items())),
                 "terminal_state_counts": dict(sorted(stats["terminal_states"].items())),
             }
