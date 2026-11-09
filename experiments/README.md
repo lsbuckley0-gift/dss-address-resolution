@@ -249,8 +249,9 @@ street, locality and postcode), and six pairwise combinations across identity fi
 Expected terminal states and reason codes are benchmark-side oracle labels, stored
 outside the case object passed to the evaluator. Comparison occurs only after
 evaluation. The report includes state/reason counts, per-case expected and observed
-results, oracle mismatches and mutated false accepts; it exits non-zero on any mismatch
-or any mutated VERIFIED result.
+results, oracle mismatches and semantic-mutation false accepts; formatting-only equivalence
+is not counted as a false accept. It exits non-zero on any mismatch or any VERIFIED
+result after a premise, street, locality or postcode identity mutation.
 
 The cases exercise the current narrow contract: formatting normalisation is
 case-folding plus whitespace collapse; one street edit can be CORRECTED only when
