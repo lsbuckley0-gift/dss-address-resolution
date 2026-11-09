@@ -72,6 +72,17 @@ independent evidence of field performance.
 - **False accepts:** injected anomalous journeys incorrectly returned as `VERIFIED`
 - **Clean acceptance rate:** clean journeys returned as `VERIFIED`
 - **False rejects:** clean journeys incorrectly returned as `UNRESOLVED`
+- **Reason-code frequency:** number of evaluated journeys carrying each reason code
+- **Reason combinations:** frequency of each exact, sorted reason-code set (joined with ` + `)
+- **Condition-level fingerprints:** reason-code and exact-combination counts grouped by the synthetic injected condition
+
+`by_condition` is the oracle-condition × evaluator-terminal-state matrix: the left-hand labels
+come from the generator's `injected_condition` metadata, while terminal states and reason
+codes come from the evaluator. The evaluator does not read that metadata. This separation
+keeps the expected synthetic condition from influencing the observed decision. The report
+sorts keys for deterministic, JSON-friendly output. A clean journey's
+`ALL_DECLARED_CHECKS_PASSED` marker is counted like any other reason code for frequency
+accounting; it is a success marker, not a failure.
 
 ## Interpretation and limitations
 
