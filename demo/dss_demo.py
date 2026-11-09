@@ -110,6 +110,7 @@ def finalise_trace(trace: dict[str, Any]) -> dict[str, Any]:
         "case_id": trace.get("case_id") if isinstance(trace.get("case_id"), str) else None,
         "candidate_ids": trace.get("candidate_ids", []),
         "candidate_count": trace.get("candidate_count", 0),
+        "selected_candidate_index": trace.get("selected_candidate_index"),
         "terminal_state": trace.get("terminal_state"),
         "reason_code": reason,
     }
