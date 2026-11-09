@@ -6,6 +6,7 @@ It uses fictional data and deliberately conservative rules.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -18,6 +19,8 @@ from dss_core.evidence import classify_evidence
 
 
 FIELDS = ("premise", "street", "locality", "postcode")
+RULESET_VERSION = "synthetic-address-demo/1.0"
+NORMALISATION_RULE = "text-only Unicode casefold plus whitespace collapse"
 
 
 def normalise(value: Any) -> str:
@@ -101,6 +104,19 @@ def finalise_trace(trace: dict[str, Any]) -> dict[str, Any]:
         evidence_class = classify_evidence(missing=True)
     trace["evidence_class"] = evidence_class
     trace["reason_codes"] = [reason]
+    # A deterministic trace key for this synthetic demo, not a signature,
+    # content-integrity proof or production audit identifier.
+    identity = {
+        "case_id": trace.get("case_id") if isinstance(trace.get("case_id"), str) else None,
+        "candidate_ids": trace.get("candidate_ids", []),
+        "candidate_count": trace.get("candidate_count", 0),
+        "terminal_state": trace.get("terminal_state"),
+        "reason_code": reason,
+    }
+    encoded = json.dumps(identity, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    trace["trace_id"] = "addr-" + hashlib.sha256(encoded.encode("utf-8")).hexdigest()[:16]
+    trace["ruleset_version"] = RULESET_VERSION
+    trace["normalisation_rule"] = NORMALISATION_RULE
     return trace
 
 
@@ -250,7 +266,7 @@ def main() -> None:
     cases = json.loads(Path(args.cases).read_text(encoding="utf-8"))
     traces = run(cases)
     for trace in traces:
-        print(f'{trace["case_id"]:<22} {trace["terminal_state"]:<10} {trace["reason_code"]}')
+        print(f'{trace["case_id"]:<22} {trace["terminal_state"]:<10} {trace["reason_code"]:<48} {trace["trace_id"]} {trace["ruleset_version"]}')
     counts: dict[str, int] = {}
     for trace in traces:
         state = trace["terminal_state"]
