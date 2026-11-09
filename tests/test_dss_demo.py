@@ -6,7 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "demo"))
 
-from dss_demo import evaluate_case  # noqa: E402
+from dss_demo import edit_distance_at_most_one, evaluate_case  # noqa: E402
 
 
 class DemoDecisionTests(unittest.TestCase):
@@ -14,6 +14,13 @@ class DemoDecisionTests(unittest.TestCase):
     def setUpClass(cls):
         cls.cases = json.loads((ROOT / "demo" / "cases.json").read_text(encoding="utf-8"))
         cls.by_id = {case["case_id"]: case for case in cls.cases}
+
+    def test_edit_distance_refuses_non_text_values(self):
+        for left, right in ((0, False), (None, ""), ([], []), ({}, {})):
+            with self.subTest(left=left, right=right):
+                self.assertFalse(edit_distance_at_most_one(left, right))
+        self.assertTrue(edit_distance_at_most_one("High St", "High St"))
+        self.assertTrue(edit_distance_at_most_one("High St", "High Stt"))
 
     def test_exact_record_is_verified(self):
         result = evaluate_case(self.by_id["01-exact"])
