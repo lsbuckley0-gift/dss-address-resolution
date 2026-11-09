@@ -188,7 +188,7 @@ def evaluate_journey(journey: Any) -> dict[str, Any]:
     elif not gps_within_limit:
         conflicts.append("DELIVERY_GPS_OUTSIDE_LIMIT")
     if not proof_present:
-        missing.append("DELIVERY_PROOF_REFERENCE_MISSING_OR_INVALID")
+        missing.append("DELIVERY_PROOF_REFERENCE_MISSING")
 
     reasons = sorted(set(missing + conflicts))
     evidence_class = classify_evidence(
