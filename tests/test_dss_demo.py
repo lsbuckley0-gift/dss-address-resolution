@@ -159,6 +159,80 @@ class DemoDecisionTests(unittest.TestCase):
                 self.assertEqual(result["candidate_ids"], ["candidate-1"])
                 self.assertEqual(result["selected_candidate"], "candidate-1")
 
+    def test_candidate_trace_exposes_exact_field_evidence_and_selection(self):
+        result = evaluate_case(self.by_id["01-exact"])
+        candidate = result["candidate_trace"][0]
+        self.assertEqual(candidate["candidate_id"], "A")
+        self.assertTrue(candidate["retrieval"]["eligible"])
+        self.assertEqual(candidate["disposition"], "SELECTED_EXACT")
+        self.assertEqual(candidate["reason_codes"], ["ALL_IDENTITY_FIELDS_MATCH"])
+        for field in ("premise", "street", "locality", "postcode"):
+            self.assertTrue(candidate["field_comparisons"][field]["normalised_equal"])
+
+    def test_candidate_trace_explains_postcode_return_refusal(self):
+        result = evaluate_case(self.by_id["04-postcode-conflict"])
+        candidate = result["candidate_trace"][0]
+        self.assertTrue(candidate["retrieval"]["eligible"])
+        self.assertFalse(candidate["protected_field_checks"]["postcode"])
+        self.assertEqual(candidate["disposition"], "REFUSED_RETURN_CHECK")
+        self.assertIn("POSTCODE_RETURN_MISMATCH", candidate["reason_codes"])
+
+    def test_candidate_trace_excludes_premise_and_locality_conflicts(self):
+        valid = self.by_id["03-typo-correction"]
+        for field, value, expected_reason in (
+            ("premise", "99", "PREMISE_MISMATCH"),
+            ("locality", "Elsewhere", "LOCALITY_MISMATCH"),
+        ):
+            case = json.loads(json.dumps(valid))
+            case["candidates"][0][field] = value
+            result = evaluate_case(case)
+            candidate = result["candidate_trace"][0]
+            self.assertFalse(candidate["retrieval"]["eligible"])
+            self.assertEqual(candidate["disposition"], "REFUSED_RETRIEVAL")
+            self.assertIn(expected_reason, candidate["reason_codes"])
+            self.assertEqual(result["terminal_state"], "UNRESOLVED")
+
+    def test_candidate_trace_marks_every_near_candidate_ambiguous(self):
+        result = evaluate_case(self.by_id["05-ambiguous"])
+        self.assertEqual(
+            [item["disposition"] for item in result["candidate_trace"]],
+            ["AMBIGUOUS", "AMBIGUOUS"],
+        )
+        self.assertTrue(all(
+            "MULTIPLE_RETRIEVAL_ELIGIBLE_CANDIDATES" in item["reason_codes"]
+            for item in result["candidate_trace"]
+        ))
+        self.assertIsNone(result["selected_candidate"])
+
+    def test_candidate_trace_order_only_changes_presentation_order(self):
+        case = json.loads(json.dumps(self.by_id["05-ambiguous"]))
+        original = evaluate_case(case)
+        case["candidates"].reverse()
+        reversed_result = evaluate_case(case)
+        self.assertEqual(original["terminal_state"], reversed_result["terminal_state"])
+        self.assertEqual(original["reason_code"], reversed_result["reason_code"])
+        self.assertEqual(
+            [item["candidate_id"] for item in original["candidate_trace"]],
+            ["E1", "E2"],
+        )
+        self.assertEqual(
+            [item["candidate_id"] for item in reversed_result["candidate_trace"]],
+            ["E2", "E1"],
+        )
+
+    def test_candidate_trace_is_deterministic(self):
+        case = self.by_id["03-typo-correction"]
+        self.assertEqual(evaluate_case(case)["candidate_trace"], evaluate_case(case)["candidate_trace"])
+
+    def test_malformed_candidate_has_explicit_refusal_trace(self):
+        case = json.loads(json.dumps(self.by_id["01-exact"]))
+        case["candidates"].append(None)
+        result = evaluate_case(case)
+        malformed = result["candidate_trace"][1]
+        self.assertEqual(malformed["disposition"], "REFUSED")
+        self.assertEqual(malformed["reason_codes"], ["MALFORMED_CANDIDATE_RECORD"])
+        self.assertEqual(result["terminal_state"], "UNRESOLVED")
+
     def test_return_check_detects_wrong_postcode(self):
         case = self.by_id["07-return-check-fails"]
         result = evaluate_case(case)
