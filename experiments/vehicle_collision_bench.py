@@ -362,6 +362,7 @@ def benchmark(journeys: list[dict[str, Any]]) -> dict[str, Any]:
     diagnostic_status_counts: Counter[str] = Counter()
     diagnostic_records: list[dict[str, Any]] = []
     pair_interaction_stats: dict[tuple[str, str], dict[str, Any]] = {}
+    interaction_diagnostic_stats: dict[str, dict[str, Any]] = {}
 
     for journey in journeys:
         result = evaluate_journey(journey)
@@ -387,6 +388,20 @@ def benchmark(journeys: list[dict[str, Any]]) -> dict[str, Any]:
         interaction = journey.get("injected_interaction")
         if interaction is not None:
             interaction_reason_combinations[interaction][combination] += 1
+            stats = interaction_diagnostic_stats.setdefault(interaction, {
+                "case_count": 0,
+                "diagnostic_status_counts": Counter(),
+                "primary_fault_detected_count": 0,
+                "primary_fault_missed_count": 0,
+                "secondary_symptom_counts": Counter(),
+            })
+            stats["case_count"] += 1
+            stats["diagnostic_status_counts"][diagnostic["diagnostic_status"]] += 1
+            if diagnostic["primary_fault_detected"] is True:
+                stats["primary_fault_detected_count"] += 1
+            elif diagnostic["primary_fault_detected"] is False:
+                stats["primary_fault_missed_count"] += 1
+            stats["secondary_symptom_counts"].update(diagnostic["secondary_symptoms"])
         if not injected_anomalies:
             clean_reason_counts.update(
                 reason for reason in reasons
@@ -503,6 +518,16 @@ def benchmark(journeys: list[dict[str, Any]]) -> dict[str, Any]:
         "interaction_reason_combinations": {
             interaction: dict(sorted(counts.items()))
             for interaction, counts in sorted(interaction_reason_combinations.items())
+        },
+        "interaction_diagnostic_summary": {
+            interaction: {
+                "case_count": stats["case_count"],
+                "diagnostic_status_counts": dict(sorted(stats["diagnostic_status_counts"].items())),
+                "primary_fault_detected_count": stats["primary_fault_detected_count"],
+                "primary_fault_missed_count": stats["primary_fault_missed_count"],
+                "secondary_symptom_counts": dict(sorted(stats["secondary_symptom_counts"].items())),
+            }
+            for interaction, stats in sorted(interaction_diagnostic_stats.items())
         },
         # Oracle-relative traces are generated after evaluate_journey returns.
         "diagnostic_status_counts": dict(sorted(diagnostic_status_counts.items())),
