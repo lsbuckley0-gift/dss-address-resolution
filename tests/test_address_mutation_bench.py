@@ -10,7 +10,7 @@ class AddressMutationBenchmarkTests(unittest.TestCase):
     def test_deterministic_13_case_single_and_pair_matrix(self):
         rows = build_dataset()
         self.assertEqual(rows, build_dataset())
-        self.assertEqual(len(rows), 13)
+        self.assertEqual(len(rows), 15)
         self.assertTrue(any(len(row["mutations"]) == 2 for row in rows))
 
     def test_oracle_metadata_is_not_passed_to_evaluator(self):
@@ -37,13 +37,30 @@ class AddressMutationBenchmarkTests(unittest.TestCase):
         self.assertEqual(trace["reason_code"], "RETURN_CHECK_FAILED")
         self.assertFalse(trace["return_check"]["checks"]["postcode"])
 
+    def test_candidate_cardinality_and_order_never_create_false_accepts(self):
+        rows = {row["scenario"]: row for row in build_dataset()}
+        for scenario, expected_reason in (
+            ("duplicate-exact-candidates", "MULTIPLE_EXACT_CANDIDATES"),
+            ("ambiguous-near-candidates", "AMBIGUOUS_CANDIDATES"),
+        ):
+            case = rows[scenario]["case"]
+            forward = evaluate_case(case)
+            reversed_case = dict(case, candidates=list(reversed(case["candidates"])))
+            reverse = evaluate_case(reversed_case)
+            self.assertEqual(forward["terminal_state"], "UNRESOLVED")
+            self.assertEqual(forward["reason_code"], expected_reason)
+            self.assertEqual(
+                (forward["terminal_state"], forward["reason_code"]),
+                (reverse["terminal_state"], reverse["reason_code"]),
+            )
+
     def test_benchmark_has_expected_counts_and_zero_false_accepts(self):
         report = benchmark()
         self.assertTrue(report["passed"], report["oracle_mismatches"])
-        self.assertEqual(report["case_count"], 13)
+        self.assertEqual(report["case_count"], 15)
         self.assertEqual(report["oracle_mismatches"], [])
         self.assertEqual(report["mutated_false_accepts"], 0)
-        self.assertEqual(report["state_counts"], {"CORRECTED": 1, "UNRESOLVED": 10, "VERIFIED": 2})
+        self.assertEqual(report["state_counts"], {"CORRECTED": 1, "UNRESOLVED": 12, "VERIFIED": 2})
 
 if __name__ == "__main__":
     unittest.main()
