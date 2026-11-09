@@ -66,6 +66,14 @@ print(report)
 The generated compound cases are still rule-shaped synthetic tests; they are not
 independent evidence of field performance.
 
+The report's `pair_interaction_matrix` evaluates every unordered anomaly pair
+co-occurring in a compound journey. Each pair records both-detected, first-only,
+second-only and neither-detected outcomes, plus the observed reason-code and
+terminal-state counts. Pairs are also counted inside three-anomaly journeys, so
+these figures describe pair co-occurrence within the full compound dataset rather
+than only isolated two-fault trials. The matrix is computed after evaluator output
+is produced; synthetic labels remain benchmark-side oracle metadata.
+
 ## Reported measures
 
 - **Anomaly detection rate:** injected anomalous journeys returned as `UNRESOLVED`
@@ -79,6 +87,7 @@ independent evidence of field performance.
 - **Per-anomaly detection:** injected, detected, missed and detection-rate counts for each disturbance
 - **Clean reason-code counts:** any evaluator refusal reason appearing in journeys labelled clean
 - **Interaction fingerprints:** exact reason-code combinations for controlled cases where one disturbance creates a secondary symptom or masks the primary diagnostic code
+- **Pairwise interaction matrix:** for every anomaly pair appearing in compound journeys, counts cases where both expected reason codes, only the first, only the second, or neither were observed, alongside reason-code and terminal-state frequencies
 
 Two interaction fixtures are available through `make_interaction_journey`:
 
