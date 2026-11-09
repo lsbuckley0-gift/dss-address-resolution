@@ -177,6 +177,189 @@ def candidate_comparison(intended: Any, candidate: Any, candidate_id: str, candi
     }
 
 
+def _audit_normalise(value: Any) -> str:
+    """Independent audit-side normalisation; do not trust emitted trace values."""
+    return " ".join(value.casefold().split()) if isinstance(value, str) else ""
+
+
+def _audit_edit_at_most_one(left: Any, right: Any) -> bool:
+    """Independent audit-side Levenshtein <= 1 check."""
+    if not isinstance(left, str) or not isinstance(right, str):
+        return False
+    a, b = _audit_normalise(left), _audit_normalise(right)
+    if a == b:
+        return True
+    if abs(len(a) - len(b)) > 1:
+        return False
+    if len(a) > len(b):
+        a, b = b, a
+    i = j = differences = 0
+    while i < len(a) and j < len(b):
+        if a[i] == b[j]:
+            i += 1
+            j += 1
+            continue
+        differences += 1
+        if differences > 1:
+            return False
+        if len(a) == len(b):
+            i += 1
+        j += 1
+    if i < len(a) or j < len(b):
+        differences += 1
+    return differences <= 1
+
+
+def audit_candidate_trace(case: Any, trace: Any) -> dict[str, Any]:
+    """Independently check candidate evidence values and positional references.
+
+    This audits trace integrity, not the scientific validity of the demo rules or
+    a production address decision.
+    """
+    mismatches: list[str] = []
+    if not isinstance(case, dict) or not isinstance(trace, dict):
+        return {
+            "valid": False,
+            "mismatches": ["MALFORMED_CASE_OR_TRACE"],
+            "candidate_count": 0,
+            "field_comparison_count": 0,
+        }
+
+    intended = case.get("intended")
+    raw_candidates = case.get("candidates", [])
+    candidates = raw_candidates if isinstance(raw_candidates, list) else []
+    expected_ids = []
+    for index, candidate in enumerate(candidates):
+        supplied_id = (
+            candidate.get("candidate_id")
+            if isinstance(candidate, dict) else None
+        )
+        expected_ids.append(
+            supplied_id if isinstance(supplied_id, str) and supplied_id.strip()
+            else f"candidate-{index + 1}"
+        )
+
+    if trace.get("case_id") != case.get("case_id"):
+        mismatches.append("CASE_ID_MISMATCH")
+    expected_count = len(candidates)
+    if trace.get("candidate_count") != expected_count:
+        mismatches.append("CANDIDATE_COUNT_MISMATCH")
+    if trace.get("candidate_ids") != expected_ids:
+        mismatches.append("CANDIDATE_ID_LIST_MISMATCH")
+
+    entries = trace.get("candidate_trace")
+    if not isinstance(entries, list):
+        entries = []
+        mismatches.append("CANDIDATE_TRACE_NOT_A_LIST")
+    if len(entries) != expected_count:
+        mismatches.append("CANDIDATE_TRACE_COUNT_MISMATCH")
+
+    field_comparison_count = 0
+    for index, candidate in enumerate(candidates):
+        if index >= len(entries):
+            continue
+        entry = entries[index]
+        if not isinstance(entry, dict):
+            mismatches.append(f"CANDIDATE_ENTRY_NOT_AN_OBJECT:{index}")
+            continue
+        if entry.get("candidate_index") != index:
+            mismatches.append(f"CANDIDATE_POSITION_MISMATCH:{index}")
+        if entry.get("candidate_id") != expected_ids[index]:
+            mismatches.append(f"CANDIDATE_LABEL_MISMATCH:{index}")
+
+        if not isinstance(candidate, dict):
+            expected_fields = {}
+            expected_retrieval = {
+                "eligible": False,
+                "reason_codes": ["MALFORMED_CANDIDATE_RECORD"],
+            }
+            expected_protected = {"premise": False, "locality": False, "postcode": False}
+        else:
+            expected_fields = {}
+            for field in FIELDS:
+                intended_value = intended.get(field) if isinstance(intended, dict) else None
+                candidate_value = candidate.get(field)
+                intended_valid = (
+                    isinstance(intended_value, str) and bool(_audit_normalise(intended_value))
+                )
+                candidate_valid = (
+                    isinstance(candidate_value, str) and bool(_audit_normalise(candidate_value))
+                )
+                expected_fields[field] = {
+                    "intended_value": intended_value,
+                    "candidate_value": candidate_value,
+                    "both_text_and_nonblank": intended_valid and candidate_valid,
+                    "intended_normalised": _audit_normalise(intended_value) if intended_valid else None,
+                    "candidate_normalised": _audit_normalise(candidate_value) if candidate_valid else None,
+                    "normalised_equal": (
+                        _audit_normalise(intended_value) == _audit_normalise(candidate_value)
+                        if intended_valid and candidate_valid else None
+                    ),
+                }
+            valid_candidate = all(
+                isinstance(candidate.get(field), str) and bool(_audit_normalise(candidate.get(field)))
+                for field in FIELDS
+            )
+            premise_match = expected_fields["premise"]["normalised_equal"] is True
+            locality_match = expected_fields["locality"]["normalised_equal"] is True
+            postcode_match = expected_fields["postcode"]["normalised_equal"] is True
+            street_near = (
+                _audit_edit_at_most_one(intended.get("street", ""), candidate.get("street", ""))
+                if isinstance(intended, dict) and valid_candidate else False
+            )
+            retrieval_reasons = []
+            if not valid_candidate:
+                retrieval_reasons.append("CANDIDATE_MISSING_OR_INVALID_REQUIRED_FIELD")
+            if not premise_match:
+                retrieval_reasons.append("PREMISE_MISMATCH")
+            if not locality_match:
+                retrieval_reasons.append("LOCALITY_MISMATCH")
+            if not street_near:
+                retrieval_reasons.append("STREET_OUTSIDE_ONE_EDIT_RETRIEVAL_RULE")
+            expected_retrieval = {
+                "eligible": valid_candidate and premise_match and locality_match and street_near,
+                "reason_codes": retrieval_reasons or ["RETRIEVAL_RULES_PASSED"],
+            }
+            expected_protected = {
+                "premise": premise_match,
+                "locality": locality_match,
+                "postcode": postcode_match,
+            }
+
+        observed_fields = entry.get("field_comparisons")
+        if observed_fields != expected_fields:
+            mismatches.append(f"FIELD_COMPARISON_MISMATCH:{index}")
+        field_comparison_count += len(expected_fields)
+        if entry.get("retrieval") != expected_retrieval:
+            mismatches.append(f"RETRIEVAL_EVIDENCE_MISMATCH:{index}")
+        if entry.get("protected_field_checks") != expected_protected:
+            mismatches.append(f"PROTECTED_FIELD_CHECK_MISMATCH:{index}")
+        if entry.get("disposition") in (None, "PENDING"):
+            mismatches.append(f"NON_TERMINAL_CANDIDATE_DISPOSITION:{index}")
+        reason_codes = entry.get("reason_codes")
+        if not isinstance(reason_codes, list) or not reason_codes:
+            mismatches.append(f"CANDIDATE_REASON_CODES_MISSING:{index}")
+
+    selected_index = trace.get("selected_candidate_index")
+    selected_id = trace.get("selected_candidate")
+    if selected_index is None:
+        if selected_id is not None:
+            mismatches.append("SELECTED_CANDIDATE_REFERENCE_MISMATCH")
+    elif (
+        not isinstance(selected_index, int) or isinstance(selected_index, bool)
+        or selected_index < 0 or selected_index >= len(expected_ids)
+        or selected_id != expected_ids[selected_index]
+    ):
+        mismatches.append("SELECTED_CANDIDATE_REFERENCE_MISMATCH")
+
+    return {
+        "valid": not mismatches,
+        "mismatches": mismatches,
+        "candidate_count": expected_count,
+        "field_comparison_count": field_comparison_count,
+    }
+
+
 def evaluate_case(case: Any) -> dict[str, Any]:
     """Evaluate one synthetic case and expose evidence for every supplied candidate."""
     if not isinstance(case, dict):
