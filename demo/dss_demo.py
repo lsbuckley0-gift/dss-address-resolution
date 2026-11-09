@@ -120,19 +120,68 @@ def finalise_trace(trace: dict[str, Any]) -> dict[str, Any]:
     return trace
 
 
+def candidate_comparison(intended: Any, candidate: Any, candidate_id: str) -> dict[str, Any]:
+    """Expose field evidence without coercing malformed values into address text."""
+    comparisons: dict[str, Any] = {}
+    for field in FIELDS:
+        intended_value = intended.get(field) if isinstance(intended, dict) else None
+        candidate_value = candidate.get(field) if isinstance(candidate, dict) else None
+        intended_valid = isinstance(intended_value, str) and bool(normalise(intended_value))
+        candidate_valid = isinstance(candidate_value, str) and bool(normalise(candidate_value))
+        comparisons[field] = {
+            "intended_value": intended_value,
+            "candidate_value": candidate_value,
+            "both_text_and_nonblank": intended_valid and candidate_valid,
+            "normalised_equal": (
+                normalise(intended_value) == normalise(candidate_value)
+                if intended_valid and candidate_valid else None
+            ),
+        }
+
+    valid_candidate = required_fields_present(candidate)
+    premise_match = comparisons["premise"]["normalised_equal"] is True
+    street_near = (
+        edit_distance_at_most_one(intended.get("street", ""), candidate.get("street", ""))
+        if isinstance(intended, dict) and valid_candidate else False
+    )
+    locality_match = comparisons["locality"]["normalised_equal"] is True
+    postcode_match = comparisons["postcode"]["normalised_equal"] is True
+    retrieval_eligible = valid_candidate and premise_match and locality_match and street_near
+    retrieval_reasons = []
+    if not valid_candidate:
+        retrieval_reasons.append("CANDIDATE_MISSING_OR_INVALID_REQUIRED_FIELD")
+    if not premise_match:
+        retrieval_reasons.append("PREMISE_MISMATCH")
+    if not locality_match:
+        retrieval_reasons.append("LOCALITY_MISMATCH")
+    if not street_near:
+        retrieval_reasons.append("STREET_OUTSIDE_ONE_EDIT_RETRIEVAL_RULE")
+    return {
+        "candidate_id": candidate_id,
+        "field_comparisons": comparisons,
+        "street_edit_distance_at_most_one": street_near,
+        "retrieval": {
+            "eligible": retrieval_eligible,
+            "reason_codes": retrieval_reasons or ["RETRIEVAL_RULES_PASSED"],
+        },
+        "protected_field_checks": {
+            "premise": premise_match,
+            "locality": locality_match,
+            "postcode": postcode_match,
+        },
+        "disposition": "PENDING",
+        "reason_codes": [],
+    }
+
+
 def evaluate_case(case: Any) -> dict[str, Any]:
-    """Evaluate one synthetic case; malformed structures are refused, never coerced."""
+    """Evaluate one synthetic case and expose evidence for every supplied candidate."""
     if not isinstance(case, dict):
         return finalise_trace({
-            "case_id": None,
-            "intended": None,
-            "candidate_count": 0,
-            "candidate_ids": [],
-            "selected_candidate": None,
-            "operation": "NONE",
-            "return_check": None,
-            "terminal_state": "UNRESOLVED",
-            "reason_code": "MALFORMED_CASE",
+            "case_id": None, "intended": None, "candidate_count": 0,
+            "candidate_ids": [], "candidate_trace": [], "selected_candidate": None,
+            "operation": "NONE", "return_check": None,
+            "terminal_state": "UNRESOLVED", "reason_code": "MALFORMED_CASE",
         })
 
     intended = case.get("intended")
@@ -148,11 +197,33 @@ def evaluate_case(case: Any) -> dict[str, Any]:
         )
         for index, candidate in enumerate(candidates)
     ]
+    candidate_trace = [
+        (
+            candidate_comparison(intended, candidate, candidate_ids[index])
+            if isinstance(candidate, dict)
+            else {
+                "candidate_id": candidate_ids[index],
+                "field_comparisons": {},
+                "street_edit_distance_at_most_one": False,
+                "retrieval": {
+                    "eligible": False,
+                    "reason_codes": ["MALFORMED_CANDIDATE_RECORD"],
+                },
+                "protected_field_checks": {
+                    "premise": False, "locality": False, "postcode": False,
+                },
+                "disposition": "REFUSED",
+                "reason_codes": ["MALFORMED_CANDIDATE_RECORD"],
+            }
+        )
+        for index, candidate in enumerate(candidates)
+    ]
     trace: dict[str, Any] = {
         "case_id": case.get("case_id"),
         "intended": intended,
         "candidate_count": len(raw_candidates) if isinstance(raw_candidates, list) else 0,
         "candidate_ids": candidate_ids,
+        "candidate_trace": candidate_trace,
         "selected_candidate": None,
         "operation": "NONE",
         "return_check": None,
@@ -163,6 +234,9 @@ def evaluate_case(case: Any) -> dict[str, Any]:
             "terminal_state": "UNRESOLVED",
             "reason_code": "MALFORMED_INTENDED_RECORD",
         })
+        for item in candidate_trace:
+            if item["disposition"] == "PENDING":
+                item.update(disposition="REFUSED", reason_codes=["INTENDED_RECORD_MALFORMED"])
         return finalise_trace(trace)
 
     if not isinstance(raw_candidates, list):
@@ -177,6 +251,9 @@ def evaluate_case(case: Any) -> dict[str, Any]:
             "terminal_state": "UNRESOLVED",
             "reason_code": "MALFORMED_CANDIDATE_RECORD",
         })
+        for item in candidate_trace:
+            if item["disposition"] == "PENDING":
+                item.update(disposition="REFUSED", reason_codes=["MALFORMED_CANDIDATE_PRESENT"])
         return finalise_trace(trace)
 
     if not required_fields_present(intended):
@@ -184,70 +261,110 @@ def evaluate_case(case: Any) -> dict[str, Any]:
             "terminal_state": "UNRESOLVED",
             "reason_code": "MISSING_REQUIRED_INTENDED_FIELD",
         })
+        for item in candidate_trace:
+            item.update(disposition="REFUSED", reason_codes=["INTENDED_REQUIRED_FIELD_MISSING"])
         return finalise_trace(trace)
 
-    exact = [candidate for candidate in candidates if same_record(intended, candidate)]
-    if len(exact) == 1:
-        selected = exact[0]
+    exact_indices = [
+        index for index, candidate in enumerate(candidates)
+        if same_record(intended, candidate)
+    ]
+    if len(exact_indices) == 1:
+        index = exact_indices[0]
+        selected = candidates[index]
+        candidate_trace[index].update(
+            disposition="SELECTED_EXACT",
+            reason_codes=["ALL_IDENTITY_FIELDS_MATCH"],
+        )
+        for other_index, item in enumerate(candidate_trace):
+            if other_index != index:
+                item.update(
+                    disposition="NOT_SELECTED",
+                    reason_codes=item["retrieval"]["reason_codes"],
+                )
         trace.update({
-            "selected_candidate": candidate_ids[candidates.index(selected)],
+            "selected_candidate": candidate_ids[index],
             "operation": "NO_CHANGE",
             "return_check": return_check(intended, selected),
             "terminal_state": "VERIFIED",
             "reason_code": "EXACT_IDENTITY_FIELDS",
         })
         return finalise_trace(trace)
-    if len(exact) > 1:
+    if len(exact_indices) > 1:
+        for item in candidate_trace:
+            if item["field_comparisons"] and all(
+                item["field_comparisons"][field]["normalised_equal"] is True for field in FIELDS
+            ):
+                item.update(disposition="AMBIGUOUS_EXACT", reason_codes=["MULTIPLE_EXACT_CANDIDATES"])
+            else:
+                item.update(disposition="NOT_SELECTED", reason_codes=item["retrieval"]["reason_codes"])
         trace.update({
             "terminal_state": "UNRESOLVED",
             "reason_code": "MULTIPLE_EXACT_CANDIDATES",
         })
         return finalise_trace(trace)
 
-    # Candidate retrieval is intentionally permissive enough to expose the
-    # return-check gate: same premise/locality and a street within one edit.
-    near = [
-        candidate for candidate in candidates
-        if required_fields_present(candidate)
-        and normalise(intended.get("premise")) == normalise(candidate.get("premise"))
-        and normalise(intended.get("locality")) == normalise(candidate.get("locality"))
-        and edit_distance_at_most_one(
-            intended.get("street", ""), candidate.get("street", "")
-        )
+    near_indices = [
+        index for index, item in enumerate(candidate_trace)
+        if item["retrieval"]["eligible"]
     ]
+    for index, item in enumerate(candidate_trace):
+        if index not in near_indices:
+            item.update(
+                disposition="REFUSED_RETRIEVAL",
+                reason_codes=item["retrieval"]["reason_codes"],
+            )
 
-    if len(near) == 0:
+    if len(near_indices) == 0:
         trace.update({
             "terminal_state": "UNRESOLVED",
             "reason_code": "NO_SUPPORTED_CANDIDATE",
         })
         return finalise_trace(trace)
-    if len(near) > 1:
+    if len(near_indices) > 1:
+        for index in near_indices:
+            candidate_trace[index].update(
+                disposition="AMBIGUOUS",
+                reason_codes=["MULTIPLE_RETRIEVAL_ELIGIBLE_CANDIDATES"],
+            )
         trace.update({
             "terminal_state": "UNRESOLVED",
             "reason_code": "AMBIGUOUS_CANDIDATES",
         })
         return finalise_trace(trace)
 
-    selected = near[0]
+    index = near_indices[0]
+    selected = candidates[index]
     check = return_check(intended, selected)
-    trace["selected_candidate"] = candidate_ids[candidates.index(selected)]
+    candidate_trace[index].update(
+        disposition="SELECTED_FOR_RETURN_CHECK",
+        reason_codes=["UNIQUE_RETRIEVAL_ELIGIBLE_CANDIDATE"],
+    )
+    trace["selected_candidate"] = candidate_ids[index]
     trace["operation"] = "PROPOSE_CANONICAL_CANDIDATE"
     trace["return_check"] = check
 
     if not check["passed"]:
+        failed = [field.upper() for field, passed in check["checks"].items() if not passed]
+        candidate_trace[index].update(
+            disposition="REFUSED_RETURN_CHECK",
+            reason_codes=["RETURN_CHECK_FAILED"] + [f"{field}_RETURN_MISMATCH" for field in failed],
+        )
         trace.update({
             "terminal_state": "UNRESOLVED",
             "reason_code": "RETURN_CHECK_FAILED",
         })
         return finalise_trace(trace)
 
+    candidate_trace[index].update(
+        disposition="SELECTED_CORRECTED",
+        reason_codes=["UNIQUE_CANDIDATE_AND_RETURN_CHECK_PASSED"],
+    )
     trace.update({
         "terminal_state": "CORRECTED",
         "reason_code": "UNIQUE_CANDIDATE_AND_RETURN_CHECK_PASSED",
     })
     return finalise_trace(trace)
-
 
 def run(cases: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [evaluate_case(case) for case in cases]
