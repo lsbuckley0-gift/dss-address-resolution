@@ -62,3 +62,12 @@ The audit is a separate consistency check over the emitted evidence, not a crypt
 This is a reference demonstration, not a production matcher or evidence of accuracy. It does not use PAF, live address data, geocoding, postal validation or customer records. It has no production security, privacy, monitoring, resilience or integration controls. The synthetic scenarios are hand-authored and are not a representative benchmark.
 
 A customer pilot must use an authorised, labelled dataset, a frozen baseline and pre-agreed acceptance criteria as described in [the pilot protocol](../commercial/pilot-protocol.md).
+
+
+## Machine-readable candidate-trace schema
+
+The `--json-out` export is a JSON array of audited case traces. Its v1 structure is defined by [`schemas/candidate-trace-v1.schema.json`](schemas/candidate-trace-v1.schema.json), using JSON Schema Draft 2020-12. The schema describes the exported envelope, including the independent `candidate_trace_audit` result, rather than the evaluator's pre-audit in-memory trace.
+
+The trace schema version (`candidate-trace/1.0`) describes field names, types, allowed terminal states/dispositions and required audit metadata. The ruleset version (`synthetic-address-demo/1.0`) describes decision policy; changing one does not automatically change the other. A breaking change to the exported structure requires a new schema version and schema file. Compatible additive changes are intentionally not accepted by this v1 contract because exported objects reject undeclared properties; publish a new schema version when adding fields so consumers can pin a stable contract.
+
+The schema is dependency-free to consume as a standard JSON Schema document. The repository's conformance tests exercise the emitted CLI export and reject missing fields, invalid states/dispositions, version drift, malformed trace identifiers and undeclared properties. The test helper implements the JSON Schema keywords used by this contract; it is not a general-purpose JSON Schema validator.
