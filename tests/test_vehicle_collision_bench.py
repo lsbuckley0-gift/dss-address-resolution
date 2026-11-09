@@ -54,6 +54,28 @@ class VehicleCollisionBenchTests(unittest.TestCase):
         self.assertFalse(audit["valid"])
         self.assertEqual(audit["orphaned_provenance_entries"], ["NOT_REPORTED_FINDING"])
 
+    def test_provenance_audit_covers_interaction_and_malformed_refusal_fixtures(self):
+        journeys = [
+            make_interaction_journey(903, "reordered_events", "sequence_echo"),
+            make_interaction_journey(904, "wrong_parcel", "missing_parcel_masks_conflict"),
+            make_interaction_journey(
+                905, "wrong_parcel", "missing_parcel_with_separate_conflict"
+            ),
+        ]
+        malformed = make_journey(906)
+        malformed["events"].insert(1, "malformed-event")
+        malformed["events"][-1]["destination_id"] = "OTHER-DESTINATION"
+        journeys.append(malformed)
+
+        for journey in journeys:
+            with self.subTest(journey_id=journey["journey_id"]):
+                result = evaluate_journey(journey)
+                audit = audit_provenance_trace(journey, result)
+                self.assertTrue(audit["valid"], msg=audit)
+                self.assertEqual(audit["missing_reason_entries"], [])
+                self.assertEqual(audit["orphaned_provenance_entries"], [])
+                self.assertEqual(audit["invalid_evidence_pointers"], [])
+
     def test_provenance_audit_rejects_wrong_event_and_field_pointers(self):
         journey = make_compound_journey(902, ("wrong_parcel", "wrong_destination"))
         result = evaluate_journey(journey)
@@ -162,6 +184,10 @@ class VehicleCollisionBenchTests(unittest.TestCase):
         for index, journey in enumerate(cases):
             with self.subTest(case=index):
                 result = evaluate_journey(journey)
+                self.assertTrue(
+                    audit_provenance_trace(journey, result)["valid"],
+                    msg=audit_provenance_trace(journey, result),
+                )
                 provenance_codes = [
                     item["reason_code"] for item in result["evidence_provenance"]
                 ]
