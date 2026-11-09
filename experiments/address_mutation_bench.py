@@ -5,6 +5,9 @@ import json
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "demo"))
 from dss_demo import evaluate_case
 
 BASE = {"premise": "14", "street": "King Street", "locality": "Fictionton", "postcode": "ZZ1 1ZZ"}
