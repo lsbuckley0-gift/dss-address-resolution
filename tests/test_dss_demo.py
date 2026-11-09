@@ -169,6 +169,15 @@ class DemoDecisionTests(unittest.TestCase):
         for field in ("premise", "street", "locality", "postcode"):
             self.assertTrue(candidate["field_comparisons"][field]["normalised_equal"])
 
+    def test_candidate_trace_shows_normalised_values_not_only_equality(self):
+        result = evaluate_case(self.by_id["02-formatting"])
+        street = result["candidate_trace"][0]["field_comparisons"]["street"]
+        self.assertEqual(street["intended_value"], "KING   STREET")
+        self.assertEqual(street["candidate_value"], "King Street")
+        self.assertEqual(street["intended_normalised"], "king street")
+        self.assertEqual(street["candidate_normalised"], "king street")
+        self.assertTrue(street["normalised_equal"])
+
     def test_candidate_trace_records_safe_one_edit_correction(self):
         result = evaluate_case(self.by_id["03-typo-correction"])
         candidate = result["candidate_trace"][0]
