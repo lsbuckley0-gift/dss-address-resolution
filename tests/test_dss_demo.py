@@ -322,6 +322,34 @@ class DemoDecisionTests(unittest.TestCase):
         self.assertTrue(audit["valid"], audit["mismatches"])
         self.assertEqual(trace["reason_code"], "MULTIPLE_EXACT_CANDIDATES")
 
+    def test_independent_candidate_trace_audit_accepts_malformed_candidate_refusal(self):
+        case = json.loads(json.dumps(self.by_id["01-exact"]))
+        case["candidates"].append(None)
+        trace = evaluate_case(case)
+        audit = audit_candidate_trace(case, trace)
+        self.assertTrue(audit["valid"], audit["mismatches"])
+
+    def test_independent_candidate_trace_audit_accepts_malformed_intended_refusal(self):
+        case = json.loads(json.dumps(self.by_id["01-exact"]))
+        case["intended"] = None
+        trace = evaluate_case(case)
+        audit = audit_candidate_trace(case, trace)
+        self.assertTrue(audit["valid"], audit["mismatches"])
+
+    def test_independent_candidate_trace_audit_accepts_missing_intended_field_refusal(self):
+        case = json.loads(json.dumps(self.by_id["01-exact"]))
+        case["intended"]["postcode"] = ""
+        trace = evaluate_case(case)
+        audit = audit_candidate_trace(case, trace)
+        self.assertTrue(audit["valid"], audit["mismatches"])
+
+    def test_independent_candidate_trace_audit_accepts_malformed_candidate_collection(self):
+        case = json.loads(json.dumps(self.by_id["01-exact"]))
+        case["candidates"] = None
+        trace = evaluate_case(case)
+        audit = audit_candidate_trace(case, trace)
+        self.assertTrue(audit["valid"], audit["mismatches"])
+
     def test_independent_candidate_trace_audit_detects_field_tampering(self):
         case = self.by_id["02-formatting"]
         trace = evaluate_case(case)
