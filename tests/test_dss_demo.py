@@ -316,6 +316,32 @@ class DemoDecisionTests(unittest.TestCase):
         self.assertIn('"king street"', rendered)
         self.assertIn("protected checks:", rendered)
 
+    def test_cli_escapes_untrusted_case_and_candidate_labels(self):
+        record = {
+            "case_id": "line\nbreak",
+            "intended": {
+                "premise": "14", "street": "King Street",
+                "locality": "Fictionton", "postcode": "ZZ1 1ZZ",
+            },
+            "candidates": [{
+                "candidate_id": "label\nbreak",
+                "premise": "14", "street": "King Street",
+                "locality": "Fictionton", "postcode": "ZZ1 1ZZ",
+            }],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            cases_path = Path(directory) / "cases.json"
+            cases_path.write_text(json.dumps([record]), encoding="utf-8")
+            output = io.StringIO()
+            with patch("sys.argv", [
+                "dss_demo.py", "--cases", str(cases_path), "--candidate-detail",
+            ]):
+                with redirect_stdout(output):
+                    main()
+        rendered = output.getvalue()
+        self.assertIn('"line\\nbreak" candidate evidence:', rendered)
+        self.assertIn('candidate "label\\nbreak" [0]', rendered)
+
     def test_cli_json_export_contains_machine_readable_audit_results(self):
         with tempfile.TemporaryDirectory() as directory:
             output_path = Path(directory) / "candidate-traces.json"
