@@ -163,6 +163,8 @@ class DemoDecisionTests(unittest.TestCase):
         result = evaluate_case(self.by_id["01-exact"])
         candidate = result["candidate_trace"][0]
         self.assertEqual(candidate["candidate_id"], "A")
+        self.assertEqual(candidate["candidate_index"], 0)
+        self.assertEqual(result["selected_candidate_index"], 0)
         self.assertTrue(candidate["retrieval"]["eligible"])
         self.assertEqual(candidate["disposition"], "SELECTED_EXACT")
         self.assertEqual(candidate["reason_codes"], ["ALL_IDENTITY_FIELDS_MATCH"])
@@ -211,6 +213,24 @@ class DemoDecisionTests(unittest.TestCase):
             self.assertIn(expected_reason, candidate["reason_codes"])
             self.assertEqual(result["terminal_state"], "UNRESOLVED")
 
+    def test_duplicate_candidate_identifiers_remain_positionally_distinguishable(self):
+        case = json.loads(json.dumps(self.by_id["01-exact"]))
+        case["candidates"].append(dict(case["candidates"][0]))
+        case["candidates"][0]["candidate_id"] = "duplicate"
+        case["candidates"][1]["candidate_id"] = "duplicate"
+        result = evaluate_case(case)
+        self.assertEqual(result["terminal_state"], "UNRESOLVED")
+        self.assertEqual(result["reason_code"], "MULTIPLE_EXACT_CANDIDATES")
+        self.assertEqual(result["selected_candidate_index"], None)
+        self.assertEqual(
+            [(item["candidate_id"], item["candidate_index"], item["disposition"])
+             for item in result["candidate_trace"]],
+            [
+                ("duplicate", 0, "AMBIGUOUS_EXACT"),
+                ("duplicate", 1, "AMBIGUOUS_EXACT"),
+            ],
+        )
+
     def test_candidate_trace_marks_every_near_candidate_ambiguous(self):
         result = evaluate_case(self.by_id["05-ambiguous"])
         self.assertEqual(
@@ -246,6 +266,7 @@ class DemoDecisionTests(unittest.TestCase):
             for candidate in result["candidate_trace"]:
                 with self.subTest(case=case["case_id"], candidate=candidate["candidate_id"]):
                     self.assertTrue(candidate["candidate_id"])
+                    self.assertIsInstance(candidate["candidate_index"], int)
                     self.assertIn(candidate["disposition"], {
                         "SELECTED_EXACT", "NOT_SELECTED", "AMBIGUOUS_EXACT",
                         "REFUSED_RETRIEVAL", "AMBIGUOUS",
