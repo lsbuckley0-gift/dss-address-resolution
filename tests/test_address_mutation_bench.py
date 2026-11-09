@@ -4,7 +4,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "demo"), str(ROOT / "experiments")]
 from address_mutation_bench import benchmark, build_dataset
-from dss_demo import evaluate_case
+from dss_demo import audit_candidate_trace, evaluate_case
 
 class AddressMutationBenchmarkTests(unittest.TestCase):
     def test_deterministic_13_case_single_and_pair_matrix(self):
@@ -56,6 +56,12 @@ class AddressMutationBenchmarkTests(unittest.TestCase):
             self.assertEqual(
                 (forward["terminal_state"], forward["reason_code"]),
                 (reverse["terminal_state"], reverse["reason_code"]),
+            )
+            self.assertTrue(audit_candidate_trace(case, forward)["valid"])
+            self.assertTrue(audit_candidate_trace(reversed_case, reverse)["valid"])
+            self.assertEqual(
+                [item["candidate_index"] for item in reverse["candidate_trace"]],
+                list(range(len(reversed_case["candidates"]))),
             )
 
     def test_benchmark_has_expected_counts_and_zero_false_accepts(self):
