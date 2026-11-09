@@ -68,8 +68,8 @@ independent evidence of field performance.
 
 The report's `pair_interaction_matrix` evaluates every unordered anomaly pair
 co-occurring in a compound journey. Each pair records both-detected, first-only,
-second-only and neither-detected outcomes, plus the observed reason-code and
-terminal-state counts. Pairs are also counted inside three-anomaly journeys, so
+second-only and neither-detected outcomes, per-fault and joint detection rates,
+and observed reason-code and terminal-state counts. Pairs are also counted inside three-anomaly journeys, so
 these figures describe pair co-occurrence within the full compound dataset rather
 than only isolated two-fault trials. The matrix is computed after evaluator output
 is produced; synthetic labels remain benchmark-side oracle metadata.
