@@ -244,10 +244,12 @@ python experiments/address_mutation_bench.py --json-out address-mutation-report.
 ```
 
 The matrix contains 15 fictional cases: one clean baseline, one case/whitespace
-formatting-only case, five isolated mutations (premise, one-edit street, multiple-edit
-street, locality and postcode), and six pairwise combinations across identity fields. Two additional cases exercise
+formatting-only case, eight isolated mutations (premise, street deletion/substitution/insertion,
+multiple-edit street, adjacent transposition, locality and postcode), and six pairwise combinations across identity fields. Two additional cases exercise
 multiple exact candidates and multiple near candidates, including reversed candidate
-order to confirm that ambiguity does not become acceptance.
+order to confirm that ambiguity does not become acceptance. The street boundary cases
+also distinguish one-character deletion, substitution and insertion (permitted by the
+current Levenshtein rule) from a two-edit adjacent transposition (refused).
 Expected terminal states and reason codes are benchmark-side oracle labels, stored
 outside the case object passed to the evaluator. Comparison occurs only after
 evaluation. The report includes state/reason counts, per-case expected and observed
