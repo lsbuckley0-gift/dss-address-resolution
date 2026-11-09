@@ -25,3 +25,5 @@ jobs:
         run: python demo/dss_demo.py
       - name: Run synthetic vehicle-event benchmark
         run: python experiments/vehicle_collision_bench.py --total 1000 --seed 88
+      - name: Run synthetic address mutation benchmark
+        run: python experiments/address_mutation_bench.py
