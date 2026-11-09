@@ -24,6 +24,17 @@ No third-party packages are required.
 
 The return check requires exact agreement on premise, locality and postcode, and permits at most one edit in the street field for the typo-correction example. This is a deliberately narrow teaching rule, not a universal address-identity policy.
 
+## Shared evidence trace
+
+Every decision trace now carries the same evidence vocabulary used by the vehicle-event experiment:
+
+- `SUFFICIENT_AND_CONSISTENT`: required fields are present and the return check passes.
+- `INSUFFICIENT`: required information or a supported candidate is absent.
+- `CONFLICTING`: a candidate is found but contradicts a protected identity field at return check.
+- `AMBIGUOUS`: more than one candidate satisfies the retrieval conditions.
+
+The original `terminal_state` and `reason_code` remain available; `reason_codes` is also emitted as a one-item list for a common trace shape. The vehicle experiment adds `MIXED` when missing and contradictory observations coexist.
+
 ## Important limits
 
 This is a reference demonstration, not a production matcher or evidence of accuracy. It does not use PAF, live address data, geocoding, postal validation or customer records. It has no production security, privacy, monitoring, resilience or integration controls. The synthetic scenarios are hand-authored and are not a representative benchmark.
