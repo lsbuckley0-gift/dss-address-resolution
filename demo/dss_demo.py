@@ -728,6 +728,11 @@ def main() -> None:
         help="Path to a JSON file containing synthetic cases.",
     )
     parser.add_argument("--json-out", help="Optional path for machine-readable trace output.")
+    parser.add_argument(
+        "--candidate-detail",
+        action="store_true",
+        help="Print candidate-by-candidate field evidence and dispositions.",
+    )
     args = parser.parse_args()
 
     cases = json.loads(Path(args.cases).read_text(encoding="utf-8"))
@@ -757,6 +762,30 @@ def main() -> None:
         state = trace["terminal_state"]
         counts[state] = counts.get(state, 0) + 1
     print("\nSummary:", json.dumps(counts, sort_keys=True))
+
+    if args.candidate_detail:
+        for trace in traces:
+            print(f"\n{trace['case_id']} candidate evidence:")
+            for candidate in trace["candidate_trace"]:
+                reasons = ", ".join(candidate["reason_codes"])
+                print(
+                    f"  candidate {candidate['candidate_id']} "
+                    f"[{candidate['candidate_index']}]: "
+                    f"{candidate['disposition']} ({reasons})"
+                )
+                print(
+                    f"    retrieval eligible: {candidate['retrieval']['eligible']}; "
+                    f"protected checks: {json.dumps(candidate['protected_field_checks'], sort_keys=True)}"
+                )
+                for field, comparison in candidate["field_comparisons"].items():
+                    print(
+                        f"    {field}: intended "
+                        f"{json.dumps(comparison['intended_value'], ensure_ascii=False)} "
+                        f"-> {json.dumps(comparison['intended_normalised'], ensure_ascii=False)}; "
+                        f"candidate {json.dumps(comparison['candidate_value'], ensure_ascii=False)} "
+                        f"-> {json.dumps(comparison['candidate_normalised'], ensure_ascii=False)}; "
+                        f"equal={comparison['normalised_equal']}"
+                    )
 
     if args.json_out:
         Path(args.json_out).write_text(
