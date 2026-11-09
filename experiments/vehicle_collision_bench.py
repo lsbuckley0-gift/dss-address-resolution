@@ -640,9 +640,12 @@ def audit_provenance_trace(
             unsupported.append("<non-object-entry>")
             continue
         code = entry.get("reason_code")
-        expected = _expected_provenance_pointer(journey, code)
+        expected = (
+            _expected_provenance_pointer(journey, code)
+            if isinstance(code, str) else None
+        )
         if expected is None:
-            unsupported.append(code)
+            unsupported.append(code if isinstance(code, str) else "<invalid-reason-code>")
             continue
         kind, source, fields, indices = expected
         if (
