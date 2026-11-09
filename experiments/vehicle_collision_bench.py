@@ -267,6 +267,64 @@ def evaluate_journey(journey: Any) -> dict[str, Any]:
     }
 
 
+def benchmark_diagnostic_record(
+    injected_anomalies: tuple[str, ...], result: dict[str, Any]
+) -> dict[str, Any]:
+    """Build an oracle-relative diagnostic trace outside the evaluator.
+
+    The evaluator sees only journey evidence. This function compares its output
+    with synthetic labels after evaluation, without feeding labels back into it.
+    """
+    observed = [
+        code for code in result["reason_codes"]
+        if code != "ALL_DECLARED_CHECKS_PASSED"
+    ]
+    if not injected_anomalies:
+        return {
+            "injected_faults": [],
+            "primary_fault": None,
+            "expected_reason_code": None,
+            "primary_fault_detected": None,
+            "observed_reason_codes": observed,
+            "secondary_symptoms": [],
+            "diagnostic_status": "CLEAN",
+        }
+
+    if len(injected_anomalies) != 1:
+        return {
+            "injected_faults": list(injected_anomalies),
+            "primary_fault": None,
+            "expected_reason_code": None,
+            "primary_fault_detected": None,
+            "observed_reason_codes": observed,
+            "secondary_symptoms": observed,
+            "diagnostic_status": "UNATTRIBUTED",
+        }
+
+    primary = injected_anomalies[0]
+    expected = ANOMALY_REASON_CODES[primary]
+    detected = expected in observed
+    secondary = [code for code in observed if code != expected]
+    if detected and secondary:
+        status = "PRIMARY_IDENTIFIED_WITH_SYMPTOMS"
+    elif detected:
+        status = "PRIMARY_IDENTIFIED"
+    elif result["terminal_state"] == "UNRESOLVED":
+        status = "PRIMARY_MASKED"
+    else:
+        status = "UNATTRIBUTED"
+
+    return {
+        "injected_faults": [primary],
+        "primary_fault": primary,
+        "expected_reason_code": expected,
+        "primary_fault_detected": detected,
+        "observed_reason_codes": observed,
+        "secondary_symptoms": secondary,
+        "diagnostic_status": status,
+    }
+
+
 def generate_dataset(total: int = 10_000, seed: int = 88) -> list[dict[str, Any]]:
     """Generate 50% clean and evenly distributed injected-anomaly journeys."""
     if total < 2 or total % 2:
@@ -300,6 +358,8 @@ def benchmark(journeys: list[dict[str, Any]]) -> dict[str, Any]:
     anomaly_detected: Counter[str] = Counter()
     clean_reason_counts: Counter[str] = Counter()
     interaction_reason_combinations: dict[str, Counter[str]] = defaultdict(Counter)
+    diagnostic_status_counts: Counter[str] = Counter()
+    diagnostic_records: list[dict[str, Any]] = []
 
     for journey in journeys:
         result = evaluate_journey(journey)
@@ -311,6 +371,12 @@ def benchmark(journeys: list[dict[str, Any]]) -> dict[str, Any]:
         matrix[expected][observed] += 1
 
         reasons = tuple(sorted(result["reason_codes"]))
+        diagnostic = benchmark_diagnostic_record(injected_anomalies, result)
+        diagnostic_status_counts[diagnostic["diagnostic_status"]] += 1
+        diagnostic_records.append({
+            "journey_id": result["journey_id"],
+            **diagnostic,
+        })
         combination = " + ".join(reasons)
         reason_counts.update(reasons)
         reason_combinations[combination] += 1
@@ -385,6 +451,11 @@ def benchmark(journeys: list[dict[str, Any]]) -> dict[str, Any]:
             interaction: dict(sorted(counts.items()))
             for interaction, counts in sorted(interaction_reason_combinations.items())
         },
+        # Oracle-relative traces are generated after evaluate_journey returns.
+        "diagnostic_status_counts": dict(sorted(diagnostic_status_counts.items())),
+        "diagnostic_records": sorted(
+            diagnostic_records, key=lambda record: (record["journey_id"] or "")
+        ),
     }
 
 
