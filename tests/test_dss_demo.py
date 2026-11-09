@@ -33,6 +33,21 @@ class DemoDecisionTests(unittest.TestCase):
             "text-only Unicode casefold plus whitespace collapse",
         )
 
+    def test_trace_identity_distinguishes_selected_position_when_ids_repeat(self):
+        case = json.loads(json.dumps(self.by_id["01-exact"]))
+        exact = dict(case["candidates"][0], candidate_id="repeat")
+        non_exact = dict(case["candidates"][0], candidate_id="repeat", premise="99")
+        case["candidates"] = [non_exact, exact]
+        first = evaluate_case(case)
+        case["candidates"].reverse()
+        second = evaluate_case(case)
+        self.assertEqual(first["candidate_ids"], second["candidate_ids"])
+        self.assertEqual(first["terminal_state"], second["terminal_state"])
+        self.assertNotEqual(
+            first["selected_candidate_index"], second["selected_candidate_index"]
+        )
+        self.assertNotEqual(first["trace_id"], second["trace_id"])
+
     def test_trace_identity_changes_when_terminal_decision_changes(self):
         case = json.loads(json.dumps(self.by_id["01-exact"]))
         verified = evaluate_case(case)
