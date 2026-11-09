@@ -1,3 +1,4 @@
+import copy
 import sys
 import unittest
 from pathlib import Path
@@ -292,6 +293,23 @@ class VehicleCollisionBenchTests(unittest.TestCase):
         self.assertEqual(by_id["J-000037"]["diagnostic_status"], "UNATTRIBUTED")
         self.assertIsNone(by_id["J-000037"]["primary_fault"])
         self.assertIsNone(by_id["J-000037"]["expected_reason_code"])
+
+    def test_evaluator_output_is_invariant_to_oracle_metadata_changes(self):
+        journeys = [
+            make_journey(38, anomaly) for anomaly in ANOMALIES
+        ]
+        journeys.extend([
+            make_compound_journey(39, ("gps_drift", "wrong_parcel")),
+            make_interaction_journey(40, "wrong_parcel", "missing_parcel_masks_conflict"),
+        ])
+        for journey in journeys:
+            with self.subTest(journey_id=journey["journey_id"]):
+                relabelled = copy.deepcopy(journey)
+                relabelled["injected_condition"] = "clean"
+                relabelled["injected_interaction"] = "not-an-evaluator-input"
+                self.assertEqual(
+                    evaluate_journey(journey), evaluate_journey(relabelled)
+                )
 
     def test_evaluator_does_not_consume_injected_oracle_label(self):
         journey = make_journey(30)
