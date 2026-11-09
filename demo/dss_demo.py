@@ -43,6 +43,8 @@ def same_record(left: dict[str, Any], right: dict[str, Any]) -> bool:
 
 def edit_distance_at_most_one(left: str, right: str) -> bool:
     """Return whether two strings have Levenshtein distance <= 1."""
+    if not isinstance(left, str) or not isinstance(right, str):
+        return False
     a, b = normalise(left), normalise(right)
     if a == b:
         return True
@@ -74,7 +76,7 @@ def return_check(intended: dict[str, Any], observed: dict[str, Any]) -> dict[str
         "locality": normalise(intended.get("locality")) == normalise(observed.get("locality")),
         "postcode": normalise(intended.get("postcode")) == normalise(observed.get("postcode")),
         "street_within_one_edit": edit_distance_at_most_one(
-            str(intended.get("street", "")), str(observed.get("street", ""))
+            intended.get("street", ""), observed.get("street", "")
         ),
     }
     return {"passed": all(checks.values()), "checks": checks}
