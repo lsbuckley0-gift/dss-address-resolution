@@ -43,7 +43,9 @@ All unresolved classes remain `UNRESOLVED`; missing information is never promote
 to a successful verification. Malformed journey objects, malformed event records,
 missing identity fields, duplicate/out-of-order event types, invalid timestamps and
 negative or non-finite GPS distances are refused with reason codes rather than allowed
-to crash the evaluator. The GPS boundary is inclusive: exactly 100 m passes this
+to crash the evaluator. Individually valid event records are still inspected when a
+sibling record is malformed, so a schema defect does not erase independent observed
+identity conflicts or other evidence. The GPS boundary is inclusive: exactly 100 m passes this
 illustrative rule; any larger value fails. A proof reference is checked for presence
 only, not cryptographic authenticity or independent authority. GPS is a supplied
 distance value, not a raw-coordinate measurement. Timestamps are synthetic numeric
