@@ -41,6 +41,25 @@ class VehicleCollisionBenchTests(unittest.TestCase):
         clean = evaluate_journey(journeys[0])
         self.assertEqual(clean["evidence_provenance"][0]["evidence_kind"], "consistent")
 
+    def test_each_single_fault_points_to_its_exact_evidence_field_and_event(self):
+        expected = {
+            "gps_drift": ("DELIVERY_GPS_OUTSIDE_LIMIT", "gps_distance_m", [2]),
+            "wrong_parcel": ("PARCEL_IDENTITY_CONFLICT", "parcel_id", [2]),
+            "wrong_destination": ("DESTINATION_IDENTITY_CONFLICT", "destination_id", [2]),
+            "reordered_events": ("TIMESTAMP_ORDER_CONFLICT", "timestamp", [1, 2]),
+            "missing_proof": ("DELIVERY_PROOF_REFERENCE_MISSING", "proof_id", [2]),
+        }
+        for anomaly, (reason, field, indices) in expected.items():
+            with self.subTest(anomaly=anomaly):
+                result = evaluate_journey(make_journey(78, anomaly))
+                record = next(
+                    item for item in result["evidence_provenance"]
+                    if item["reason_code"] == reason
+                )
+                self.assertEqual(record["fields"], [field])
+                self.assertEqual(record["event_indices"], indices)
+                self.assertEqual(record["evidence_kind"], "conflict" if anomaly != "missing_proof" else "missing")
+
     def test_evidence_provenance_uses_original_indices_after_malformed_event(self):
         journey = make_journey(68)
         journey["events"].insert(1, "malformed-event")
