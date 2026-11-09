@@ -141,7 +141,10 @@ states; the audit must reject each altered decision contract. Non-object result
 values and non-string reason-code entries are also treated as malformed findings;
 the audit returns an invalid trace rather than raising an exception. Dataset-level
 auditing preserves one result per journey and aggregates these malformed-result
-failures without aborting the full audit.
+failures without aborting the full audit. Additional mutation coverage replaces
+decision fields and trace collections with nulls, scalars, lists and mappings of
+the wrong shape; each altered result must be rejected. Clean dataset audits also
+assert zero decision mismatches in their aggregate counters.
 The checker also refuses malformed trace collections and malformed event-index lists
 without crashing. It can also audit the refusal trace for a non-object journey
 input. It verifies the exact declared rule text for each finding, not merely that
