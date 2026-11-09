@@ -78,6 +78,14 @@ independent evidence of field performance.
 - **Anomaly-to-invariant matrix:** each injected disturbance is mapped to its declared evaluator reason code; matrix rows show all reason codes observed in journeys carrying that disturbance
 - **Per-anomaly detection:** injected, detected, missed and detection-rate counts for each disturbance
 - **Clean reason-code counts:** any evaluator refusal reason appearing in journeys labelled clean
+- **Interaction fingerprints:** exact reason-code combinations for controlled cases where one disturbance creates a secondary symptom or masks the primary diagnostic code
+
+Two interaction fixtures are available through `make_interaction_journey`:
+
+- `reordered_events` + `sequence_echo`: the journey carries both a timestamp-order conflict and an event-sequence mismatch. The primary invariant remains detectable while the secondary symptom is exposed.
+- `wrong_parcel` + `missing_parcel_masks_conflict`: the delivery parcel field is then made blank. The evaluator reports the missing field rather than the underlying identity conflict. The primary injected fault is therefore refused but not specifically diagnosed by its expected reason code.
+
+These are deliberately constructed diagnostic stress cases, not statistical models of how often such interactions occur. A refusal can be correct while its diagnostic attribution is incomplete; the per-anomaly detection measure makes that distinction visible.
 
 The declared oracle mapping is explicit: `gps_drift` → `DELIVERY_GPS_OUTSIDE_LIMIT`,
 `wrong_parcel` → `PARCEL_IDENTITY_CONFLICT`, `wrong_destination` →
