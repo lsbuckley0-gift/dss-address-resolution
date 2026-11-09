@@ -64,6 +64,10 @@ class AddressMutationBenchmarkTests(unittest.TestCase):
         self.assertEqual(report["case_count"], 18)
         self.assertEqual(report["oracle_mismatches"], [])
         self.assertEqual(report["mutated_false_accepts"], 0)
+        self.assertEqual(report["candidate_trace_audit_valid_count"], 18)
+        self.assertEqual(report["candidate_trace_audit_candidate_count"], 20)
+        self.assertEqual(report["candidate_trace_audit_mismatches"], [])
+        self.assertTrue(all(row["candidate_trace_audit_valid"] for row in report["records"]))
         self.assertEqual(report["state_counts"], {"CORRECTED": 3, "UNRESOLVED": 13, "VERIFIED": 2})
 
 if __name__ == "__main__":
