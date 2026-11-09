@@ -239,6 +239,30 @@ class DemoDecisionTests(unittest.TestCase):
             ["E2", "E1"],
         )
 
+    def test_every_demo_candidate_has_complete_terminal_trace_shape(self):
+        for case in self.cases:
+            result = evaluate_case(case)
+            self.assertEqual(len(result["candidate_trace"]), len(case["candidates"]))
+            for candidate in result["candidate_trace"]:
+                with self.subTest(case=case["case_id"], candidate=candidate["candidate_id"]):
+                    self.assertTrue(candidate["candidate_id"])
+                    self.assertIn(candidate["disposition"], {
+                        "SELECTED_EXACT", "NOT_SELECTED", "AMBIGUOUS_EXACT",
+                        "REFUSED_RETRIEVAL", "AMBIGUOUS",
+                        "SELECTED_FOR_RETURN_CHECK", "REFUSED_RETURN_CHECK",
+                        "SELECTED_CORRECTED", "REFUSED",
+                    })
+                    self.assertTrue(candidate["reason_codes"])
+                    self.assertIsInstance(candidate["retrieval"]["eligible"], bool)
+                    self.assertEqual(
+                        set(candidate["field_comparisons"]),
+                        {"premise", "street", "locality", "postcode"},
+                    )
+                    for comparison in candidate["field_comparisons"].values():
+                        self.assertIn("intended_normalised", comparison)
+                        self.assertIn("candidate_normalised", comparison)
+                        self.assertIn("normalised_equal", comparison)
+
     def test_candidate_trace_is_deterministic(self):
         case = self.by_id["03-typo-correction"]
         self.assertEqual(evaluate_case(case)["candidate_trace"], evaluate_case(case)["candidate_trace"])
