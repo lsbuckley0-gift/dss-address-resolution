@@ -435,58 +435,131 @@ def evaluate_journey(journey: Any) -> dict[str, Any]:
 def _expected_provenance_pointer(
     journey: dict[str, Any], reason_code: str
 ) -> tuple[str, str, list[str], list[int]] | None:
-    """Independently derive the supported pointer for generated benchmark findings."""
+    """Independently derive pointers for every evaluator rule, including malformed input."""
     raw_events = journey.get("events")
     indexed = (
         [(i, event) for i, event in enumerate(raw_events) if isinstance(event, dict)]
         if isinstance(raw_events, list) else []
     )
-    if reason_code == "ALL_DECLARED_CHECKS_PASSED":
-        result = evaluate_journey(journey)
-        if result["terminal_state"] != "VERIFIED":
-            return None
-        return (
-            "consistent", "journey",
-            ["journey_id", "expected_parcel_id", "expected_destination_id",
-             "events", "type", "parcel_id", "destination_id", "timestamp",
-             "gps_distance_m", "proof_id"],
-            [i for i, _ in indexed],
+    expected_types = ["pickup", "in_transit", "delivered"]
+
+    def pointer(kind: str, fields: list[str], indices: list[int]):
+        return (kind, "events", fields, indices)
+
+    if reason_code == "JOURNEY_ID_MISSING_OR_INVALID":
+        if not _nonempty_text(journey.get("journey_id")):
+            return ("missing", "journey", ["journey_id"], [])
+    elif reason_code == "EXPECTED_IDENTITY_FIELDS_MISSING_OR_INVALID":
+        if not _nonempty_text(journey.get("expected_parcel_id")) or not _nonempty_text(
+            journey.get("expected_destination_id")
+        ):
+            return (
+                "missing", "journey",
+                ["expected_parcel_id", "expected_destination_id"], [],
+            )
+    elif reason_code == "EXPECTED_PARCEL_ID_MISSING_OR_INVALID":
+        if not _nonempty_text(journey.get("expected_parcel_id")):
+            return ("missing", "journey", ["expected_parcel_id"], [])
+    elif reason_code == "EXPECTED_DESTINATION_ID_MISSING_OR_INVALID":
+        if not _nonempty_text(journey.get("expected_destination_id")):
+            return ("missing", "journey", ["expected_destination_id"], [])
+    elif reason_code == "EVENT_RECORDS_MISSING_OR_INVALID":
+        malformed = (
+            [i for i, event in enumerate(raw_events) if not isinstance(event, dict)]
+            if isinstance(raw_events, list) else []
         )
-    if not indexed:
-        return None
-    last_index, last_event = indexed[-1]
-    if reason_code == "DELIVERY_GPS_OUTSIDE_LIMIT":
-        value = last_event.get("gps_distance_m")
-        if _finite_number(value) and value > GPS_LIMIT_METRES:
-            return ("conflict", "events", ["gps_distance_m"], [last_index])
+        if not isinstance(raw_events, list) or not raw_events or malformed:
+            return pointer("missing", ["events"], malformed)
+    elif reason_code == "EVENT_SEQUENCE_MISMATCH":
+        bad = [
+            original_index
+            for position, (original_index, event) in enumerate(indexed)
+            if position >= len(expected_types) or event.get("type") != expected_types[position]
+        ]
+        if len(indexed) != len(expected_types):
+            bad.extend(index for index, _ in indexed if index not in bad)
+        if [event.get("type") for _, event in indexed] != expected_types:
+            return pointer("conflict", ["type"], sorted(set(bad)))
+    elif reason_code == "PARCEL_ID_MISSING_OR_INVALID":
+        indices = [i for i, event in indexed if not _nonempty_text(event.get("parcel_id"))]
+        if indexed and indices:
+            return pointer("missing", ["parcel_id"], indices)
     elif reason_code == "PARCEL_IDENTITY_CONFLICT":
         expected = journey.get("expected_parcel_id")
-        indices = [i for i, event in indexed if _nonempty_text(expected)
-                   and _nonempty_text(event.get("parcel_id"))
-                   and event.get("parcel_id") != expected]
-        if indices:
-            return ("conflict", "events", ["parcel_id"], indices)
+        indices = [
+            i for i, event in indexed
+            if _nonempty_text(expected) and _nonempty_text(event.get("parcel_id"))
+            and event.get("parcel_id") != expected
+        ]
+        if _nonempty_text(expected) and indices:
+            return pointer("conflict", ["parcel_id"], indices)
+    elif reason_code == "DESTINATION_ID_MISSING_OR_INVALID":
+        indices = [i for i, event in indexed if not _nonempty_text(event.get("destination_id"))]
+        if indexed and indices:
+            return pointer("missing", ["destination_id"], indices)
     elif reason_code == "DESTINATION_IDENTITY_CONFLICT":
         expected = journey.get("expected_destination_id")
-        indices = [i for i, event in indexed if _nonempty_text(expected)
-                   and _nonempty_text(event.get("destination_id"))
-                   and event.get("destination_id") != expected]
-        if indices:
-            return ("conflict", "events", ["destination_id"], indices)
-    elif reason_code == "TIMESTAMP_ORDER_CONFLICT":
-        conflicts = [
-            (indexed[pos][0], indexed[pos + 1][0])
-            for pos in range(min(2, len(indexed) - 1))
-            if _finite_number(indexed[pos][1].get("timestamp"))
-            and _finite_number(indexed[pos + 1][1].get("timestamp"))
-            and indexed[pos][1]["timestamp"] > indexed[pos + 1][1]["timestamp"]
+        indices = [
+            i for i, event in indexed
+            if _nonempty_text(expected) and _nonempty_text(event.get("destination_id"))
+            and event.get("destination_id") != expected
         ]
-        indices = sorted({i for pair in conflicts for i in pair})
-        if indices:
-            return ("conflict", "events", ["timestamp"], indices)
+        if _nonempty_text(expected) and indices:
+            return pointer("conflict", ["destination_id"], indices)
+    elif reason_code == "TIMESTAMP_MISSING_OR_INVALID":
+        indices = [i for i, event in indexed if not _finite_number(event.get("timestamp"))]
+        if len(indexed) != 3:
+            indices.extend(i for i, _ in indexed if i not in indices)
+        if len(indexed) != 3 or any(
+            not _finite_number(event.get("timestamp")) for _, event in indexed
+        ):
+            return pointer("missing", ["timestamp"], sorted(set(indices)))
+    elif reason_code == "TIMESTAMP_ORDER_CONFLICT":
+        if len(indexed) == 3 and all(
+            _finite_number(event.get("timestamp")) for _, event in indexed
+        ):
+            pairs = [
+                (indexed[pos][0], indexed[pos + 1][0])
+                for pos in range(2)
+                if indexed[pos][1]["timestamp"] > indexed[pos + 1][1]["timestamp"]
+            ]
+            indices = sorted({i for pair in pairs for i in pair})
+            if indices:
+                return pointer("conflict", ["timestamp"], indices)
+    elif reason_code in {
+        "DELIVERY_GPS_MISSING", "DELIVERY_GPS_INVALID", "DELIVERY_GPS_OUTSIDE_LIMIT"
+    }:
+        if not indexed:
+            if reason_code == "DELIVERY_GPS_MISSING":
+                return pointer("missing", ["gps_distance_m"], [])
+        else:
+            index, event = indexed[-1]
+            value = event.get("gps_distance_m")
+            if value is None and reason_code == "DELIVERY_GPS_MISSING":
+                return pointer("missing", ["gps_distance_m"], [index])
+            if value is not None and not _finite_number(value) or (
+                _finite_number(value) and value < 0
+            ):
+                if reason_code == "DELIVERY_GPS_INVALID":
+                    return pointer("conflict", ["gps_distance_m"], [index])
+            elif _finite_number(value) and value > GPS_LIMIT_METRES:
+                if reason_code == "DELIVERY_GPS_OUTSIDE_LIMIT":
+                    return pointer("conflict", ["gps_distance_m"], [index])
     elif reason_code == "DELIVERY_PROOF_REFERENCE_MISSING":
-        if not _nonempty_text(last_event.get("proof_id")):
-            return ("missing", "events", ["proof_id"], [last_index])
+        if not indexed or not _nonempty_text(indexed[-1][1].get("proof_id")):
+            return pointer(
+                "missing", ["proof_id"], [indexed[-1][0]] if indexed else []
+            )
+    elif reason_code == "ALL_DECLARED_CHECKS_PASSED":
+        result = evaluate_journey(journey)
+        if result["terminal_state"] == "VERIFIED":
+            return (
+                "consistent", "journey",
+                ["journey_id", "expected_parcel_id", "expected_destination_id",
+                 "events", "type", "parcel_id", "destination_id", "timestamp",
+                 "gps_distance_m", "proof_id"],
+                [i for i, _ in indexed],
+            )
     return None
 
 
