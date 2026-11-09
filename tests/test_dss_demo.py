@@ -473,6 +473,14 @@ class DemoDecisionTests(unittest.TestCase):
                 self.assertFalse(audit["valid"])
                 self.assertIn(expected, audit["mismatches"])
 
+    def test_independent_candidate_trace_audit_detects_missing_intended_envelope(self):
+        case = self.by_id["01-exact"]
+        trace = evaluate_case(case)
+        del trace["intended"]
+        audit = audit_candidate_trace(case, trace)
+        self.assertFalse(audit["valid"])
+        self.assertIn("INTENDED_RECORD_MISMATCH", audit["mismatches"])
+
     def test_independent_candidate_trace_audit_requires_no_return_check_for_unresolved_cases(self):
         case = self.by_id["05-ambiguous"]
         trace = evaluate_case(case)
