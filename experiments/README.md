@@ -107,10 +107,16 @@ Two interaction fixtures are available through `make_interaction_journey`:
 These are deliberately constructed diagnostic stress cases, not statistical models of how often such interactions occur. A refusal can be correct while its diagnostic attribution is incomplete; the per-anomaly detection measure makes that distinction visible.
 
 Identity diagnosis is field-aware rather than mutually exclusive: a missing value
-must not suppress a contradictory non-empty value observed in another event. When
-the only conflicting value itself is erased, the evaluator cannot infer it and
-reports only what remains observable. This distinguishes evidence loss from
-reason-code precedence.
+must not suppress a contradictory non-empty value observed in another event. Parcel
+and destination expectations are also validated independently: an absent expected
+parcel ID must not suppress an independently testable destination conflict, and an
+absent expected destination ID must not suppress a parcel conflict. The aggregate
+`EXPECTED_IDENTITY_FIELDS_MISSING_OR_INVALID` reason and
+`expected_identity_fields_present` check remain for compatibility, while
+the trace also exposes `expected_parcel_id_present` and
+`expected_destination_id_present` separately. When the only conflicting
+value itself is erased, the evaluator cannot infer it and reports only what remains
+observable. This distinguishes evidence loss from reason-code precedence.
 
 The report's `interaction_diagnostic_summary` keeps these fixture outcomes separate:
 it counts primary detections and misses, diagnostic statuses and observed secondary
