@@ -215,6 +215,27 @@ class VehicleCollisionBenchTests(unittest.TestCase):
                 audit = audit_provenance_trace(journey, result)
                 self.assertFalse(audit["valid"], msg=audit)
 
+    def test_provenance_audit_rejects_pairwise_compound_tampering(self):
+        """Pair individually plausible corruptions to exercise failure interactions."""
+        journey = make_journey(916, "wrong_destination")
+        baseline = evaluate_journey(journey)
+        mutations = (
+            ("checks", lambda result: result.update(checks={})),
+            ("class", lambda result: result.update(evidence_class="SUFFICIENT_AND_CONSISTENT")),
+            ("terminal", lambda result: result.update(terminal_state="VERIFIED")),
+            ("reasons", lambda result: result["reason_codes"].clear()),
+            ("provenance", lambda result: result["evidence_provenance"].clear()),
+            ("pointer", lambda result: result["evidence_provenance"][0].update(event_indices=[True])),
+            ("rule", lambda result: result["evidence_provenance"][0].update(rule="")),
+        )
+        for left, right in combinations(mutations, 2):
+            result = copy.deepcopy(baseline)
+            left[1](result)
+            right[1](result)
+            audit = audit_provenance_trace(journey, result)
+            with self.subTest(pair=(left[0], right[0])):
+                self.assertFalse(audit["valid"], msg=audit)
+
     def test_provenance_audit_handles_non_object_journeys(self):
         for malformed in (None, "not-a-journey", 17, []):
             with self.subTest(malformed=malformed):
