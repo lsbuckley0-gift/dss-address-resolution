@@ -582,9 +582,11 @@ def _expected_provenance_pointer(
 
 
 def audit_provenance_trace(
-    journey: dict[str, Any], result: dict[str, Any]
+    journey: Any, result: dict[str, Any]
 ) -> dict[str, Any]:
     """Check exact reason coverage and independently validate generated pointers."""
+    if not isinstance(journey, dict):
+        journey = {}
     reasons = result.get("reason_codes", [])
     entries = result.get("evidence_provenance", [])
     malformed_trace = not isinstance(reasons, list) or not isinstance(entries, list)
