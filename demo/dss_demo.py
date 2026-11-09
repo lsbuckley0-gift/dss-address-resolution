@@ -70,6 +70,24 @@ def return_check(intended: dict[str, Any], observed: dict[str, Any]) -> dict[str
     return {"passed": all(checks.values()), "checks": checks}
 
 
+def finalise_trace(trace: dict[str, Any]) -> dict[str, Any]:
+    """Attach the shared evidence classification used by the experiment bench."""
+    reason = trace.get("reason_code", "UNSPECIFIED")
+    if reason in {"EXACT_IDENTITY_FIELDS", "UNIQUE_CANDIDATE_AND_RETURN_CHECK_PASSED"}:
+        evidence_class = "SUFFICIENT_AND_CONSISTENT"
+    elif reason in {"MISSING_REQUIRED_INTENDED_FIELD", "NO_SUPPORTED_CANDIDATE"}:
+        evidence_class = "INSUFFICIENT"
+    elif reason in {"MULTIPLE_EXACT_CANDIDATES", "AMBIGUOUS_CANDIDATES"}:
+        evidence_class = "AMBIGUOUS"
+    elif reason == "RETURN_CHECK_FAILED":
+        evidence_class = "CONFLICTING"
+    else:
+        evidence_class = "INSUFFICIENT"
+    trace["evidence_class"] = evidence_class
+    trace["reason_codes"] = [reason]
+    return trace
+
+
 def evaluate_case(case: dict[str, Any]) -> dict[str, Any]:
     intended = case["intended"]
     candidates = case.get("candidates", [])
@@ -89,7 +107,7 @@ def evaluate_case(case: dict[str, Any]) -> dict[str, Any]:
             "terminal_state": "UNRESOLVED",
             "reason_code": "MISSING_REQUIRED_INTENDED_FIELD",
         })
-        return trace
+        return finalise_trace(trace)
 
     exact = [c for c in candidates if same_record(intended, c)]
     if len(exact) == 1:
@@ -150,7 +168,7 @@ def evaluate_case(case: dict[str, Any]) -> dict[str, Any]:
         "terminal_state": "CORRECTED",
         "reason_code": "UNIQUE_CANDIDATE_AND_RETURN_CHECK_PASSED",
     })
-    return trace
+    return finalise_trace(trace)
 
 
 def run(cases: list[dict[str, Any]]) -> list[dict[str, Any]]:
