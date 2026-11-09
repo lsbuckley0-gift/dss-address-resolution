@@ -57,6 +57,30 @@ class VehicleCollisionBenchTests(unittest.TestCase):
         self.assertFalse(audit["valid"])
         self.assertEqual(audit["orphaned_provenance_entries"], ["NOT_REPORTED_FINDING"])
 
+    def test_decision_audit_rejects_tampered_terminal_class_and_checks(self):
+        journey = make_journey(916)
+        mutations = {
+            "terminal_state": lambda result: result.update(terminal_state="UNRESOLVED"),
+            "evidence_class": lambda result: result.update(evidence_class="CONFLICTING"),
+            "check_value": lambda result: result["checks"].update(delivery_within_gps_limit=False),
+            "check_removed": lambda result: result["checks"].pop("timestamps_monotonic"),
+            "check_fabricated": lambda result: result["checks"].update(unearned_check=True),
+        }
+        for name, mutate in mutations.items():
+            result = evaluate_journey(journey)
+            mutate(result)
+            audit = audit_provenance_trace(journey, result)
+            with self.subTest(mutation=name):
+                self.assertFalse(audit["valid"], msg=audit)
+                self.assertIn("checks" if name.startswith("check") else name, audit["decision_mismatches"])
+
+        refused = make_journey(917, "wrong_parcel")
+        result = evaluate_journey(refused)
+        result["terminal_state"] = "VERIFIED"
+        audit = audit_provenance_trace(refused, result)
+        self.assertFalse(audit["valid"])
+        self.assertIn("terminal_state", audit["decision_mismatches"])
+
     def test_provenance_audit_is_independent_for_clean_success_marker(self):
         journey = make_journey(907)
         result = evaluate_journey(journey)
