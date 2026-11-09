@@ -26,13 +26,15 @@ class VehicleCollisionBenchTests(unittest.TestCase):
         self.assertEqual(audit["journey_count"], 1200)
         self.assertEqual(audit["valid_journey_count"], 1200)
         self.assertEqual(audit["invalid_journey_count"], 0)
-        self.assertEqual(audit["reason_count"], audit["provenance_entry_count"])
+        self.assertEqual(audit["reason_count"], 2400)
+        self.assertEqual(audit["provenance_entry_count"], 2400)
         self.assertEqual(audit["missing_reason_entry_count"], 0)
         self.assertEqual(audit["orphaned_entry_count"], 0)
         self.assertEqual(audit["duplicate_entry_count"], 0)
         self.assertEqual(audit["unsupported_finding_count"], 0)
         self.assertEqual(audit["invalid_pointer_count"], 0)
-        self.assertGreater(audit["journeys_with_shared_event_findings"], 0)
+        self.assertEqual(audit["journeys_with_shared_event_findings"], 800)
+        self.assertEqual(audit["shared_event_reference_count"], 800)
         self.assertTrue(audit["all_findings_distinct_by_reason_code"])
 
     def test_provenance_audit_rejects_missing_and_unreported_entries(self):
