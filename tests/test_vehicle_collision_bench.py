@@ -365,6 +365,32 @@ class VehicleCollisionBenchTests(unittest.TestCase):
             aggregate["invalid_pointer_count"],
             sum(len(trace["invalid_evidence_pointers"]) for trace in individual),
         )
+        counter_pairs = (
+            ("reason_count", lambda trace: trace["reason_count"]),
+            ("provenance_entry_count", lambda trace: trace["provenance_entry_count"]),
+            ("missing_reason_entry_count", lambda trace: len(trace["missing_reason_entries"])),
+            ("orphaned_entry_count", lambda trace: len(trace["orphaned_provenance_entries"])),
+            ("duplicate_entry_count", lambda trace: len(trace["duplicate_reason_entries"])),
+            ("unsupported_finding_count", lambda trace: len(trace["unsupported_findings"])),
+            ("unreported_reason_count", lambda trace: len(trace["unreported_reason_codes"])),
+            ("unexpected_reason_count", lambda trace: len(trace["unexpected_reason_codes"])),
+            ("decision_mismatch_count", lambda trace: len(trace["decision_mismatches"])),
+            ("shared_event_reference_count", lambda trace: len(trace["shared_event_indices"])),
+        )
+        for aggregate_key, measure in counter_pairs:
+            self.assertEqual(
+                aggregate[aggregate_key],
+                sum(measure(trace) for trace in individual),
+                msg=aggregate_key,
+            )
+        self.assertEqual(
+            aggregate["journeys_with_shared_event_findings"],
+            sum(bool(trace["shared_event_indices"]) for trace in individual),
+        )
+        self.assertEqual(
+            aggregate["all_findings_distinct_by_reason_code"],
+            all(not trace["duplicate_reason_entries"] for trace in individual),
+        )
     def test_provenance_audit_handles_non_object_journeys(self):
         for malformed in (None, "not-a-journey", 17, []):
             with self.subTest(malformed=malformed):
