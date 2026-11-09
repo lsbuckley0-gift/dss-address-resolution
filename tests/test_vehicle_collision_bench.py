@@ -151,6 +151,47 @@ class VehicleCollisionBenchTests(unittest.TestCase):
         self.assertIn("PARCEL_IDENTITY_CONFLICT", audit["invalid_evidence_pointers"])
         self.assertEqual(audit["shared_event_indices"], [])
 
+    def test_provenance_audit_rejects_tampered_metadata_and_fabricated_findings(self):
+        journey = make_journey(914, "wrong_parcel")
+        mutations = {
+            "evidence_kind": lambda entry: entry.update(evidence_kind="missing"),
+            "source": lambda entry: entry.update(source="journey"),
+            "fields": lambda entry: entry.update(fields=["destination_id"]),
+            "event_indices": lambda entry: entry.update(event_indices=[0]),
+            "rule": lambda entry: entry.update(rule="A plausible but false explanation."),
+        }
+        for field, mutate in mutations.items():
+            result = evaluate_journey(journey)
+            target = next(
+                item for item in result["evidence_provenance"]
+                if item["reason_code"] == "PARCEL_IDENTITY_CONFLICT"
+            )
+            mutate(target)
+            audit = audit_provenance_trace(journey, result)
+            with self.subTest(field=field):
+                self.assertFalse(audit["valid"], msg=audit)
+                self.assertIn(
+                    "PARCEL_IDENTITY_CONFLICT",
+                    audit["invalid_evidence_pointers"],
+                )
+
+        result = evaluate_journey(journey)
+        result["evidence_provenance"].append(
+            copy.deepcopy(result["evidence_provenance"][0])
+        )
+        duplicate_audit = audit_provenance_trace(journey, result)
+        self.assertFalse(duplicate_audit["valid"])
+        self.assertTrue(duplicate_audit["duplicate_reason_entries"])
+
+        result = evaluate_journey(journey)
+        fabricated = copy.deepcopy(result["evidence_provenance"][0])
+        fabricated["reason_code"] = "FABRICATED_FINDING"
+        result["evidence_provenance"].append(fabricated)
+        fabricated_audit = audit_provenance_trace(journey, result)
+        self.assertFalse(fabricated_audit["valid"])
+        self.assertIn("FABRICATED_FINDING", fabricated_audit["unsupported_findings"])
+        self.assertIn("FABRICATED_FINDING", fabricated_audit["orphaned_provenance_entries"])
+
     def test_evidence_provenance_covers_every_reason_without_copying_values(self):
         journeys = [make_journey(61)] + [
             make_journey(62 + index, anomaly)
