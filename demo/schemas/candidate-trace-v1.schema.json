@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.invalid/dss/candidate-trace-v1.schema.json",
+  "$id": "urn:lsbuckley0-gift:dss-address-resolution:candidate-trace:v1",
   "title": "∂ss synthetic candidate trace export (v1)",
   "description": "A JSON array produced by demo/dss_demo.py --json-out. Synthetic demonstration output only.",
   "type": "array",
@@ -145,7 +145,6 @@
             "disposition": {
               "type": "string",
               "enum": [
-                "PENDING",
                 "SELECTED_EXACT",
                 "NOT_SELECTED",
                 "AMBIGUOUS_EXACT",
