@@ -161,6 +161,140 @@ def _finite_number(value: Any) -> bool:
     )
 
 
+def _evidence_provenance(journey: dict[str, Any], reason_codes: list[str]) -> list[dict[str, Any]]:
+    """Attach field/event locations to evaluator findings without copying raw values.
+
+    Event indices refer to positions in the original input list, including when
+    malformed sibling records are skipped for independent evidence inspection.
+    """
+    raw_events = journey.get("events")
+    indexed_events = (
+        [(index, event) for index, event in enumerate(raw_events) if isinstance(event, dict)]
+        if isinstance(raw_events, list) else []
+    )
+    expected_types = ["pickup", "in_transit", "delivered"]
+    records: list[dict[str, Any]] = []
+
+    def add(code: str, kind: str, source: str, fields: list[str],
+            indices: list[int], rule: str) -> None:
+        if code in reason_codes:
+            records.append({
+                "reason_code": code,
+                "evidence_kind": kind,
+                "source": source,
+                "fields": fields,
+                "event_indices": indices,
+                "rule": rule,
+            })
+
+    if not _nonempty_text(journey.get("journey_id")):
+        add("JOURNEY_ID_MISSING_OR_INVALID", "missing", "journey",
+            ["journey_id"], [], "A non-empty journey identifier is required.")
+    if not _nonempty_text(journey.get("expected_parcel_id")) or not _nonempty_text(journey.get("expected_destination_id")):
+        add("EXPECTED_IDENTITY_FIELDS_MISSING_OR_INVALID", "missing", "journey",
+            ["expected_parcel_id", "expected_destination_id"], [],
+            "Both expected identity references are required for full verification.")
+    if not _nonempty_text(journey.get("expected_parcel_id")):
+        add("EXPECTED_PARCEL_ID_MISSING_OR_INVALID", "missing", "journey",
+            ["expected_parcel_id"], [], "Expected parcel reference must be non-empty text.")
+    if not _nonempty_text(journey.get("expected_destination_id")):
+        add("EXPECTED_DESTINATION_ID_MISSING_OR_INVALID", "missing", "journey",
+            ["expected_destination_id"], [], "Expected destination reference must be non-empty text.")
+
+    malformed = (
+        [i for i, event in enumerate(raw_events) if not isinstance(event, dict)]
+        if isinstance(raw_events, list) else []
+    )
+    if not isinstance(raw_events, list) or not raw_events or malformed:
+        add("EVENT_RECORDS_MISSING_OR_INVALID", "missing", "events",
+            ["events"], malformed, "Events must be a non-empty list of object records.")
+
+    event_types = [event.get("type") for _, event in indexed_events]
+    sequence_bad = [
+        original_index for position, (original_index, event) in enumerate(indexed_events)
+        if position >= len(expected_types) or event.get("type") != expected_types[position]
+    ]
+    if len(indexed_events) != len(expected_types):
+        sequence_bad.extend(
+            index for index, _ in indexed_events if index not in sequence_bad
+        )
+    add("EVENT_SEQUENCE_MISMATCH", "conflict", "events",
+        ["type"], sorted(set(sequence_bad)),
+        "Observed event types must match pickup, in_transit, delivered in order.")
+
+    expected_parcel = journey.get("expected_parcel_id")
+    parcel_missing = [i for i, event in indexed_events if not _nonempty_text(event.get("parcel_id"))]
+    parcel_conflict = [
+        i for i, event in indexed_events
+        if _nonempty_text(expected_parcel) and _nonempty_text(event.get("parcel_id"))
+        and event.get("parcel_id") != expected_parcel
+    ]
+    add("PARCEL_ID_MISSING_OR_INVALID", "missing", "events", ["parcel_id"],
+        parcel_missing, "Every event must carry a non-empty parcel identifier.")
+    add("PARCEL_IDENTITY_CONFLICT", "conflict", "events", ["parcel_id"],
+        parcel_conflict, "Observed parcel identifiers must equal expected_parcel_id.")
+
+    expected_destination = journey.get("expected_destination_id")
+    destination_missing = [i for i, event in indexed_events if not _nonempty_text(event.get("destination_id"))]
+    destination_conflict = [
+        i for i, event in indexed_events
+        if _nonempty_text(expected_destination) and _nonempty_text(event.get("destination_id"))
+        and event.get("destination_id") != expected_destination
+    ]
+    add("DESTINATION_ID_MISSING_OR_INVALID", "missing", "events", ["destination_id"],
+        destination_missing, "Every event must carry a non-empty destination identifier.")
+    add("DESTINATION_IDENTITY_CONFLICT", "conflict", "events", ["destination_id"],
+        destination_conflict, "Observed destination identifiers must equal expected_destination_id.")
+
+    timestamp_missing = [
+        i for i, event in indexed_events if not _finite_number(event.get("timestamp"))
+    ]
+    if len(indexed_events) != 3:
+        timestamp_missing.extend(i for i, _ in indexed_events if i not in timestamp_missing)
+    add("TIMESTAMP_MISSING_OR_INVALID", "missing", "events", ["timestamp"],
+        sorted(set(timestamp_missing)), "Exactly three finite numeric timestamps are required.")
+    timestamp_conflicts = [
+        [indexed_events[position][0], indexed_events[position + 1][0]]
+        for position in range(min(2, len(indexed_events) - 1))
+        if _finite_number(indexed_events[position][1].get("timestamp"))
+        and _finite_number(indexed_events[position + 1][1].get("timestamp"))
+        and indexed_events[position][1]["timestamp"] > indexed_events[position + 1][1]["timestamp"]
+    ]
+    add("TIMESTAMP_ORDER_CONFLICT", "conflict", "events", ["timestamp"],
+        sorted({i for pair in timestamp_conflicts for i in pair}),
+        "Adjacent event timestamps must be non-decreasing.")
+
+    last_index, last_event = indexed_events[-1] if indexed_events else (None, {})
+    distance = last_event.get("gps_distance_m")
+    if not indexed_events or distance is None:
+        add("DELIVERY_GPS_MISSING", "missing", "events", ["gps_distance_m"],
+            [last_index] if last_index is not None else [],
+            "A delivery GPS distance is required.")
+    elif not _finite_number(distance) or distance < 0:
+        add("DELIVERY_GPS_INVALID", "conflict", "events", ["gps_distance_m"],
+            [last_index], "GPS distance must be a finite non-negative number.")
+    elif distance > GPS_LIMIT_METRES:
+        add("DELIVERY_GPS_OUTSIDE_LIMIT", "conflict", "events", ["gps_distance_m"],
+            [last_index], f"Delivery GPS distance must be <= {GPS_LIMIT_METRES:g} metres.")
+    if not indexed_events or not _nonempty_text(last_event.get("proof_id")):
+        add("DELIVERY_PROOF_REFERENCE_MISSING", "missing", "events", ["proof_id"],
+            [last_index] if last_index is not None else [],
+            "A non-empty delivery proof reference is required.")
+
+    if "ALL_DECLARED_CHECKS_PASSED" in reason_codes:
+        records.append({
+            "reason_code": "ALL_DECLARED_CHECKS_PASSED",
+            "evidence_kind": "consistent",
+            "source": "journey",
+            "fields": ["journey_id", "expected_parcel_id", "expected_destination_id",
+                       "events", "type", "parcel_id", "destination_id", "timestamp",
+                       "gps_distance_m", "proof_id"],
+            "event_indices": [i for i, _ in indexed_events],
+            "rule": "All declared checks passed; this is a success marker, not a failure.",
+        })
+    return sorted(records, key=lambda record: record["reason_code"])
+
+
 def evaluate_journey(journey: Any) -> dict[str, Any]:
     """Evaluate a journey defensively; malformed input becomes a refusal trace.
 
@@ -293,6 +427,7 @@ def evaluate_journey(journey: Any) -> dict[str, Any]:
         "evidence_class": evidence_class,
         "reason_codes": reasons,
         "checks": checks,
+        "evidence_provenance": _evidence_provenance(journey, reasons),
     }
 
 
