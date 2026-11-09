@@ -65,6 +65,15 @@ class VehicleCollisionBenchTests(unittest.TestCase):
             audit = audit_provenance_trace(journey, result)
         self.assertTrue(audit["valid"], msg=audit)
 
+    def test_provenance_audit_handles_non_object_journeys(self):
+        for malformed in (None, "not-a-journey", 17, []):
+            with self.subTest(malformed=malformed):
+                result = evaluate_journey(malformed)
+                audit = audit_provenance_trace(malformed, result)
+                self.assertTrue(audit["valid"], msg=audit)
+                self.assertEqual(audit["missing_reason_entries"], [])
+                self.assertEqual(audit["orphaned_provenance_entries"], [])
+
     def test_provenance_audit_rejects_malformed_trace_collections_and_indices(self):
         journey = make_journey(908)
         result = evaluate_journey(journey)
