@@ -33,7 +33,7 @@ For each case, display:
 - Operation performed or refused.
 - Return-check result.
 - Terminal state and reason code.
-- Deterministic trace ID, separate ruleset and trace-schema versions, and declared normalisation rule. The demo trace ID is a convenience key, not a cryptographic integrity claim.
+- Deterministic trace ID bound to the case, candidate positions, ruleset version, trace-schema version, normalisation rule and decision outcome; separate ruleset/schema versions and declared normalisation rule. The demo trace ID is a convenience key, not a cryptographic integrity claim.
 
 ## Safety and truthfulness
 
