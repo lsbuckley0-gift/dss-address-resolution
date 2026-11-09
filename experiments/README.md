@@ -39,10 +39,15 @@ An unresolved journey now carries an `evidence_class` as well as reason codes:
 - `MIXED`: at least one required item is missing and at least one observed item conflicts.
 - `SUFFICIENT_AND_CONSISTENT`: all required evidence is present and all declared checks pass.
 
-All three unresolved classes remain `UNRESOLVED`; missing information is never promoted
-to a successful verification. A proof reference is checked for presence only, not
-cryptographic authenticity or independent authority. GPS is a supplied distance value,
-not a raw-coordinate measurement.
+All unresolved classes remain `UNRESOLVED`; missing information is never promoted
+to a successful verification. Malformed journey objects, malformed event records,
+missing identity fields, duplicate/out-of-order event types, invalid timestamps and
+negative or non-finite GPS distances are refused with reason codes rather than allowed
+to crash the evaluator. The GPS boundary is inclusive: exactly 100 m passes this
+illustrative rule; any larger value fails. A proof reference is checked for presence
+only, not cryptographic authenticity or independent authority. GPS is a supplied
+distance value, not a raw-coordinate measurement. Timestamps are synthetic numeric
+ticks used only for ordering; they do not represent wall-clock time or a timezone.
 
 ## Compound-disturbance experiment
 
