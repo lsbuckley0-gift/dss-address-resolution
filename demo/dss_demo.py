@@ -359,8 +359,6 @@ def audit_candidate_trace(case: Any, trace: Any) -> dict[str, Any]:
     expected_reason = None
     expected_terminal = "UNRESOLVED"
     expected_selected_index = None
-    expected_dispositions: list[str] = []
-    expected_candidate_reasons: list[list[str]] = []
 
     intended_valid = (
         isinstance(intended, dict)
@@ -397,16 +395,6 @@ def audit_candidate_trace(case: Any, trace: Any) -> dict[str, Any]:
             expected_reason = "AMBIGUOUS_CANDIDATES"
         else:
             expected_selected_index = near_indices[0]
-            return_passed = (
-                expected_protected["premise"] if False else True
-            )
-            # Retrieval already establishes premise/locality/street; postcode
-            # remains the protected field that can fail the return check.
-            return_passed = (
-                isinstance(candidates[expected_selected_index], dict)
-                and expected_retrieval_flags[expected_selected_index]
-                and expected_protected_value := True
-            )
             selected_candidate = candidates[expected_selected_index]
             return_passed = (
                 _audit_normalise(intended.get("premise")) == _audit_normalise(selected_candidate.get("premise"))
