@@ -248,6 +248,51 @@ class VehicleCollisionBenchTests(unittest.TestCase):
             with self.subTest(pair=(left[0], right[0])):
                 self.assertFalse(audit["valid"], msg=audit)
 
+    def test_evaluator_and_audit_agree_under_pairwise_evidence_mutations(self):
+        """Exercise deterministic two-field corruption of the source journey."""
+        mutations = (
+            ("journey_id", lambda j: j.update(journey_id=None)),
+            ("expected_parcel", lambda j: j.update(expected_parcel_id=[])),
+            ("expected_destination", lambda j: j.update(expected_destination_id=0)),
+            ("event_type", lambda j: j["events"][0].update(type="delivered")),
+            ("parcel", lambda j: j["events"][1].update(parcel_id={"bad": True})),
+            ("destination", lambda j: j["events"][2].update(destination_id="OTHER")),
+            ("timestamp", lambda j: j["events"][0].update(timestamp=float("nan"))),
+            ("gps", lambda j: j["events"][2].update(gps_distance_m=float("inf"))),
+            ("proof", lambda j: j["events"][2].update(proof_id=[])),
+        )
+        bases = (
+            make_journey(930),
+            make_compound_journey(931, ("gps_drift", "wrong_parcel")),
+        )
+        checked = 0
+        for base in bases:
+            for left, right in combinations(mutations, 2):
+                journey = copy.deepcopy(base)
+                left[1](journey)
+                right[1](journey)
+                result = evaluate_journey(journey)
+                audit = audit_provenance_trace(journey, result)
+                with self.subTest(base=base["journey_id"], pair=(left[0], right[0])):
+                    self.assertEqual(result["terminal_state"], "UNRESOLVED")
+                    self.assertTrue(audit["valid"], msg=audit)
+                    self.assertEqual(
+                        [entry["reason_code"] for entry in result["evidence_provenance"]],
+                        sorted(result["reason_codes"]),
+                    )
+                checked += 1
+        self.assertEqual(checked, 72)
+
+    def test_evaluator_and_audit_agree_on_malformed_event_containers(self):
+        malformed_containers = (None, "events", {}, 7, (make_journey(932)["events"]))
+        for index, events in enumerate(malformed_containers):
+            journey = make_journey(932 + index)
+            journey["events"] = copy.deepcopy(events)
+            result = evaluate_journey(journey)
+            audit = audit_provenance_trace(journey, result)
+            with self.subTest(events=events):
+                self.assertEqual(result["terminal_state"], "UNRESOLVED")
+                self.assertTrue(audit["valid"], msg=audit)
     def test_provenance_audit_handles_non_object_journeys(self):
         for malformed in (None, "not-a-journey", 17, []):
             with self.subTest(malformed=malformed):
