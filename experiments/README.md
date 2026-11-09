@@ -30,6 +30,20 @@ The evaluator returns `VERIFIED` only when all six declared checks pass.
 Otherwise it returns `UNRESOLVED` and names the failed checks. This benchmark
 does not attempt fuzzy correction.
 
+## Evidence classification
+
+An unresolved journey now carries an `evidence_class` as well as reason codes:
+
+- `INSUFFICIENT`: a required observation or reference is absent (for example, no delivery GPS or proof reference).
+- `CONFLICTING`: observations contradict a declared invariant (for example, parcel identity changes or event timestamps run backwards).
+- `MIXED`: at least one required item is missing and at least one observed item conflicts.
+- `SUFFICIENT_AND_CONSISTENT`: all required evidence is present and all declared checks pass.
+
+All three unresolved classes remain `UNRESOLVED`; missing information is never promoted
+to a successful verification. A proof reference is checked for presence only, not
+cryptographic authenticity or independent authority. GPS is a supplied distance value,
+not a raw-coordinate measurement.
+
 ## Compound-disturbance experiment
 
 The `generate_compound_dataset(1200)` experiment contains 400 clean journeys and
