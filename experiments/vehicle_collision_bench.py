@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 import random
 from collections import Counter, defaultdict
@@ -81,80 +82,125 @@ def make_compound_journey(index: int, anomalies: tuple[str, ...]) -> dict[str, A
     return journey
 
 
-def evaluate_journey(journey: dict[str, Any]) -> dict[str, Any]:
-    """Evaluate consistency separately from evidence completeness.
+def _nonempty_text(value: Any) -> bool:
+    return isinstance(value, str) and bool(value.strip())
 
-    Missing evidence is not silently treated as a contradictory observation.
-    VERIFIED requires complete evidence and every declared invariant to pass.
+
+def _finite_number(value: Any) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+    )
+
+
+def evaluate_journey(journey: Any) -> dict[str, Any]:
+    """Evaluate a journey defensively; malformed input becomes a refusal trace.
+
+    Missing evidence and malformed schema are classified as insufficient.
+    Contradictory observations are classified as conflicting. No malformed
+    record is allowed to escape as an evaluator exception.
     """
-    raw_events = journey.get("events", [])
-    events = raw_events if isinstance(raw_events, list) else []
-    valid_events = all(isinstance(event, dict) for event in events)
-    events = events if valid_events else []
+    if not isinstance(journey, dict):
+        journey = {}
+
+    raw_events = journey.get("events")
+    events_well_formed = isinstance(raw_events, list) and all(
+        isinstance(event, dict) for event in raw_events
+    )
+    events = raw_events if events_well_formed else []
+    expected_types = ["pickup", "in_transit", "delivered"]
+    event_types = [event.get("type") for event in events]
+
+    expected_parcel = journey.get("expected_parcel_id")
+    expected_destination = journey.get("expected_destination_id")
+    expected_ids_valid = _nonempty_text(expected_parcel) and _nonempty_text(expected_destination)
+    journey_id_valid = _nonempty_text(journey.get("journey_id"))
+
+    timestamps_valid = len(events) == 3 and all(
+        _finite_number(event.get("timestamp")) for event in events
+    )
+    timestamps_monotonic = timestamps_valid and all(
+        events[i]["timestamp"] <= events[i + 1]["timestamp"]
+        for i in range(2)
+    )
+
+    distance = events[-1].get("gps_distance_m") if events else None
+    gps_valid = _finite_number(distance) and distance >= 0
+    gps_within_limit = gps_valid and distance <= GPS_LIMIT_METRES
+
+    parcel_ids_present = bool(events) and all(
+        _nonempty_text(event.get("parcel_id")) for event in events
+    )
+    destination_ids_present = bool(events) and all(
+        _nonempty_text(event.get("destination_id")) for event in events
+    )
+    proof_present = bool(events) and _nonempty_text(events[-1].get("proof_id"))
+
+    sequence_ok = event_types == expected_types
+    parcel_identity_ok = (
+        expected_ids_valid and parcel_ids_present
+        and all(event.get("parcel_id") == expected_parcel for event in events)
+    )
+    destination_identity_ok = (
+        expected_ids_valid and destination_ids_present
+        and all(event.get("destination_id") == expected_destination for event in events)
+    )
 
     checks: dict[str, bool] = {
-        "expected_event_sequence": [e.get("type") for e in events]
-        == ["pickup", "in_transit", "delivered"],
-        "parcel_identity_preserved": bool(events) and all(
-            e.get("parcel_id") == journey.get("expected_parcel_id") for e in events
-        ),
-        "destination_identity_preserved": bool(events) and all(
-            e.get("destination_id") == journey.get("expected_destination_id") for e in events
-        ),
-        "timestamps_monotonic": len(events) == 3 and all(
-            isinstance(events[i].get("timestamp"), (int, float))
-            and not isinstance(events[i].get("timestamp"), bool)
-            and events[i]["timestamp"] <= events[i + 1]["timestamp"]
-            for i in range(len(events) - 1)
-        ) and all(
-            isinstance(event.get("timestamp"), (int, float))
-            and not isinstance(event.get("timestamp"), bool)
-            for event in events
-        ),
-        "delivery_within_gps_limit": bool(events) and isinstance(
-            events[-1].get("gps_distance_m"), (int, float)
-        ) and not isinstance(events[-1].get("gps_distance_m"), bool)
-        and events[-1].get("gps_distance_m") >= 0
-        and events[-1].get("gps_distance_m") <= GPS_LIMIT_METRES,
-        "delivery_proof_present": bool(events) and bool(events[-1].get("proof_id")),
+        "journey_id_present": journey_id_valid,
+        "expected_identity_fields_present": expected_ids_valid,
+        "event_records_well_formed": events_well_formed,
+        "expected_event_sequence": sequence_ok,
+        "parcel_identity_preserved": bool(parcel_identity_ok),
+        "destination_identity_preserved": bool(destination_identity_ok),
+        "timestamps_monotonic": bool(timestamps_monotonic),
+        "delivery_within_gps_limit": bool(gps_within_limit),
+        "delivery_proof_present": bool(proof_present),
     }
 
     missing: list[str] = []
     conflicts: list[str] = []
-    if not valid_events or not events:
+    if not journey_id_valid:
+        missing.append("JOURNEY_ID_MISSING_OR_INVALID")
+    if not expected_ids_valid:
+        missing.append("EXPECTED_IDENTITY_FIELDS_MISSING_OR_INVALID")
+    if not events_well_formed or not events:
         missing.append("EVENT_RECORDS_MISSING_OR_INVALID")
-    if len(events) != 3 or [e.get("type") for e in events] != ["pickup", "in_transit", "delivered"]:
+    if not sequence_ok:
         conflicts.append("EVENT_SEQUENCE_MISMATCH")
-    if events and any(not e.get("parcel_id") for e in events):
-        missing.append("PARCEL_ID_MISSING")
-    elif not checks["parcel_identity_preserved"]:
+    if events and not parcel_ids_present:
+        missing.append("PARCEL_ID_MISSING_OR_INVALID")
+    elif events and expected_ids_valid and not parcel_identity_ok:
         conflicts.append("PARCEL_IDENTITY_CONFLICT")
-    if events and any(not e.get("destination_id") for e in events):
-        missing.append("DESTINATION_ID_MISSING")
-    elif not checks["destination_identity_preserved"]:
+    if events and not destination_ids_present:
+        missing.append("DESTINATION_ID_MISSING_OR_INVALID")
+    elif events and expected_ids_valid and not destination_identity_ok:
         conflicts.append("DESTINATION_IDENTITY_CONFLICT")
-    if events and any("timestamp" not in e or e.get("timestamp") is None for e in events):
-        missing.append("TIMESTAMP_MISSING")
-    elif not checks["timestamps_monotonic"]:
-        conflicts.append("TIMESTAMP_ORDER_OR_FORMAT_CONFLICT")
-    if not events or events[-1].get("gps_distance_m") is None:
+    if not timestamps_valid:
+        missing.append("TIMESTAMP_MISSING_OR_INVALID")
+    elif not timestamps_monotonic:
+        conflicts.append("TIMESTAMP_ORDER_CONFLICT")
+    if not events or distance is None:
         missing.append("DELIVERY_GPS_MISSING")
-    elif not checks["delivery_within_gps_limit"]:
-        conflicts.append("DELIVERY_GPS_OUTSIDE_LIMIT_OR_INVALID")
-    if not events or not events[-1].get("proof_id"):
-        missing.append("DELIVERY_PROOF_REFERENCE_MISSING")
+    elif not gps_valid:
+        conflicts.append("DELIVERY_GPS_INVALID")
+    elif not gps_within_limit:
+        conflicts.append("DELIVERY_GPS_OUTSIDE_LIMIT")
+    if not proof_present:
+        missing.append("DELIVERY_PROOF_REFERENCE_MISSING_OR_INVALID")
 
     reasons = sorted(set(missing + conflicts))
     evidence_class = classify_evidence(
         missing=bool(missing),
         conflicting=bool(conflicts),
     )
-
     passed = evidence_class == "SUFFICIENT_AND_CONSISTENT" and all(checks.values())
     if passed:
         reasons = ["ALL_DECLARED_CHECKS_PASSED"]
+
     return {
-        "journey_id": journey.get("journey_id"),
+        "journey_id": journey.get("journey_id") if journey_id_valid else None,
         "terminal_state": "VERIFIED" if passed else "UNRESOLVED",
         "evidence_class": evidence_class,
         "reason_codes": reasons,
