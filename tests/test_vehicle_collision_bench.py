@@ -120,6 +120,15 @@ class VehicleCollisionBenchTests(unittest.TestCase):
         self.assertEqual(report["false_accept_count"], 0)
         self.assertEqual(report["false_reject_count"], 0)
         self.assertTrue(any(k.startswith("compound:") for k in report["by_condition"]))
+        self.assertEqual(report["diagnostic_status_counts"], {
+            "CLEAN": 400,
+            "UNATTRIBUTED": 800,
+        })
+        self.assertEqual(len(report["diagnostic_records"]), 1200)
+        self.assertEqual(
+            len({record["journey_id"] for record in report["diagnostic_records"]}),
+            1200,
+        )
 
     def test_single_anomaly_report_has_exact_reason_frequencies(self):
         report = benchmark(generate_dataset(1000, seed=88))
