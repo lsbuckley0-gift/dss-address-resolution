@@ -551,8 +551,24 @@ def _expected_provenance_pointer(
                 "missing", ["proof_id"], [indexed[-1][0]] if indexed else []
             )
     elif reason_code == "ALL_DECLARED_CHECKS_PASSED":
-        result = evaluate_journey(journey)
-        if result["terminal_state"] == "VERIFIED":
+        expected_parcel = journey.get("expected_parcel_id")
+        expected_destination = journey.get("expected_destination_id")
+        timestamps = [event.get("timestamp") for _, event in indexed]
+        clean = (
+            _nonempty_text(journey.get("journey_id"))
+            and _nonempty_text(expected_parcel)
+            and _nonempty_text(expected_destination)
+            and len(indexed) == 3
+            and [event.get("type") for _, event in indexed] == expected_types
+            and all(event.get("parcel_id") == expected_parcel for _, event in indexed)
+            and all(event.get("destination_id") == expected_destination for _, event in indexed)
+            and all(_finite_number(value) for value in timestamps)
+            and all(timestamps[i] <= timestamps[i + 1] for i in range(2))
+            and _finite_number(indexed[-1][1].get("gps_distance_m"))
+            and 0 <= indexed[-1][1]["gps_distance_m"] <= GPS_LIMIT_METRES
+            and _nonempty_text(indexed[-1][1].get("proof_id"))
+        )
+        if clean:
             return (
                 "consistent", "journey",
                 ["journey_id", "expected_parcel_id", "expected_destination_id",
@@ -569,9 +585,15 @@ def audit_provenance_trace(
     """Check exact reason coverage and independently validate generated pointers."""
     reasons = result.get("reason_codes", [])
     entries = result.get("evidence_provenance", [])
-    reason_counts = Counter(reasons)
+    malformed_trace = not isinstance(reasons, list) or not isinstance(entries, list)
+    if not isinstance(reasons, list):
+        reasons = []
+    if not isinstance(entries, list):
+        entries = []
+    reason_counts = Counter(code for code in reasons if isinstance(code, str))
     entry_counts = Counter(
-        entry.get("reason_code") for entry in entries if isinstance(entry, dict)
+        entry.get("reason_code") for entry in entries
+        if isinstance(entry, dict) and isinstance(entry.get("reason_code"), str)
     )
     missing = sorted(code for code, count in reason_counts.items()
                      for _ in range(max(0, count - entry_counts[code])))
@@ -579,6 +601,8 @@ def audit_provenance_trace(
                       for _ in range(max(0, count - reason_counts[code])))
     duplicates = sorted(code for code, count in entry_counts.items() if count > 1)
     unsupported, invalid_pointers = [], []
+    if malformed_trace:
+        unsupported.append("<malformed-trace-collections>")
     for entry in entries:
         if not isinstance(entry, dict):
             unsupported.append("<non-object-entry>")
@@ -596,15 +620,20 @@ def audit_provenance_trace(
         ):
             invalid_pointers.append(code)
         raw_events = journey.get("events")
+        event_indices = entry.get("event_indices")
+        if not isinstance(event_indices, list):
+            invalid_pointers.append(code)
+            continue
         if any(
             not isinstance(index, int) or isinstance(index, bool)
             or not isinstance(raw_events, list) or index < 0 or index >= len(raw_events)
-            for index in entry.get("event_indices", [])
+            for index in event_indices
         ):
             invalid_pointers.append(code)
     event_reason_counts = Counter(
         index for entry in entries if isinstance(entry, dict)
-        for index in entry.get("event_indices", [])
+        and isinstance(entry.get("event_indices"), list)
+        for index in entry["event_indices"]
         if isinstance(index, int) and not isinstance(index, bool)
     )
     shared_event_indices = sorted(
