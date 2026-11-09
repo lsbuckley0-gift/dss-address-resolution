@@ -280,6 +280,27 @@ class VehicleCollisionBenchTests(unittest.TestCase):
             {"PARCEL_ID_MISSING_OR_INVALID": 1},
         )
 
+    def test_interaction_summary_separates_echo_and_masking_outcomes(self):
+        echo = make_interaction_journey(41, "reordered_events", "sequence_echo")
+        masked = make_interaction_journey(
+            42, "wrong_parcel", "missing_parcel_masks_conflict"
+        )
+        summary = benchmark([echo, masked])["interaction_diagnostic_summary"]
+        self.assertEqual(summary["sequence_echo"], {
+            "case_count": 1,
+            "diagnostic_status_counts": {"PRIMARY_IDENTIFIED_WITH_SYMPTOMS": 1},
+            "primary_fault_detected_count": 1,
+            "primary_fault_missed_count": 0,
+            "secondary_symptom_counts": {"EVENT_SEQUENCE_MISMATCH": 1},
+        })
+        self.assertEqual(summary["missing_parcel_masks_conflict"], {
+            "case_count": 1,
+            "diagnostic_status_counts": {"PRIMARY_MASKED": 1},
+            "primary_fault_detected_count": 0,
+            "primary_fault_missed_count": 1,
+            "secondary_symptom_counts": {"PARCEL_ID_MISSING_OR_INVALID": 1},
+        })
+
     def test_diagnostic_trace_identifies_primary_and_secondary_symptoms(self):
         journey = make_interaction_journey(34, "reordered_events", "sequence_echo")
         report = benchmark([journey])
