@@ -33,7 +33,7 @@ For each case, display:
 - Operation performed or refused.
 - Return-check result.
 - Terminal state and reason code.
-- Trace ID and ruleset version.
+- Deterministic trace ID, ruleset version and declared normalisation rule. The demo trace ID is a convenience key, not a cryptographic integrity claim.
 
 ## Safety and truthfulness
 
