@@ -274,6 +274,30 @@ class VehicleCollisionBenchTests(unittest.TestCase):
             {"EVENT_SEQUENCE_MISMATCH + TIMESTAMP_ORDER_CONFLICT": 1},
         )
 
+    def test_missing_identity_field_does_not_mask_separate_observed_conflict(self):
+        journey = make_interaction_journey(
+            44, "wrong_parcel", "missing_parcel_with_separate_conflict"
+        )
+        result = evaluate_journey(journey)
+        self.assertEqual(result["terminal_state"], "UNRESOLVED")
+        self.assertIn("PARCEL_ID_MISSING_OR_INVALID", result["reason_codes"])
+        self.assertIn("PARCEL_IDENTITY_CONFLICT", result["reason_codes"])
+        self.assertEqual(result["evidence_class"], "MIXED")
+
+        report = benchmark([journey])
+        detection = report["anomaly_detection"]["wrong_parcel"]
+        self.assertEqual(detection["detected_occurrences"], 1)
+        self.assertEqual(detection["missed_occurrences"], 0)
+        summary = report["interaction_diagnostic_summary"][
+            "missing_parcel_with_separate_conflict"
+        ]
+        self.assertEqual(summary["primary_fault_detected_count"], 1)
+        self.assertEqual(summary["primary_fault_missed_count"], 0)
+        self.assertEqual(
+            summary["secondary_symptom_counts"],
+            {"PARCEL_ID_MISSING_OR_INVALID": 1},
+        )
+
     def test_missing_secondary_symptom_can_mask_primary_fault(self):
         journey = make_interaction_journey(
             33, "wrong_parcel", "missing_parcel_masks_conflict"
