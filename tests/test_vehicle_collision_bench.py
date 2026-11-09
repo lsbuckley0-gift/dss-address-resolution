@@ -6,7 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "experiments"))
 
 from vehicle_collision_bench import (  # noqa: E402
-    ANOMALIES, benchmark, evaluate_journey, generate_compound_dataset, generate_dataset, make_compound_journey, make_journey,
+    ANOMALIES, benchmark, evaluate_journey, generate_compound_dataset, generate_dataset, make_compound_journey, make_interaction_journey, make_journey,
 )
 
 
@@ -213,6 +213,41 @@ class VehicleCollisionBenchTests(unittest.TestCase):
         self.assertEqual(
             report["anomaly_reason_matrix"]["gps_drift"],
             {"PARCEL_IDENTITY_CONFLICT": 1},
+        )
+
+    def test_sequence_echo_preserves_primary_detection_and_exposes_secondary_symptom(self):
+        journey = make_interaction_journey(32, "reordered_events", "sequence_echo")
+        result = evaluate_journey(journey)
+        self.assertEqual(result["terminal_state"], "UNRESOLVED")
+        self.assertIn("TIMESTAMP_ORDER_CONFLICT", result["reason_codes"])
+        self.assertIn("EVENT_SEQUENCE_MISMATCH", result["reason_codes"])
+
+        report = benchmark([journey])
+        detection = report["anomaly_detection"]["reordered_events"]
+        self.assertEqual(detection["detected_occurrences"], 1)
+        self.assertEqual(detection["missed_occurrences"], 0)
+        self.assertEqual(
+            report["interaction_reason_combinations"]["sequence_echo"],
+            {"EVENT_SEQUENCE_MISMATCH + TIMESTAMP_ORDER_CONFLICT": 1},
+        )
+
+    def test_missing_secondary_symptom_can_mask_primary_fault(self):
+        journey = make_interaction_journey(
+            33, "wrong_parcel", "missing_parcel_masks_conflict"
+        )
+        result = evaluate_journey(journey)
+        self.assertEqual(result["terminal_state"], "UNRESOLVED")
+        self.assertIn("PARCEL_ID_MISSING_OR_INVALID", result["reason_codes"])
+        self.assertNotIn("PARCEL_IDENTITY_CONFLICT", result["reason_codes"])
+
+        report = benchmark([journey])
+        detection = report["anomaly_detection"]["wrong_parcel"]
+        self.assertEqual(detection["injected_occurrences"], 1)
+        self.assertEqual(detection["detected_occurrences"], 0)
+        self.assertEqual(detection["missed_occurrences"], 1)
+        self.assertEqual(
+            report["interaction_reason_combinations"]["missing_parcel_masks_conflict"],
+            {"PARCEL_ID_MISSING_OR_INVALID": 1},
         )
 
     def test_evaluator_does_not_consume_injected_oracle_label(self):
