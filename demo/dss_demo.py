@@ -19,8 +19,16 @@ def normalise(value: Any) -> str:
     return " ".join(str(value or "").casefold().split())
 
 
+def required_fields_present(record: dict[str, Any]) -> bool:
+    return all(normalise(record.get(field)) for field in FIELDS)
+
+
 def same_record(left: dict[str, Any], right: dict[str, Any]) -> bool:
-    return all(normalise(left.get(field)) == normalise(right.get(field)) for field in FIELDS)
+    return (
+        required_fields_present(left)
+        and required_fields_present(right)
+        and all(normalise(left.get(field)) == normalise(right.get(field)) for field in FIELDS)
+    )
 
 
 def edit_distance_at_most_one(left: str, right: str) -> bool:
@@ -76,6 +84,13 @@ def evaluate_case(case: dict[str, Any]) -> dict[str, Any]:
         "return_check": None,
     }
 
+    if not required_fields_present(intended):
+        trace.update({
+            "terminal_state": "UNRESOLVED",
+            "reason_code": "MISSING_REQUIRED_INTENDED_FIELD",
+        })
+        return trace
+
     exact = [c for c in candidates if same_record(intended, c)]
     if len(exact) == 1:
         trace.update({
@@ -97,7 +112,8 @@ def evaluate_case(case: dict[str, Any]) -> dict[str, Any]:
     # return-check gate: same premise/locality and a street within one edit.
     near = [
         c for c in candidates
-        if normalise(intended.get("premise")) == normalise(c.get("premise"))
+        if required_fields_present(c)
+        and normalise(intended.get("premise")) == normalise(c.get("premise"))
         and normalise(intended.get("locality")) == normalise(c.get("locality"))
         and edit_distance_at_most_one(
             str(intended.get("street", "")), str(c.get("street", ""))
