@@ -1,0 +1,81 @@
+{
+  "dataset_id": "paired-pilot-synthetic",
+  "dataset_version": "v1",
+  "cases": [
+    {
+      "case_id": "syn-001",
+      "gold_candidate_id": "cand-A",
+      "baseline": {
+        "terminal_state": "VERIFIED",
+        "selected_candidate_id": "cand-A",
+        "trace_complete": true,
+        "review_routed": false,
+        "latency_ms": 12
+      },
+      "dss": {
+        "terminal_state": "VERIFIED",
+        "selected_candidate_id": "cand-A",
+        "trace_complete": true,
+        "review_routed": false,
+        "latency_ms": 14
+      }
+    },
+    {
+      "case_id": "syn-002",
+      "gold_candidate_id": "cand-B",
+      "baseline": {
+        "terminal_state": "VERIFIED",
+        "selected_candidate_id": "cand-X",
+        "trace_complete": false,
+        "review_routed": false,
+        "latency_ms": 20
+      },
+      "dss": {
+        "terminal_state": "UNRESOLVED",
+        "selected_candidate_id": null,
+        "trace_complete": true,
+        "review_routed": true,
+        "latency_ms": 18,
+        "review_seconds": 30
+      }
+    },
+    {
+      "case_id": "syn-003",
+      "gold_candidate_id": "cand-C",
+      "baseline": {
+        "terminal_state": "UNRESOLVED",
+        "selected_candidate_id": null,
+        "trace_complete": true,
+        "review_routed": true,
+        "latency_ms": 22,
+        "review_seconds": 45
+      },
+      "dss": {
+        "terminal_state": "CORRECTED",
+        "selected_candidate_id": "cand-C",
+        "trace_complete": true,
+        "review_routed": false,
+        "latency_ms": 19
+      }
+    },
+    {
+      "case_id": "syn-004",
+      "gold_candidate_id": null,
+      "baseline": {
+        "terminal_state": "CORRECTED",
+        "selected_candidate_id": "cand-D",
+        "trace_complete": false,
+        "review_routed": false,
+        "latency_ms": 25
+      },
+      "dss": {
+        "terminal_state": "UNRESOLVED",
+        "selected_candidate_id": null,
+        "trace_complete": true,
+        "review_routed": true,
+        "latency_ms": 16,
+        "review_seconds": 60
+      }
+    }
+  ]
+}
