@@ -169,7 +169,7 @@ class PilotMetricsTests(unittest.TestCase):
             report = json.loads(completed.stdout)
             self.assertEqual(json.loads(output_path.read_text(encoding="utf-8")), report)
         self.assertEqual(report["dataset_id"], "paired-pilot-synthetic")
-        self.assertEqual(report["report_version"], "paired-pilot-metrics/1.3")
+        self.assertEqual(report["report_version"], "paired-pilot-metrics/1.4")
         self.assertEqual(report["case_count"], 4)
         self.assertEqual(set(report["stratum_metrics"]), {"EXACT", "TYPO", "FORMATTING_ONLY", "CONFLICTING"})
         self.assertEqual(report["stratum_metrics"]["TYPO"]["case_count"], 1)
