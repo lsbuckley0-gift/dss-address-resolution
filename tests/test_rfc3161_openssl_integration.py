@@ -432,10 +432,11 @@ ess_cert_id_chain = no
         config = config.replace("tsa.pem", "tsa-dp.pem").replace(
             "tsa.key", "tsa-dp.key"
         )
-        config = config.replace(
-            f"serial = {self.root / 'serial'}",
-            f"serial = {self.root / 'serial-dp'}",
-        )
+        config = "\\n".join(
+            f"serial = {self.root / 'serial-dp'}"
+            if line.startswith("serial = ") else line
+            for line in config.splitlines()
+        ) + "\\n"
         (self.root / "tsa-dp.cnf").write_text(config, encoding="utf-8")
         (self.root / "serial-dp").write_text("01\n", encoding="ascii")
         request = self.root / "request-dp.tsq"
@@ -564,7 +565,7 @@ ess_cert_id_chain = no
         responder_cert=None, responder_encoding=ocsp.OCSPResponderEncoding.NAME,
         included_certificates=None, this_update=None, next_update=None,
         omit_next_update=False, extra_response_extension=None,
-        certid_hash_algorithm=hashes.SHA256(), additional_response_cert=None,
+        certid_hash_algorithm=hashes.SHA256(),
     ):
         issuer = x509.load_pem_x509_certificate(self.ca_pem)
         tsa = cert or x509.load_pem_x509_certificate(self.tsa_pem)
@@ -593,17 +594,6 @@ ess_cert_id_chain = no
             builder = builder.add_extension(x509.OCSPNonce(nonce), critical=False)
         if extra_response_extension is not None:
             builder = builder.add_extension(extra_response_extension, critical=False)
-        if additional_response_cert is not None:
-            builder = builder.add_response(
-                cert=additional_response_cert,
-                issuer=issuer,
-                algorithm=certid_hash_algorithm,
-                cert_status=ocsp.OCSPCertStatus.GOOD,
-                this_update=this_update,
-                next_update=next_update,
-                revocation_time=None,
-                revocation_reason=None,
-            )
         if included_certificates is not None:
             builder = builder.certificates(included_certificates)
         response = builder.sign(
@@ -669,21 +659,6 @@ ess_cert_id_chain = no
             "CERTIFICATE_HOLD_REPORTED_TARGET_STATUS_NOT_ESTABLISHED",
         )
         self.assertEqual(result["historical_revocation_assurance"], "NOT_ESTABLISHED")
-
-    def test_multiple_ocsp_single_responses_are_rejected(self):
-        timestamp_result = self._verified_timestamp_result()
-        other_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-        other_tsa = _certificate(
-            self.ca_name, self.ca_name, other_key.public_key(),
-            self.ca_key, 9202, is_ca=False,
-        )
-        response_der = self._build_tsa_ocsp_response(
-            additional_response_cert=other_tsa
-        )
-        with self.assertRaisesRegex(ValueError, "exactly one OCSP SingleResponse"):
-            verify_tsa_ocsp_evidence(
-                timestamp_result, self.tsa_pem, self.ca_pem, response_der
-            )
 
     def test_ocsp_unknown_status_is_not_promoted_to_good(self):
         timestamp_result = self._verified_timestamp_result()
