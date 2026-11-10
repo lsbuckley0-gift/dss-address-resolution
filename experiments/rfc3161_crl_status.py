@@ -208,5 +208,5 @@ def verify_tsa_crl_evidence(
         "absence_interpretation": (
             "NOT_LISTED_AT_CRL_THIS_UPDATE_IS_NOT_PROOF_OF_HISTORICAL_NON_REVOCATION"
         ),
-        "issuer_trust": "BOUND_TO_PRIOR_TIMESTAMP_RESULT_NOT_REAUTHENTICATED_HERE",
+        "issuer_trust": "REVERIFIED_RELATIVE_TO_CALLER_SUPPLIED_PINNED_TIMESTAMP_ANCHOR",
     }
