@@ -226,3 +226,40 @@ performance. Pre-register the classification rules and sampling plan before
 held-out scoring.
 
 This is a report calculator, not a customer-data store or an address matcher.
+
+## Pre-registered sample-sufficiency screening
+
+The paired metrics input may optionally include `sample_requirements` before
+held-out scoring. It declares the required primary strata, a minimum raw case
+count per stratum and a separate minimum count of cases with a non-null unique
+gold label. The evaluator reports each required stratum as `MISSING`,
+`BELOW_MINIMUM` or `SUFFICIENT`, and the overall gate as
+`INSUFFICIENT` unless every required stratum meets both minima. If no
+requirements are supplied, the report says `NOT_CONFIGURED`; it does not
+invent thresholds or infer them from observed results.
+
+Example:
+
+```json
+{
+  "sample_requirements": {
+    "required_strata": ["EXACT", "TYPO", "DUPLICATE"],
+    "minimum_case_count": 100,
+    "minimum_unique_gold_case_count": 80
+  }
+}
+```
+
+These example numbers are illustrative, not recommended universal thresholds.
+The actual strata and minima must be justified and frozen in the study's
+pre-registration before held-out labels are opened. The unique-gold count is
+separate because false-reject rates use only cases with a unique gold answer.
+A stratum with no cases is reported as `MISSING`; a present stratum that fails
+either count is `BELOW_MINIMUM`.
+
+This is a count-screening gate only. Passing it does not establish that the
+sampling frame or selection method is representative, that observations are
+independent, or that the study has adequate statistical power or precision.
+Those require a defensible population definition, sampling method and
+study-specific statistical design. The gate must never be described as a
+representativeness or significance test.
