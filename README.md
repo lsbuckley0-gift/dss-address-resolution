@@ -41,7 +41,6 @@ See [the demonstration guide](demo/README.md) for its scope and limitations.
 
 A separate [synthetic vehicle-event collision benchmark](experiments/README.md) tests identity preservation across parcel-event sequences.
 
-
 ## Core Loop Checks
 
 The original `dss_loop.py` resolver treats a normalised UK postcode as its
@@ -52,19 +51,32 @@ correction, compressed postcode normalisation, rejection when a valid candidate
 belongs to a different intended identity, conflicting postcodes, failed and
 inconclusive return checks, and the rule that a missing candidate skips
 operation and return check.
-Run them with the same dependency-free command above:
+
+Run the dependency-free core tests with:
 `python -m unittest discover -s tests -v`.
 
 ## Legacy Fuzzy Comparison Harness
 
-The optional `run_test.py` comparison uses RapidFuzz as its fuzzy baseline. Install its pinned dependency and run:
+The optional `run_test.py` comparison uses RapidFuzz as its baseline. Install
+its pinned dependency and run:
 
 ```bash
 python -m pip install -r requirements-comparison.txt
+python -m unittest tests.test_comparison -v
 python run_test.py
 ```
 
-The harness asserts each declared ∂ss terminal outcome and checks that every fixture is accounted for with zero ∂ss false accepts. The compressed-postcode fixture is `VERIFIED`: formatting normalisation alone is not recorded as a correction. The fuzzy baseline is measured and reported separately; its results are not assumed in advance.
+The comparison applies the same `dss_loop.normalise` function to incoming
+text and authority-record strings before fuzzy scoring. Its policy is explicit:
+`token_set_ratio`, a score threshold of 80, and abstention when the highest
+score is tied. This avoids granting the baseline an arbitrary first-record
+decision in an ambiguous tie. The ∂ss harness separately asserts every declared
+terminal outcome, fixture accounting, and zero false accepts.
+
+These are synthetic fixtures, not a representative accuracy study. Threshold
+selection, tie policy and normalisation must be fixed before evaluation on a
+representative labelled dataset; results should not be generalised from this
+small comparison.
 
 ## Commercial and Evaluation Documents
 
