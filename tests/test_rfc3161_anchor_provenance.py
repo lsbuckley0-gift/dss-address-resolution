@@ -6,6 +6,8 @@ import unittest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
+from experiments.trust_policy_pin import trust_store_sha256
+
 from experiments.rfc3161_anchor_provenance import (
     canonical_provenance_payload,
     verify_timestamp_anchor_provenance,
@@ -170,6 +172,35 @@ class TimestampAnchorProvenanceTests(unittest.TestCase):
         self.assertEqual(result["combined_verification"], "PROVENANCE_NOT_VERIFIED")
         self.assertEqual(result["timestamp_evidence"]["timestamp_verification"], "NOT_PERFORMED")
         timestamp.assert_not_called()
+
+
+    def test_optional_governance_store_pin_must_match_before_signature(self):
+        pin = {
+            "sha256": "0" * 64,
+            "source_reference": "independently-held synthetic pin",
+        }
+        result = self.verify()
+        result = verify_timestamp_anchor_provenance(
+            self.anchor, self.attestation, self.envelope, self.store,
+            at_utc="2026-11-10T13:00:00Z", minimum_sequence=4,
+            trust_store_pin=pin,
+        )
+        self.assertEqual(result["provenance_verification"], "GOVERNANCE_POLICY_PIN_MISMATCH")
+        self.assertEqual(result["attestation_signature"], "NOT_PERFORMED")
+
+    def test_matching_governance_store_pin_is_reported_without_authenticating_source(self):
+        pin = {
+            "sha256": trust_store_sha256(self.store),
+            "source_reference": "independently-held synthetic pin",
+        }
+        result = verify_timestamp_anchor_provenance(
+            self.anchor, self.attestation, self.envelope, self.store,
+            at_utc="2026-11-10T13:00:00Z", minimum_sequence=4,
+            trust_store_pin=pin,
+        )
+        self.assertEqual(result["provenance_verification"], "VALID_RELATIVE_TO_CALLER_GOVERNANCE_STORE")
+        self.assertEqual(result["governance_trust_store_pin"]["trust_policy_pin"], "MATCH")
+        self.assertEqual(result["governance_trust_store_pin"]["pin_source_authentication"], "NOT_INDEPENDENTLY_AUTHENTICATED")
 
 
 if __name__ == "__main__":
