@@ -169,12 +169,25 @@
         "string",
         "null"
       ],
-      "format": "date-time"
+      "format": "date-time",
+      "pattern": "Z$"
     },
     "revocation_reason": {
       "type": [
         "string",
         "null"
+      ],
+      "enum": [
+        null,
+        "unspecified",
+        "key_compromise",
+        "ca_compromise",
+        "affiliation_changed",
+        "superseded",
+        "cessation_of_operation",
+        "certificate_hold",
+        "privilege_withdrawn",
+        "aa_compromise"
       ]
     },
     "good_status_limitation": {
@@ -204,7 +217,9 @@
           "crl_next_update_utc",
           "crl_time_window_covers_target",
           "evidence_time_basis",
-          "absence_interpretation"
+          "absence_interpretation",
+          "revocation_time_utc",
+          "revocation_reason"
         ],
         "properties": {
           "evidence_time_basis": {
@@ -292,7 +307,9 @@
           "ocsp_time_window_covers_target",
           "evidence_time_basis",
           "status_at_evidence_time",
-          "good_status_limitation"
+          "good_status_limitation",
+          "revocation_time_utc",
+          "revocation_reason"
         ],
         "properties": {
           "evidence_time_basis": {
