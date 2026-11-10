@@ -159,4 +159,12 @@ this CLI fixture and checks that stdout and the written JSON report agree.
 The evaluator does not decide whether a pilot passes. Risk thresholds, minimum
 coverage, acceptable review burden, dataset strata, label adjudication and
 confidence requirements must be agreed before opening the held-out set.
+
+The `paired_outcome_matrix` is a four-by-four transition table: rows classify
+the baseline decision and columns classify the ∂ss decision as correct automatic
+resolution, false accept, false reject or correct abstention. Every paired case
+appears in exactly one cell. This exposes case-level trade-offs—for example, a
+baseline false accept becoming a ∂ss false reject—rather than hiding them inside
+separate aggregate rates. The report format is `paired-pilot-metrics/1.2`.
+
 This is a report calculator, not a customer-data store or an address matcher.
