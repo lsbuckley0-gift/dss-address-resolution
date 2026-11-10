@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:dss:rfc3161-tsa-anchor-provenance-signature-v1",
+  "title": "RFC 3161 TSA Trust Anchor Provenance Signature Envelope",
+  "description": "Detached Ed25519 signature envelope for a canonical RFC 3161 trust-anchor provenance attestation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["record_version", "key_id", "signature_base64"],
+  "properties": {
+    "record_version": {"const": "rfc3161-tsa-anchor-provenance-signature/v1"},
+    "key_id": {"type": "string", "minLength": 1},
+    "signature_base64": {"type": "string", "contentEncoding": "base64", "minLength": 88}
+  }
+}
