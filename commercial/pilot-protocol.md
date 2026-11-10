@@ -914,6 +914,8 @@ python -m experiments.audit_event_chain events.json \
 
 The four provenance inputs (attestation, signature envelope, governance
 trust store and minimum sequence) are required together; the governance
-trust-store pin is optional. Provenance inputs without the complete RFC 3161
-token/anchor/pin set are rejected. No real governance root or operational TSA
-material is supplied by this integration.
+trust-store pin is optional. The CLI accepts only a non-negative integer for
+the minimum sequence and rejects a negative floor during argument parsing.
+Provenance inputs without the complete RFC 3161 token/anchor/pin set are
+rejected. No real governance root or operational TSA material is supplied by
+this integration.
