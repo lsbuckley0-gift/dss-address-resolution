@@ -53,7 +53,7 @@ def _validate(data):
     if not isinstance(data, dict) or not isinstance(data.get("cases"), list):
         raise ValueError("Input must be an object containing a cases array.")
     _reject_extra_fields(
-        data, {"dataset_id", "dataset_version", "cases", "sample_requirements"}, "input"
+        data, {"dataset_id", "dataset_version", "cases", "sample_requirements", "decision_requirements"}, "input"
     )
     for field in ("dataset_id", "dataset_version"):
         value = data.get(field)
@@ -81,6 +81,32 @@ def _validate(data):
             value = requirements.get(field)
             if isinstance(value, bool) or not isinstance(value, int) or value < 1:
                 raise ValueError(f"sample_requirements.{field} must be a positive integer.")
+    decision_requirements = data.get("decision_requirements")
+    if decision_requirements is not None:
+        if not isinstance(decision_requirements, dict):
+            raise ValueError("decision_requirements must be an object.")
+        fields = {
+            "system", "max_false_accept_rate_upper_95pct",
+            "max_false_reject_rate_upper_95pct", "minimum_coverage",
+            "maximum_review_routed_rate", "maximum_median_review_seconds",
+            "minimum_review_time_measurement_coverage",
+        }
+        _reject_extra_fields(decision_requirements, fields, "decision_requirements")
+        if decision_requirements.get("system") not in SYSTEMS:
+            raise ValueError("decision_requirements.system must be baseline or dss.")
+        for field in (
+            "max_false_accept_rate_upper_95pct",
+            "max_false_reject_rate_upper_95pct",
+            "minimum_coverage",
+            "maximum_review_routed_rate",
+            "minimum_review_time_measurement_coverage",
+        ):
+            value = decision_requirements.get(field)
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 <= value <= 1:
+                raise ValueError(f"decision_requirements.{field} must be a finite number between 0 and 1.")
+        value = decision_requirements.get("maximum_median_review_seconds")
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
+            raise ValueError("decision_requirements.maximum_median_review_seconds must be a finite non-negative number.")
     seen = set()
     for index, case in enumerate(data["cases"]):
         prefix = f"cases[{index}]"
@@ -289,19 +315,96 @@ def _sample_sufficiency(data, cases):
     }
 
 
+def _decision_assessment(data, systems):
+    requirements = data.get("decision_requirements")
+    if requirements is None:
+        return {
+            "status": "NOT_CONFIGURED",
+            "system": None,
+            "criteria": {},
+            "interpretation": "No operational decision thresholds were pre-registered in the input.",
+        }
+    system = requirements["system"]
+    metrics = systems[system]
+    criteria = {}
+
+    def assess(name, observed, comparator, threshold, unavailable=False):
+        if unavailable:
+            status = "INDETERMINATE"
+        elif observed is None:
+            status = "INDETERMINATE"
+        elif comparator == "<=":
+            status = "PASS" if observed <= threshold else "FAIL"
+        else:
+            status = "PASS" if observed >= threshold else "FAIL"
+        criteria[name] = {
+            "status": status,
+            "observed": observed,
+            "comparator": comparator,
+            "threshold": threshold,
+        }
+
+    false_accept_interval = metrics["false_accept_rate_95pct_wilson"]
+    assess(
+        "false_accept_rate_upper_95pct",
+        false_accept_interval[1] if false_accept_interval is not None else None,
+        "<=", requirements["max_false_accept_rate_upper_95pct"],
+    )
+    false_reject_interval = metrics["false_reject_rate_95pct_wilson"]
+    assess(
+        "false_reject_rate_upper_95pct",
+        false_reject_interval[1] if false_reject_interval is not None else None,
+        "<=", requirements["max_false_reject_rate_upper_95pct"],
+    )
+    assess("coverage", metrics["coverage"], ">=", requirements["minimum_coverage"])
+    assess(
+        "review_routed_rate",
+        metrics["review_routed_cases"] / metrics["cases"] if metrics["cases"] else None,
+        "<=", requirements["maximum_review_routed_rate"],
+    )
+    no_review = metrics["review_routed_cases"] == 0
+    assess(
+        "median_review_seconds",
+        metrics["median_review_seconds"],
+        "<=", requirements["maximum_median_review_seconds"],
+        unavailable=not no_review and metrics["median_review_seconds"] is None,
+    )
+    assess(
+        "review_time_measurement_coverage",
+        metrics["review_time_measurement_coverage"],
+        ">=", requirements["minimum_review_time_measurement_coverage"],
+        unavailable=no_review,
+    )
+    statuses = [item["status"] for item in criteria.values()]
+    overall = "FAIL" if "FAIL" in statuses else (
+        "INDETERMINATE" if "INDETERMINATE" in statuses else "PASS"
+    )
+    return {
+        "status": overall,
+        "system": system,
+        "criteria": criteria,
+        "interpretation": (
+            "Threshold screening only. Error criteria use the upper endpoint of the reported 95% Wilson interval. "
+            "PASS does not establish representative sampling, causal superiority, statistical power, or field performance."
+        ),
+    }
+
+
 def evaluate(data):
     _validate(data)
     cases = data["cases"]
+    system_results = {system: _system_metrics(cases, system) for system in SYSTEMS}
     return {
-        "report_version": "paired-pilot-metrics/1.6",
+        "report_version": "paired-pilot-metrics/1.7",
         "dataset_id": data.get("dataset_id"),
         "dataset_version": data.get("dataset_version"),
         "case_count": len(cases),
-        "systems": {system: _system_metrics(cases, system) for system in SYSTEMS},
+        "systems": system_results,
         "paired_case_count": len(cases),
         "paired_outcome_matrix": _paired_outcome_matrix(cases),
         "stratum_metrics": _stratum_metrics(cases),
         "sample_sufficiency": _sample_sufficiency(data, cases),
+        "decision_assessment": _decision_assessment(data, system_results),
         "method_notes": [
             "A decision is automatically accepted when terminal_state is VERIFIED or CORRECTED.",
             "A false accept is any automatic acceptance whose selected candidate differs from the gold candidate, including cases labelled with no unique answer.",
@@ -312,6 +415,7 @@ def evaluate(data):
             "Stratum metrics repeat the same paired measures within each declared case stratum; omitted stratum labels are grouped explicitly as UNSPECIFIED, never silently assigned to a fault class.",
             "Stratum rates are descriptive and retain their raw denominators; small or synthetic strata do not establish statistical significance or field performance.",
             "The optional sample_sufficiency gate checks pre-registered raw-case and unique-gold counts for required strata, fails closed for UNSPECIFIED cases or observed strata omitted from the requirements, and does not establish representative sampling, statistical power, precision or field performance.",
+            "The optional decision_assessment compares pre-registered operational thresholds with observed metrics; false-accept and false-reject criteria use upper 95% Wilson bounds, and missing denominators or review-time evidence are indeterminate rather than passes.",
             "The 95% interval is the Wilson score interval; no interval is emitted when there are no automatic acceptances.",
             "Latency percentiles use nearest-rank; missing measurements are excluded and counted.",
             "Review time is summarised only for unresolved cases with a supplied review_seconds value.",
