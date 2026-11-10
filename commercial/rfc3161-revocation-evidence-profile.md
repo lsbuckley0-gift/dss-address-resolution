@@ -146,6 +146,24 @@ bytes, authenticate signatures, authorize responders, establish CRL scope or
 decide certificate status. CI also checks the schema's JSON syntax. This draft
 is not consumed by the RFC 3161 runtime API.
 
+### Signer-certificate extraction feasibility
+
+The synthetic OpenSSL integration suite now exercises
+`openssl cms -verify -binary -inform DER -noverify -signer ...` against an
+ephemeral RFC 3161 token. The test verifies that CMS signature/content
+verification succeeds and that the extracted signer certificate's SHA-256
+fingerprint equals the exact synthetic TSA certificate used to create the
+token. This is a tested extraction route for a future implementation to
+identify the token signer before certificate-specific revocation evaluation.
+
+The `-noverify` option disables CMS signer's certificate-chain validation; it
+does not mean the CMS signature/content check is skipped. The extraction
+operation must therefore remain separate from the existing
+`openssl ts -verify` path and must never replace its timestamp imprint,
+timestamping-purpose or certificate-path checks. It does not check revocation.
+The test uses ephemeral synthetic material only. See the
+[OpenSSL CMS command documentation](https://docs.openssl.org/3.0/man1/openssl-cms/).
+
 ## 9. Implementation gates
 
 No runtime support should be added until the following gates are satisfied:
