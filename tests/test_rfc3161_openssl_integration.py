@@ -418,6 +418,26 @@ ess_cert_id_chain = no
             "REVOKED_BY_TARGET_TIME_UNDER_SIGNED_CRL_ASSERTION",
         )
 
+    def test_revocation_evaluator_rejects_fabricated_timestamp_result_dictionary(self):
+        timestamp_result = self._verified_timestamp_result()
+        forged_result = dict(timestamp_result)
+        forged_result["tsa_asserted_gen_time_utc"] = "2000-01-01T00:00:00Z"
+        with self.assertRaisesRegex(ValueError, "does not match independently re-verified"):
+            verify_tsa_crl_evidence(
+                forged_result, self.tsa_pem, self.ca_pem, self._build_tsa_crl(),
+                timestamp_verification_inputs=self._timestamp_verification_inputs(),
+            )
+
+    def test_revocation_evaluator_reverifies_original_token_and_imprint(self):
+        timestamp_result = self._verified_timestamp_result()
+        inputs = self._timestamp_verification_inputs()
+        inputs["data"] = self.data + b"tampered"
+        with self.assertRaisesRegex(ValueError, "did not re-verify"):
+            verify_tsa_crl_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem, self._build_tsa_crl(),
+                timestamp_verification_inputs=inputs,
+            )
+
     def test_issuer_identity_match_does_not_replace_key_cert_sign_authority(self):
         tsa = x509.load_pem_x509_certificate(self.tsa_pem)
         issuer_without_cert_sign = (
