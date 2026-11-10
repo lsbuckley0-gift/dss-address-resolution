@@ -18,6 +18,10 @@ OUTCOME_CLASSES = (
     "FALSE_REJECT",
     "CORRECT_ABSTENTION",
 )
+STRATA = {
+    "EXACT", "FORMATTING_ONLY", "TYPO", "DUPLICATE",
+    "CONFLICTING", "INCOMPLETE", "STALE",
+}
 
 
 def _wilson(successes: int, total: int, z: float = 1.959963984540054):
@@ -64,7 +68,7 @@ def _validate(data):
             raise ValueError(f"{prefix} must be an object.")
         _reject_extra_fields(
             case,
-            {"case_id", "gold_candidate_id", "baseline", "dss"},
+            {"case_id", "gold_candidate_id", "baseline", "dss", "stratum"},
             prefix,
         )
         case_id = case.get("case_id")
@@ -73,6 +77,10 @@ def _validate(data):
         if case_id in seen:
             raise ValueError(f"Duplicate case_id: {case_id}")
         seen.add(case_id)
+        stratum = case.get("stratum", "UNSPECIFIED")
+        if stratum not in STRATA and stratum != "UNSPECIFIED":
+            allowed = ", ".join(sorted(STRATA))
+            raise ValueError(f"{prefix}.stratum must be one of: {allowed}.")
         if "gold_candidate_id" not in case:
             raise ValueError(f"{prefix}.gold_candidate_id is required; use null only when no unique answer exists.")
         gold = case["gold_candidate_id"]
@@ -134,6 +142,21 @@ def _paired_outcome_matrix(cases):
     for case in cases:
         matrix[_outcome_class(case, "baseline")][_outcome_class(case, "dss")] += 1
     return matrix
+
+
+def _stratum_metrics(cases):
+    grouped = {}
+    for case in cases:
+        label = case.get("stratum", "UNSPECIFIED")
+        grouped.setdefault(label, []).append(case)
+    return {
+        label: {
+            "case_count": len(group),
+            "systems": {system: _system_metrics(group, system) for system in SYSTEMS},
+            "paired_outcome_matrix": _paired_outcome_matrix(group),
+        }
+        for label, group in sorted(grouped.items())
+    }
 
 
 def _system_metrics(cases, system):
@@ -200,6 +223,7 @@ def evaluate(data):
         "systems": {system: _system_metrics(cases, system) for system in SYSTEMS},
         "paired_case_count": len(cases),
         "paired_outcome_matrix": _paired_outcome_matrix(cases),
+        "stratum_metrics": _stratum_metrics(cases),
         "method_notes": [
             "A decision is automatically accepted when terminal_state is VERIFIED or CORRECTED.",
             "A false accept is any automatic acceptance whose selected candidate differs from the gold candidate, including cases labelled with no unique answer.",
@@ -207,6 +231,8 @@ def evaluate(data):
             "A false reject is an unresolved decision on a case with a non-null unique gold candidate; its rate denominator is all cases with a unique gold label.",
             "A correct abstention is an unresolved decision on a case whose gold candidate is null; false-reject prevalence uses all cases as its denominator.",
             "The paired outcome matrix places each case once at the intersection of its baseline and dss outcome classes, exposing case-level trade-offs without treating the systems as independent samples.",
+            "Stratum metrics repeat the same paired measures within each declared case stratum; omitted stratum labels are grouped explicitly as UNSPECIFIED, never silently assigned to a fault class.",
+            "Stratum rates are descriptive and retain their raw denominators; small or synthetic strata do not establish statistical significance or field performance.",
             "The 95% interval is the Wilson score interval; no interval is emitted when there are no automatic acceptances.",
             "Latency percentiles use nearest-rank; missing measurements are excluded and counted.",
             "Review time is summarised only for unresolved cases with a supplied review_seconds value.",
