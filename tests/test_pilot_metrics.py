@@ -544,5 +544,27 @@ class PilotMetricsTests(unittest.TestCase):
         self.assertEqual(assessment["criteria"]["median_review_seconds"]["status"], "NOT_APPLICABLE")
         self.assertEqual(assessment["criteria"]["review_time_measurement_coverage"]["status"], "NOT_APPLICABLE")
 
+    def test_decision_assessment_enforces_coverage_and_review_routing_limits(self):
+        data = pilot_data([
+            {"case_id": "accepted", "gold_candidate_id": "A",
+             "baseline": decision("VERIFIED", "A"),
+             "dss": decision("VERIFIED", "A")},
+            {"case_id": "reviewed", "gold_candidate_id": "B",
+             "baseline": decision("VERIFIED", "B"),
+             "dss": decision("UNRESOLVED", review=15)},
+        ])
+        data["decision_requirements"] = {
+            "system": "dss", "max_false_accept_rate_upper_95pct": 1.0,
+            "max_false_reject_rate_upper_95pct": 1.0, "minimum_coverage": 0.75,
+            "maximum_review_routed_rate": 0.25, "maximum_median_review_seconds": 30,
+            "minimum_review_time_measurement_coverage": 1.0,
+        }
+        assessment = evaluate(data)["decision_assessment"]
+        self.assertEqual(assessment["criteria"]["coverage"]["observed"], 0.5)
+        self.assertEqual(assessment["criteria"]["coverage"]["status"], "FAIL")
+        self.assertEqual(assessment["criteria"]["review_routed_rate"]["observed"], 0.5)
+        self.assertEqual(assessment["criteria"]["review_routed_rate"]["status"], "FAIL")
+        self.assertEqual(assessment["status"], "FAIL")
+
 if __name__ == "__main__":
     unittest.main()
