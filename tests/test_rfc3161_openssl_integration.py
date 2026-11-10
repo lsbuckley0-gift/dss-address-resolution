@@ -454,6 +454,7 @@ ess_cert_id_chain = no
         responder_cert=None, responder_encoding=ocsp.OCSPResponderEncoding.NAME,
         included_certificates=None, this_update=None, next_update=None,
         omit_next_update=False, extra_response_extension=None,
+        certid_hash_algorithm=hashes.SHA256(),
     ):
         issuer = x509.load_pem_x509_certificate(self.ca_pem)
         tsa = cert or x509.load_pem_x509_certificate(self.tsa_pem)
@@ -469,7 +470,7 @@ ess_cert_id_chain = no
             .add_response(
                 cert=tsa,
                 issuer=issuer,
-                algorithm=hashes.SHA256(),
+                algorithm=certid_hash_algorithm,
                 cert_status=status,
                 this_update=this_update,
                 next_update=next_update,
@@ -650,6 +651,63 @@ ess_cert_id_chain = no
         )
         self.assertEqual(result["status_at_target_time"], "REVOCATION_AFTER_TARGET_REPORTED")
         self.assertEqual(result["historical_revocation_assurance"], "NOT_ESTABLISHED")
+
+    def test_issuer_signed_ocsp_responder_key_hash_is_bound_to_issuer(self):
+        timestamp_result = self._verified_timestamp_result()
+        response_der = self._build_tsa_ocsp_response(
+            responder_encoding=ocsp.OCSPResponderEncoding.HASH
+        )
+        result = verify_tsa_ocsp_evidence(
+            timestamp_result, self.tsa_pem, self.ca_pem, response_der
+        )
+        self.assertEqual(result["responder_id_type"], "KEY_HASH")
+        self.assertEqual(result["responder_authorization"], "ISSUING_CA_DIRECTLY_SIGNED")
+
+    def test_ocsp_request_cert_id_must_match_exact_tsa_certificate(self):
+        timestamp_result = self._verified_timestamp_result()
+        other_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        other_tsa = _certificate(
+            self.ca_name, self.ca_name, other_key.public_key(),
+            self.ca_key, 9104, is_ca=False,
+        )
+        request_der = self._build_tsa_ocsp_request(cert=other_tsa)
+        response_der = self._build_tsa_ocsp_response()
+        with self.assertRaisesRegex(ValueError, "request CertID does not identify"):
+            verify_tsa_ocsp_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem,
+                response_der, request_der,
+            )
+
+    def test_ocsp_nonce_requested_but_not_returned_is_rejected(self):
+        timestamp_result = self._verified_timestamp_result()
+        request_der = self._build_tsa_ocsp_request(nonce=b"nonce-required")
+        response_der = self._build_tsa_ocsp_response()
+        with self.assertRaisesRegex(ValueError, "nonce does not match"):
+            verify_tsa_ocsp_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem,
+                response_der, request_der,
+            )
+
+    def test_ocsp_cert_id_hash_algorithm_is_restricted_to_sha256(self):
+        timestamp_result = self._verified_timestamp_result()
+        response_der = self._build_tsa_ocsp_response(
+            certid_hash_algorithm=hashes.SHA1()
+        )
+        with self.assertRaisesRegex(ValueError, "only SHA-256 OCSP CertID"):
+            verify_tsa_ocsp_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem, response_der
+            )
+
+    def test_unsuccessful_ocsp_response_is_rejected(self):
+        timestamp_result = self._verified_timestamp_result()
+        response = ocsp.OCSPResponseBuilder.build_unsuccessful(
+            ocsp.OCSPResponseStatus.UNAUTHORIZED
+        )
+        response_der = response.public_bytes(serialization.Encoding.DER)
+        with self.assertRaisesRegex(ValueError, "not SUCCESSFUL"):
+            verify_tsa_ocsp_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem, response_der
+            )
 
     def test_ocsp_nonce_must_match_the_supplied_request(self):
         timestamp_result = self._verified_timestamp_result()
