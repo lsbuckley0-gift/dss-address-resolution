@@ -583,7 +583,8 @@ For multiple independently retained checkpoints, supply an ordered array
 conforming to `experiments/schemas/audit-chain-checkpoint-series-v1.schema.json`:
 
 ```bash
-python -m experiments.audit_event_chain events.json --checkpoints checkpoints.json \\\n  --checkpoint-minimum-sequence 12
+python -m experiments.audit_event_chain events.json --checkpoints checkpoints.json \
+  --checkpoint-minimum-sequence 12
 ```
 
 The series verifier requires strictly increasing event sequence numbers,
