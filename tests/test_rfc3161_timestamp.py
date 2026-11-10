@@ -76,6 +76,14 @@ class RFC3161TimestampTests(unittest.TestCase):
         run.assert_called_once()
 
     @patch("experiments.rfc3161_timestamp.subprocess.run")
+    def test_fractional_generation_time_is_rejected_not_rounded(self, run):
+        fractional = "Time stamp: Nov 10 13:00:00.125 2026 GMT\\n"
+        run.return_value = subprocess.CompletedProcess([], 0, fractional, "")
+        result = verify_rfc3161_timestamp(self.token, self.data, self.anchor, self.pin)
+        self.assertEqual(result["timestamp_verification"], "INVALID_TOKEN")
+        self.assertEqual(result["token_signature_and_path"], "NOT_VERIFIED")
+
+    @patch("experiments.rfc3161_timestamp.subprocess.run")
     def test_missing_openssl_is_unavailable_not_valid(self, run):
         run.side_effect = FileNotFoundError
         result = verify_rfc3161_timestamp(self.token, self.data, self.anchor, self.pin)
