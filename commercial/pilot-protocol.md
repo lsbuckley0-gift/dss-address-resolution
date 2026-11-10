@@ -480,3 +480,56 @@ conform to the registration-evidence schema. Exit code `0` means the digest,
 reference and *claimed* event order are internally consistent; it does not
 mean the timestamp is trusted. Exit code `1` means an integrity or claimed
 chronology check failed. Exit code `2` means the files or record are invalid.
+
+## Hash-linked audit event chain (v1)
+
+`experiments/audit_event_chain.py` supplies a deterministic SHA-256
+event-chain implementation. Each event binds its sequence number, event ID,
+event type, UTC timestamp, pseudonymous actor reference, evidence reference,
+previous event digest and its own digest. The canonical hash input is compact,
+sorted-key UTF-8 JSON with the event's own `event_sha256` field omitted.
+The first event links to a fixed all-zero genesis digest; every later event
+links to the immediately preceding event digest.
+
+The required lifecycle is:
+
+1. `REGISTRATION_FROZEN` — exactly once, and first;
+2. `OUTCOME_ACCESS` — at least once after registration; repeat this event
+   for every subsequent access, including accesses after analysis begins;
+3. `ANALYSIS_STARTED` — exactly once, after the first outcome access.
+
+Event timestamps must be strictly increasing at microsecond precision.
+Equal timestamps are rejected rather than arbitrarily ordered. The verifier
+also rejects duplicate event IDs, non-contiguous sequence numbers, unsupported
+fields, invalid UTC timestamps, incorrect previous hashes and content-digest
+mismatches. `append_audit_event` validates the existing prefix before
+returning a new event list; it does not persist or rewrite the record.
+
+Verify a retained event-chain JSON file without modifying it:
+
+```bash
+python -m experiments.audit_event_chain events.json
+```
+
+Exit code `0` means the supplied prefix is internally consistent and contains
+the required lifecycle events; `1` means a valid but incomplete prefix; `2`
+means the file or chain is invalid. The JSON Schema is
+`experiments/schemas/audit-event-chain-v1.schema.json`. The schema
+validates individual record shapes; the Python verifier enforces cross-event
+ordering and hash links.
+
+**Integrity boundary:** `VALID_PREFIX` means only that the supplied
+records link and hash correctly. It is not proof of truth, trusted time,
+identity, or immutable storage. A party able to rewrite the entire chain can
+recalculate its hashes. A deleted suffix cannot be detected from the shortened
+file alone. To make later rewriting or truncation detectable, an independently
+controlled system must retain and timestamp the chain-head digest at intervals
+(or anchor each event), and the verifier must compare the supplied chain with
+that independent anchor. That external anchor is not implemented here and is
+always reported as `NOT_VERIFIED`. The event references must resolve to
+evidence held under appropriate access controls; the hash chain does not
+authenticate those references or the actors who supplied them.
+
+This is tamper evidence for a retained sequence, not tamper-proof storage.
+Preserve the original event source separately; do not treat a regenerated
+chain as an independent witness to its own history.
