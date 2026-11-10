@@ -24,6 +24,42 @@
       "items": {
         "$ref": "#/$defs/case"
       }
+    },
+    "sample_requirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required_strata",
+        "minimum_case_count",
+        "minimum_unique_gold_case_count"
+      ],
+      "properties": {
+        "required_strata": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "EXACT",
+              "FORMATTING_ONLY",
+              "TYPO",
+              "DUPLICATE",
+              "CONFLICTING",
+              "INCOMPLETE",
+              "STALE"
+            ]
+          }
+        },
+        "minimum_case_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "minimum_unique_gold_case_count": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
     }
   },
   "$defs": {
