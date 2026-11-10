@@ -306,11 +306,28 @@ def verify_registration_chain_binding(endpoint: dict, registration_record: dict,
         events[0]["evidence_reference"]
         == registration_record["registration_event_evidence_reference"]
     )
+    first_access_event = next(
+        (event for event in events if event["event_type"] == "OUTCOME_ACCESS"),
+        None,
+    )
+    analysis_event = next(
+        (event for event in events if event["event_type"] == "ANALYSIS_STARTED"),
+        None,
+    )
+    first_access_timestamp_matches = first_access_event is not None and (
+        _timestamp(first_access_event["occurred_at_utc"], "first outcome-access timestamp")
+        == _timestamp(registration_record["outcomes_accessed_at_utc"], "outcomes_accessed_at_utc")
+    )
+    analysis_timestamp_matches = analysis_event is not None and (
+        _timestamp(analysis_event["occurred_at_utc"], "analysis-start timestamp")
+        == _timestamp(registration_record["analysis_started_at_utc"], "analysis_started_at_utc")
+    )
     binding = (
         "MATCH"
         if registration["specification_integrity"] == "MATCH"
         and event_id_matches and event_timestamp_matches
         and event_evidence_reference_matches
+        and first_access_timestamp_matches and analysis_timestamp_matches
         else "MISMATCH"
     )
     return {
@@ -318,6 +335,8 @@ def verify_registration_chain_binding(endpoint: dict, registration_record: dict,
         "registration_event_id_matches": event_id_matches,
         "registration_event_timestamp_matches": event_timestamp_matches,
         "registration_event_evidence_reference_matches": event_evidence_reference_matches,
+        "first_outcome_access_timestamp_matches": first_access_timestamp_matches,
+        "analysis_started_timestamp_matches": analysis_timestamp_matches,
         "registration_evidence": registration,
         "event_chain": chain,
         "timestamp_verification": "NOT_INDEPENDENTLY_VERIFIED",
