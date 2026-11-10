@@ -233,16 +233,11 @@ def _clopper_pearson(successes, total, confidence=0.975):
         for _ in range(64):
             mid = (low + high) / 2.0
             value = _binomial_cdf(successes if increasing else successes - 1, total, mid)
-            if increasing:
-                if value > target:
-                    low = mid
-                else:
-                    high = mid
+            # A binomial lower-tail probability decreases monotonically with p.
+            if value > target:
+                low = mid
             else:
-                if value < target:
-                    low = mid
-                else:
-                    high = mid
+                high = mid
         return (low + high) / 2.0
 
     lower = 0.0 if successes == 0 else bisect(1.0 - tail, False)
