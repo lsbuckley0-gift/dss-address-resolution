@@ -147,6 +147,8 @@ ess_cert_id_chain = no
         self.assertEqual(result["message_imprint"], "MATCH")
         self.assertEqual(result["timestamp_authentication"], "CRYPTOGRAPHICALLY_VALID_RELATIVE_TO_CALLER_ANCHOR")
         self.assertEqual(result["anchor_provenance"], "NOT_ESTABLISHED")
+        self.assertEqual(result["tsa_certificate_revocation"], "NOT_CHECKED")
+        self.assertEqual(result["historical_revocation_assurance"], "NOT_ESTABLISHED")
 
     def test_real_token_verifies_after_ephemeral_anchor_provenance(self):
         governance_private = Ed25519PrivateKey.generate()
@@ -208,6 +210,8 @@ ess_cert_id_chain = no
         )
         self.assertEqual(result["timestamp_evidence"]["timestamp_verification"], "VALID")
         self.assertEqual(result["timestamp_evidence"]["message_imprint"], "MATCH")
+        self.assertEqual(result["timestamp_evidence"]["tsa_certificate_revocation"], "NOT_CHECKED")
+        self.assertEqual(result["timestamp_evidence"]["historical_revocation_assurance"], "NOT_ESTABLISHED")
         self.assertEqual(result["governance_authentication"], "NOT_ESTABLISHED")
         self.assertEqual(result["event_truth"], "NOT_ESTABLISHED")
 
