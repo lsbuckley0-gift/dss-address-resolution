@@ -151,6 +151,10 @@ class CheckpointSignatureTests(unittest.TestCase):
                 timestamp_anchor_signature_envelope=envelope,
                 timestamp_governance_trust_store=governance_store,
                 timestamp_governance_minimum_sequence=4,
+                timestamp_governance_trust_store_pin={
+                    "sha256": trust_store_sha256(governance_store),
+                    "source_reference": "synthetic://independent-governance-pin",
+                },
             )
         self.assertEqual(result["signed_checkpoint_verification"], "MATCH")
         self.assertEqual(result["registration_timestamp_binding"], "MATCH")
@@ -159,6 +163,10 @@ class CheckpointSignatureTests(unittest.TestCase):
             "VALID_RELATIVE_TO_CALLER_GOVERNANCE_STORE",
         )
         self.assertEqual(result["governance_authentication"], "NOT_ESTABLISHED")
+        self.assertEqual(
+            result["timestamp_anchor_provenance"]["governance_trust_store_pin"]["trust_policy_pin"],
+            "MATCH",
+        )
         verify.assert_called_once()
         self.assertEqual(verify.call_args.args[1], canonical_checkpoint_payload(self.checkpoint))
 
@@ -184,6 +192,32 @@ class CheckpointSignatureTests(unittest.TestCase):
         self.assertEqual(
             result["timestamp_anchor_provenance"]["provenance_verification"],
             "INVALID_SIGNATURE",
+        )
+        self.assertEqual(result["timestamp_evidence"]["timestamp_verification"], "NOT_PERFORMED")
+        verify.assert_not_called()
+
+    def test_governance_store_pin_mismatch_prevents_timestamp_verification(self):
+        anchor, anchor_pin, attestation, envelope, governance_store = self.provenance_inputs()
+        with patch("experiments.rfc3161_timestamp.verify_rfc3161_timestamp") as verify:
+            result = verify_signed_checkpoint(
+                self.events, self.checkpoint, self.envelope, self.store,
+                at_utc="2026-11-10T10:04:00Z",
+                timestamp_token_der=b"synthetic-token",
+                timestamp_trust_anchor_pem=anchor,
+                timestamp_trust_anchor_pin=anchor_pin,
+                timestamp_anchor_attestation=attestation,
+                timestamp_anchor_signature_envelope=envelope,
+                timestamp_governance_trust_store=governance_store,
+                timestamp_governance_minimum_sequence=4,
+                timestamp_governance_trust_store_pin={
+                    "sha256": "0" * 64,
+                    "source_reference": "synthetic://wrong-governance-pin",
+                },
+            )
+        self.assertEqual(result["signed_checkpoint_verification"], "MISMATCH")
+        self.assertEqual(
+            result["timestamp_anchor_provenance"]["provenance_verification"],
+            "GOVERNANCE_POLICY_PIN_MISMATCH",
         )
         self.assertEqual(result["timestamp_evidence"]["timestamp_verification"], "NOT_PERFORMED")
         verify.assert_not_called()
