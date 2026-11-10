@@ -204,7 +204,7 @@ the baseline decision and columns classify the ∂ss decision as correct automat
 resolution, false accept, false reject or correct abstention. Every paired case
 appears in exactly one cell. This exposes case-level trade-offs—for example, a
 baseline false accept becoming a ∂ss false reject—rather than hiding them inside
-separate aggregate rates. The report format is `paired-pilot-metrics/1.8`; version 1.4 introduced sample-sufficiency screening, version 1.5 added fail-closed unclassified-case handling, version 1.6 reports observed strata omitted from pre-registration, version 1.7 adds operational threshold assessment, and version 1.8 combines the configured gates into a pilot-readiness status. The report also groups the
+separate aggregate rates. The report format is `paired-pilot-metrics/1.9`; version 1.4 introduced sample-sufficiency screening, version 1.5 added fail-closed unclassified-case handling, version 1.6 reports observed strata omitted from pre-registration, version 1.7 adds operational threshold assessment, version 1.8 combines the configured gates into a pilot-readiness status, and version 1.9 adds paired one-versus-rest outcome comparisons. The report also groups the
 same measures by case stratum. Accepted labels are `EXACT`, `FORMATTING_ONLY`,
 `TYPO`, `DUPLICATE`, `CONFLICTING`, `INCOMPLETE` and `STALE`. The input
 field is optional for compatibility; omitted labels are explicitly reported as
@@ -330,3 +330,36 @@ also prevents a sufficient sample count from concealing a breached operational
 limit. The combined status covers only these two configured gates; it is not
 full pilot approval and cannot establish representativeness, statistical
 power, legal compliance or real-world performance.
+
+
+## Paired outcome comparisons
+
+Alongside the four-by-four paired outcome matrix, report version 1.9 emits
+`paired_class_comparisons` for each outcome class, both overall and within
+each observed stratum. Each class is treated as a binary one-versus-rest
+endpoint on the same paired cases. The report gives the number of cases in
+which both systems produced that class, baseline only, ∂ss only, or neither;
+the discordant-pair count; and the marginal prevalence difference
+(∂ss minus baseline).
+
+For each class, the report also calculates a two-sided exact McNemar p-value
+from the discordant pairs. This is a paired test of equal marginal proportions
+for that one-versus-rest endpoint; it does not treat baseline and ∂ss as
+independent samples. When there are no discordant pairs, the exact p-value is
+1.0. The direction and size of the observed prevalence difference remain
+visible regardless of the p-value.
+
+The four outcome classes are mutually exclusive, so their one-versus-rest
+tests are dependent. Reported p-values are unadjusted and exploratory; they
+must not be read as four independent confirmations or as an automatic
+superiority decision. A confirmatory study must pre-register one primary
+endpoint (or a defensible multiplicity procedure), its direction, analysis
+population and handling of strata before held-out outcomes are examined.
+Stratum-level comparisons are also reported separately so an aggregate change
+does not conceal a subgroup trade-off. Small strata can produce highly
+discrete p-values and weak evidence; no inference should be made from a
+synthetic fixture.
+
+This analysis describes paired outcome changes in the evaluated cases. It
+does not establish causation, representativeness, operational utility, or
+field performance, and it does not alter the existing pilot-readiness gates.
