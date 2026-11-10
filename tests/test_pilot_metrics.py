@@ -82,6 +82,14 @@ class PilotMetricsTests(unittest.TestCase):
         )
         self.assertIn("stratum", schema["$defs"]["case"]["properties"])
         self.assertIn("UNSPECIFIED", schema["$defs"]["case"]["properties"]["stratum"]["enum"])
+        requirements = schema["properties"]["sample_requirements"]
+        self.assertEqual(
+            requirements["required"],
+            ["required_strata", "minimum_case_count", "minimum_unique_gold_case_count"],
+        )
+        self.assertTrue(requirements["properties"]["required_strata"]["uniqueItems"])
+        self.assertEqual(requirements["properties"]["minimum_case_count"]["minimum"], 1)
+        self.assertEqual(requirements["properties"]["minimum_unique_gold_case_count"]["minimum"], 1)
 
     def test_dataset_provenance_is_required(self):
         with self.assertRaisesRegex(ValueError, "dataset_id must be a non-empty string"):
