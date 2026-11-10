@@ -94,6 +94,47 @@ class TimestampAnchorProvenanceTests(unittest.TestCase):
         )
         self.assertEqual(result["provenance_verification"], "ROLLBACK_REJECTED")
 
+    def test_attestation_validity_interval_includes_issue_instant(self):
+        result = verify_timestamp_anchor_provenance(
+            self.anchor, self.attestation, self.envelope, self.store,
+            at_utc=self.attestation["issued_at_utc"], minimum_sequence=4,
+        )
+        self.assertEqual(
+            result["provenance_verification"],
+            "VALID_RELATIVE_TO_CALLER_GOVERNANCE_STORE",
+        )
+
+    def test_attestation_validity_interval_excludes_instant_before_issue(self):
+        result = verify_timestamp_anchor_provenance(
+            self.anchor, self.attestation, self.envelope, self.store,
+            at_utc="2026-10-31T23:59:59.999999Z", minimum_sequence=4,
+        )
+        self.assertEqual(result["provenance_verification"], "ATTESTATION_OUTSIDE_VALIDITY")
+        self.assertEqual(result["attestation_signature"], "NOT_PERFORMED")
+
+    def test_attestation_validity_interval_excludes_exact_expiry(self):
+        result = verify_timestamp_anchor_provenance(
+            self.anchor, self.attestation, self.envelope, self.store,
+            at_utc=self.attestation["expires_at_utc"], minimum_sequence=4,
+        )
+        self.assertEqual(result["provenance_verification"], "ATTESTATION_OUTSIDE_VALIDITY")
+        self.assertEqual(result["attestation_signature"], "NOT_PERFORMED")
+
+    def test_exact_sequence_floor_is_accepted(self):
+        result = self.verify(minimum_sequence=self.attestation["sequence"])
+        self.assertEqual(
+            result["provenance_verification"],
+            "VALID_RELATIVE_TO_CALLER_GOVERNANCE_STORE",
+        )
+        self.assertEqual(result["attestation_sequence"], result["minimum_sequence"])
+
+    def test_malformed_claimed_verification_time_rejected(self):
+        with self.assertRaisesRegex(ValueError, "at_utc"):
+            verify_timestamp_anchor_provenance(
+                self.anchor, self.attestation, self.envelope, self.store,
+                at_utc="not-a-clock", minimum_sequence=4,
+            )
+
     def test_expired_attestation_rejected(self):
         result = verify_timestamp_anchor_provenance(
             self.anchor, self.attestation, self.envelope, self.store,
