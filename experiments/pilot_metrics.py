@@ -393,12 +393,38 @@ def _decision_assessment(data, systems):
     }
 
 
+def _pilot_readiness(sample_sufficiency, decision_assessment):
+    sample_status = sample_sufficiency["status"]
+    decision_status = decision_assessment["status"]
+    statuses = (sample_status, decision_status)
+    if all(status == "NOT_CONFIGURED" for status in statuses):
+        overall = "NOT_CONFIGURED"
+    elif "INSUFFICIENT" in statuses or "FAIL" in statuses:
+        overall = "FAIL"
+    elif any(status in {"NOT_CONFIGURED", "INDETERMINATE"} for status in statuses):
+        overall = "INDETERMINATE"
+    else:
+        overall = "PASS"
+    return {
+        "status": overall,
+        "sample_sufficiency_status": sample_status,
+        "decision_assessment_status": decision_status,
+        "interpretation": (
+            "This combines only the configured count-screening and operational-threshold gates. "
+            "PASS is not full pilot approval and does not establish representative sampling, "
+            "statistical power, legal compliance or field performance."
+        ),
+    }
+
+
 def evaluate(data):
     _validate(data)
     cases = data["cases"]
     system_results = {system: _system_metrics(cases, system) for system in SYSTEMS}
+    sample_sufficiency = _sample_sufficiency(data, cases)
+    decision_assessment = _decision_assessment(data, system_results)
     return {
-        "report_version": "paired-pilot-metrics/1.7",
+        "report_version": "paired-pilot-metrics/1.8",
         "dataset_id": data.get("dataset_id"),
         "dataset_version": data.get("dataset_version"),
         "case_count": len(cases),
@@ -406,8 +432,9 @@ def evaluate(data):
         "paired_case_count": len(cases),
         "paired_outcome_matrix": _paired_outcome_matrix(cases),
         "stratum_metrics": _stratum_metrics(cases),
-        "sample_sufficiency": _sample_sufficiency(data, cases),
-        "decision_assessment": _decision_assessment(data, system_results),
+        "sample_sufficiency": sample_sufficiency,
+        "decision_assessment": decision_assessment,
+        "pilot_readiness": _pilot_readiness(sample_sufficiency, decision_assessment),
         "method_notes": [
             "A decision is automatically accepted when terminal_state is VERIFIED or CORRECTED.",
             "A false accept is any automatic acceptance whose selected candidate differs from the gold candidate, including cases labelled with no unique answer.",
@@ -419,6 +446,7 @@ def evaluate(data):
             "Stratum rates are descriptive and retain their raw denominators; small or synthetic strata do not establish statistical significance or field performance.",
             "The optional sample_sufficiency gate checks pre-registered raw-case and unique-gold counts for required strata, fails closed for UNSPECIFIED cases or observed strata omitted from the requirements, and does not establish representative sampling, statistical power, precision or field performance.",
             "The optional decision_assessment compares pre-registered operational thresholds with observed metrics; false-accept and false-reject criteria use upper 95% Wilson bounds, and missing denominators or review-time evidence are indeterminate rather than passes.",
+            "pilot_readiness combines only the configured sample-sufficiency and operational-threshold gates; it is not full pilot approval or evidence of representative field performance.",
             "The 95% interval is the Wilson score interval; no interval is emitted when there are no automatic acceptances.",
             "Latency percentiles use nearest-rank; missing measurements are excluded and counted.",
             "Review time is summarised only for unresolved cases with a supplied review_seconds value.",
