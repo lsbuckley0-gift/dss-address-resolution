@@ -16,6 +16,7 @@ from cryptography.hazmat.primitives import serialization
 
 
 _MAX_CRL_BYTES = 2 * 1024 * 1024
+_MAX_CERTIFICATE_PEM_BYTES = 2 * 1024 * 1024
 _CRL_NUMBER_OID = "2.5.29.20"
 _AUTHORITY_KEY_ID_OID = "2.5.29.35"
 _ISSUING_DISTRIBUTION_POINT_OID = "2.5.29.28"
@@ -33,6 +34,8 @@ def _sha256(data: bytes) -> str:
 def _single_pem_certificate(pem: bytes, field: str) -> x509.Certificate:
     if not isinstance(pem, bytes) or not pem:
         raise ValueError(f"{field} must be non-empty PEM bytes.")
+    if len(pem) > _MAX_CERTIFICATE_PEM_BYTES:
+        raise ValueError(f"{field} exceeds 2 MiB.")
     if (
         pem.count(b"-----BEGIN CERTIFICATE-----") != 1
         or pem.count(b"-----END CERTIFICATE-----") != 1
@@ -176,6 +179,22 @@ def verify_tsa_crl_evidence(
     ):
         raise ValueError("CRL Authority Key Identifier does not match the bound issuer key.")
 
+    has_aki_serial = crl_aki.authority_cert_serial_number is not None
+    has_aki_issuer = crl_aki.authority_cert_issuer is not None
+    if has_aki_serial != has_aki_issuer:
+        raise ValueError("CRL Authority Key Identifier issuer and serial must appear together.")
+    if has_aki_serial:
+        directory_names = [
+            name.value for name in crl_aki.authority_cert_issuer
+            if isinstance(name, x509.DirectoryName)
+        ]
+        if (
+            crl_aki.authority_cert_serial_number != issuer_certificate.serial_number
+            or not directory_names
+            or issuer_certificate.issuer not in directory_names
+        ):
+            raise ValueError("CRL Authority Key Identifier issuer/serial does not match the bound issuer.")
+
     allowed_crl_extensions = {_CRL_NUMBER_OID, _AUTHORITY_KEY_ID_OID}
     for extension in crl.extensions:
         if extension.oid.dotted_string in {
@@ -217,6 +236,8 @@ def verify_tsa_crl_evidence(
                 if extension.critical:
                     raise ValueError("revoked entry contains an unsupported critical extension.")
                 raise ValueError("revoked entry contains an unsupported extension.")
+            if extension.critical:
+                raise ValueError("CRLReason and InvalidityDate entry extensions must be non-critical.")
         try:
             reason = revoked_entry.extensions.get_extension_for_class(
                 x509.CRLReason
