@@ -60,7 +60,9 @@
       "additionalProperties": false,
       "required": [
         "certificate_der_sha256",
+        "subject_spki_sha256",
         "issuer_name_der_sha256",
+        "issuer_certificate_der_sha256",
         "issuer_spki_sha256",
         "serial_hex"
       ],
@@ -80,6 +82,14 @@
         "serial_hex": {
           "type": "string",
           "pattern": "^(0|[1-9a-f][0-9a-f]*)$"
+        },
+        "subject_spki_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "issuer_certificate_der_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
         }
       }
     },
