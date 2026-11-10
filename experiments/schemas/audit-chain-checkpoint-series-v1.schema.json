@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "∂ss external audit-chain checkpoint series",
+  "description": "Ordered collection of external checkpoint claims. The schema does not authenticate the anchor records.",
+  "type": "array",
+  "minItems": 1,
+  "items": {
+    "$ref": "audit-chain-checkpoint-v1.schema.json"
+  }
+}
