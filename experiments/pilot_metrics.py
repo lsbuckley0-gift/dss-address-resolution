@@ -328,8 +328,10 @@ def _decision_assessment(data, systems):
     metrics = systems[system]
     criteria = {}
 
-    def assess(name, observed, comparator, threshold, unavailable=False):
-        if unavailable:
+    def assess(name, observed, comparator, threshold, unavailable=False, not_applicable=False):
+        if not_applicable:
+            status = "NOT_APPLICABLE"
+        elif unavailable:
             status = "INDETERMINATE"
         elif observed is None:
             status = "INDETERMINATE"
@@ -368,14 +370,15 @@ def _decision_assessment(data, systems):
         metrics["median_review_seconds"],
         "<=", requirements["maximum_median_review_seconds"],
         unavailable=not no_review and metrics["median_review_seconds"] is None,
+        not_applicable=no_review,
     )
     assess(
         "review_time_measurement_coverage",
         metrics["review_time_measurement_coverage"],
         ">=", requirements["minimum_review_time_measurement_coverage"],
-        unavailable=no_review,
+        not_applicable=no_review,
     )
-    statuses = [item["status"] for item in criteria.values()]
+    statuses = [item["status"] for item in criteria.values() if item["status"] != "NOT_APPLICABLE"]
     overall = "FAIL" if "FAIL" in statuses else (
         "INDETERMINATE" if "INDETERMINATE" in statuses else "PASS"
     )
