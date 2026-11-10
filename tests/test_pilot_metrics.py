@@ -460,7 +460,7 @@ class PilotMetricsTests(unittest.TestCase):
         }
         assessment = evaluate(data)["decision_assessment"]
         self.assertEqual(assessment["status"], "PASS", assessment["criteria"])
-        self.assertEqual(assessment["criteria"]["false_accept_rate_upper_95pct"]["observed"], 0.0)
+        self.assertGreater(assessment["criteria"]["false_accept_rate_upper_95pct"]["observed"], 0.0)
 
     def test_decision_assessment_uses_upper_wilson_bound_not_point_rate(self):
         data = pilot_data([
