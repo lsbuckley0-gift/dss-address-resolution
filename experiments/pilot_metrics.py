@@ -35,6 +35,10 @@ def _percentile(values, percentile):
 def _validate(data):
     if not isinstance(data, dict) or not isinstance(data.get("cases"), list):
         raise ValueError("Input must be an object containing a cases array.")
+    for field in ("dataset_id", "dataset_version"):
+        value = data.get(field)
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"{field} must be a non-empty string.")
     if not data["cases"]:
         raise ValueError("Evaluation requires at least one paired case.")
     seen = set()
