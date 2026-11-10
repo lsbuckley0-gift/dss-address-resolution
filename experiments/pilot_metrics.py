@@ -279,7 +279,7 @@ def evaluate(data):
     _validate(data)
     cases = data["cases"]
     return {
-        "report_version": "paired-pilot-metrics/1.3",
+        "report_version": "paired-pilot-metrics/1.4",
         "dataset_id": data.get("dataset_id"),
         "dataset_version": data.get("dataset_version"),
         "case_count": len(cases),
