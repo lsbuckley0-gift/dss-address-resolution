@@ -148,12 +148,12 @@ def verify_tsa_crl_evidence(
     if revoked_entry is not None:
         reason = None
         for extension in revoked_entry.extensions:
+            if extension.oid.dotted_string == _INVALIDITY_DATE_OID:
+                raise ValueError("CRL InvalidityDate semantics are unsupported in this profile.")
             if extension.oid.dotted_string != _CRL_REASON_OID:
                 if extension.critical:
                     raise ValueError("revoked entry contains an unsupported critical extension.")
                 raise ValueError("revoked entry contains an unsupported extension.")
-            if extension.oid.dotted_string == _INVALIDITY_DATE_OID:
-                raise ValueError("CRL InvalidityDate semantics are unsupported in this profile.")
             if extension.critical:
                 raise ValueError("CRLReason entry extensions must be non-critical.")
         try:
