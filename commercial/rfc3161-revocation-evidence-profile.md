@@ -212,7 +212,12 @@ fail closed.
 A signed entry whose `revocationDate` is at or before the token's asserted
 `genTime` is reported as
 `REVOKED_AT_OR_BEFORE_TARGET`, with the result explicitly labelled as an
-issuer-signed revocation-time assertion. Absence from a CRL is only reported
+issuer-signed revocation-time assertion, except for `certificateHold`.
+Because a hold can be removed, that reason is reported as
+`CERTIFICATE_HOLD_REPORTED_TARGET_STATUS_NOT_ESTABLISHED`; a single CRL
+cannot establish that the hold remained in force at the target instant.
+`removeFromCRL` is rejected because delta/hold-removal history is not
+implemented. Absence from a CRL is only reported
 as `NOT_LISTED_AT_CRL_THIS_UPDATE` when the CRL interval covers the target;
 it never becomes a positive non-revocation result. Outside that interval,
 status remains `NOT_ESTABLISHED`. The CRL's `thisUpdate` is itself an
