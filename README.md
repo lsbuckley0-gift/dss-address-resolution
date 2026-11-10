@@ -41,6 +41,18 @@ See [the demonstration guide](demo/README.md) for its scope and limitations.
 
 A separate [synthetic vehicle-event collision benchmark](experiments/README.md) tests identity preservation across parcel-event sequences.
 
+
+## Core Loop Checks
+
+The original `dss_loop.py` resolver treats a normalised UK postcode as its
+outward and inward code together. The final two whitespace-separated tokens
+are parsed as the postcode; preceding tokens are the premise and street.
+Direct unit tests cover exact verification, one-edit correction, compressed
+postcode normalisation, identity conflicts, failed and inconclusive return
+checks, and the rule that a missing candidate skips operation and return check.
+Run them with the same dependency-free command above:
+`python -m unittest discover -s tests -v`.
+
 ## Commercial and Evaluation Documents
 
 - [Commercial market position](commercial/market-position.md)
