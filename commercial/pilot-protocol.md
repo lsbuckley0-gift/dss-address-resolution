@@ -940,3 +940,19 @@ certificate-identity binding, a defined evidence-time policy, and validation
 of the revocation evidence's signature, scope, freshness and applicable
 validity interval. None of those controls is implemented here. CRL/OCSP
 support is deferred rather than inferred from ordinary chain validation.
+
+
+### RFC 3161 fractional generation-time handling
+
+The RFC 3161 token's `genTime` may be represented with fractional seconds.
+The current verifier deliberately rejects such a token rather than rounding or
+truncating the asserted instant: OpenSSL's `-attime` interface accepts integer
+Unix seconds, and silently discarding a fraction would weaken the precision
+boundary between the signed timestamp and certificate-path validation.
+The parser recognises a fractional `Time stamp` field so it can return an
+explicit `INVALID_TOKEN` result explaining this limitation. Whole-second
+`genTime` values continue through normal token verification. This is a
+conservative interoperability limitation, not evidence that fractional
+RFC 3161 timestamps are invalid under the standard. Supporting them requires
+a separately reviewed method that preserves the signed instant while
+performing certificate validity checks at the correct applicable precision.
