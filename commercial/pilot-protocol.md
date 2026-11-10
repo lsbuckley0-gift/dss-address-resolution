@@ -487,9 +487,12 @@ The registration record's `registration_event_id` also allows a direct
 cross-check against the event chain. The Python API
 `verify_registration_chain_binding(endpoint, registration_record, events)`
 combines the endpoint fingerprint check with the hash-chain check and confirms
-that the record names the chain's first registration event. A matching join
-does not authenticate the timestamp or the event source; it establishes only
-that the supplied records refer to the same declared registration event.
+that the record names the chain's first registration event and that both
+records carry the same claimed registration timestamp. A mismatch in either
+event ID or timestamp fails the binding. A matching join does not authenticate
+the timestamp or the event source; it establishes only that the supplied
+records refer to the same declared registration event and agree on its claimed
+time.
 
 ## Hash-linked audit event chain (v1)
 
