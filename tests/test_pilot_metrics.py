@@ -251,6 +251,9 @@ class PilotMetricsTests(unittest.TestCase):
         )
         self.assertEqual(false_accept["exact_mcnemar_p_value_two_sided"], 0.5)
         self.assertEqual(
+            false_accept["holm_adjusted_p_value_within_four_outcome_family"], 1.0
+        )
+        self.assertEqual(
             comparisons["FALSE_REJECT"]["exact_mcnemar_p_value_two_sided"], 1.0
         )
         self.assertEqual(
@@ -273,6 +276,13 @@ class PilotMetricsTests(unittest.TestCase):
         self.assertEqual(false_accept["dss_only"], 0)
         self.assertAlmostEqual(
             false_accept["exact_mcnemar_p_value_two_sided"], 0.03125
+        )
+        self.assertAlmostEqual(
+            false_accept["holm_adjusted_p_value_within_four_outcome_family"], 0.125
+        )
+        self.assertAlmostEqual(
+            comparisons["CORRECT_ABSTENTION"]["holm_adjusted_p_value_within_four_outcome_family"],
+            0.125,
         )
 
     def test_paired_class_comparison_partitions_each_stratum(self):
