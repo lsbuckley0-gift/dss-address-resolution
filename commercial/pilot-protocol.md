@@ -449,12 +449,13 @@ claimed events:
 3. `analysis_started_at_utc`: when analysis began.
 
 The verifier rejects missing or undeclared fields, malformed/non-UTC
-timestamps, and malformed digests. It reports whether the reference and
-scientific-specification digest match, whether the claimed registration time
-precedes outcome access, and whether analysis began at or after that access.
-The intended order is strict: registration must precede outcome access, and
-analysis must have a strictly later timestamp than outcome access. Equal
-recorded timestamps are indeterminate at the available timestamp precision.
+timestamps, timestamps with more than six fractional-second digits, and
+malformed digests. The six-digit limit matches Python datetime precision and
+the audit-event chain; accepting finer precision would silently truncate it
+during parsing and could make distinct instants compare equal. It reports
+whether the reference and scientific-specification digest match, whether the
+claimed registration time precedes outcome access, and whether analysis began
+strictly after that access. Equal recorded timestamps are not ordered.
 
 **Critical boundary:** these are chronology claims, not authenticated facts.
 The verifier always emits
