@@ -18,7 +18,11 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
-from experiments.rfc3161_timestamp import trust_anchor_sha256, verify_rfc3161_timestamp
+from experiments.rfc3161_timestamp import (
+    _extract_signer_certificate_identity,
+    trust_anchor_sha256,
+    verify_rfc3161_timestamp,
+)
 from experiments.rfc3161_anchor_provenance import (
     canonical_provenance_payload,
     verify_rfc3161_timestamp_with_provenance,
@@ -80,8 +84,10 @@ class RFC3161OpenSSLIntegrationTests(unittest.TestCase):
         self.data_path.write_bytes(self.data)
 
         ca_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        self.ca_key = ca_key
         tsa_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
         ca_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Synthetic DSS Test Root")])
+        self.ca_name = ca_name
         tsa_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Synthetic DSS Test TSA")])
         ca_cert = _certificate(ca_name, ca_name, ca_key.public_key(), ca_key, 1001, is_ca=True)
         tsa_cert = _certificate(
@@ -211,6 +217,47 @@ ess_cert_id_chain = no
             extracted_identity["serial_hex"],
             format(tsa_certificate.serial_number, "x"),
         )
+
+    def test_signer_issuer_selection_uses_authority_key_identifier(self):
+        unrelated_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        unrelated_ca = _certificate(
+            self.ca_name, self.ca_name, unrelated_key.public_key(),
+            unrelated_key, 1003, is_ca=True,
+        )
+        unrelated_pem = unrelated_ca.public_bytes(serialization.Encoding.PEM)
+        identity = _extract_signer_certificate_identity(
+            self.root / "token.der",
+            self.root,
+            self.openssl,
+            10,
+            self.ca_pem + unrelated_pem,
+        )
+        expected_issuer = x509.load_pem_x509_certificate(self.ca_pem)
+        self.assertEqual(
+            identity["issuer_certificate_der_sha256"],
+            hashlib.sha256(
+                expected_issuer.public_bytes(serialization.Encoding.DER)
+            ).hexdigest(),
+        )
+
+    def test_signer_issuer_selection_rejects_ambiguous_same_key_certificates(self):
+        alternate_issuer_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        alternate_issuer_name = x509.Name([
+            x509.NameAttribute(NameOID.COMMON_NAME, "Synthetic Alternate Issuer")
+        ])
+        duplicate_subject_key = _certificate(
+            self.ca_name, alternate_issuer_name, self.ca_key.public_key(),
+            alternate_issuer_key, 1004, is_ca=True,
+        )
+        duplicate_pem = duplicate_subject_key.public_bytes(serialization.Encoding.PEM)
+        with self.assertRaisesRegex(ValueError, "could not be identified uniquely"):
+            _extract_signer_certificate_identity(
+                self.root / "token.der",
+                self.root,
+                self.openssl,
+                10,
+                self.ca_pem + duplicate_pem,
+            )
 
     def test_signer_extraction_failure_does_not_upgrade_revocation_or_invalidate_token(self):
         from unittest.mock import patch
