@@ -37,7 +37,7 @@ class TimestampAnchorProvenanceTests(unittest.TestCase):
         self.attestation = {
             "record_version": "rfc3161-tsa-anchor-provenance/v1",
             "attestation_id": "synthetic-attestation-001",
-            "authority_name": "Synthetic TSA policy authority",
+            "authority_name": "Synthetic test authority",
             "anchor_sha256": hashlib.sha256(self.anchor).hexdigest(),
             "intended_usage": "RFC3161_TSA_TRUST_ANCHOR",
             "policy_version": "rfc3161-tsa-anchor-policy/v1",
@@ -53,10 +53,10 @@ class TimestampAnchorProvenanceTests(unittest.TestCase):
             "signature_base64": base64.b64encode(signature).decode(),
         }
 
-    def verify(self, **kwargs):
+    def verify(self, minimum_sequence=4):
         return verify_timestamp_anchor_provenance(
             self.anchor, self.attestation, self.envelope, self.store,
-            at_utc="2026-11-10T13:00:00Z", minimum_sequence=4, **kwargs
+            at_utc="2026-11-10T13:00:00Z", minimum_sequence=minimum_sequence
         )
 
     def test_valid_signature_binds_exact_anchor_and_policy(self):
@@ -75,7 +75,7 @@ class TimestampAnchorProvenanceTests(unittest.TestCase):
         self.assertEqual(result["attestation_signature"], "NOT_PERFORMED")
 
     def test_modified_attestation_invalidates_signature(self):
-        changed = dict(self.attestation, authority_name="Different authority")
+        changed = dict(self.attestation, source_reference="tampered://reference")
         result = verify_timestamp_anchor_provenance(
             self.anchor, changed, self.envelope, self.store,
             at_utc="2026-11-10T13:00:00Z", minimum_sequence=4,
