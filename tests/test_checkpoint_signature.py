@@ -200,6 +200,18 @@ class CheckpointSignatureTests(unittest.TestCase):
                 timestamp_anchor_attestation=attestation,
             )
 
+    def test_provenance_bundle_without_timestamp_evidence_rejected(self):
+        _, _, attestation, envelope, governance_store = self.provenance_inputs()
+        with self.assertRaisesRegex(ValueError, "complete RFC 3161 timestamp inputs"):
+            verify_signed_checkpoint(
+                self.events, self.checkpoint, self.envelope, self.store,
+                at_utc="2026-11-10T10:04:00Z",
+                timestamp_anchor_attestation=attestation,
+                timestamp_anchor_signature_envelope=envelope,
+                timestamp_governance_trust_store=governance_store,
+                timestamp_governance_minimum_sequence=4,
+            )
+
     def test_valid_signature_and_checkpoint_binding(self):
         result = self.verify()
         self.assertEqual(result["signed_checkpoint_verification"], "MATCH")
