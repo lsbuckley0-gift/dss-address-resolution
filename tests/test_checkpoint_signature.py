@@ -516,6 +516,50 @@ class CheckpointSignatureTests(unittest.TestCase):
             "VALID_RELATIVE_TO_CALLER_GOVERNANCE_STORE",
         )
 
+    def test_cli_invalid_provenance_exits_nonzero_without_timestamp_verification(self):
+        anchor, anchor_pin, attestation, provenance_envelope, governance_store = self.provenance_inputs()
+        damaged = bytearray(base64.b64decode(provenance_envelope["signature_base64"]))
+        damaged[0] ^= 1
+        provenance_envelope["signature_base64"] = base64.b64encode(damaged).decode("ascii")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name, value in (
+                ("events.json", self.events),
+                ("checkpoint.json", self.checkpoint),
+                ("signature.json", self.envelope),
+                ("trust.json", self.store),
+                ("timestamp-pin.json", anchor_pin),
+                ("anchor-attestation.json", attestation),
+                ("anchor-signature.json", provenance_envelope),
+                ("governance-store.json", governance_store),
+            ):
+                (root / name).write_text(json.dumps(value), encoding="utf-8")
+            (root / "token.der").write_bytes(b"synthetic-token")
+            (root / "anchor.pem").write_bytes(anchor)
+            output = io.StringIO()
+            with patch("experiments.rfc3161_timestamp.verify_rfc3161_timestamp") as verify:
+                with contextlib.redirect_stdout(output):
+                    code = audit_chain_main([
+                        str(root / "events.json"),
+                        "--signed-checkpoint", str(root / "checkpoint.json"),
+                        "--signature", str(root / "signature.json"),
+                        "--trust-store", str(root / "trust.json"),
+                        "--at-utc", "2026-11-10T10:04:00Z",
+                        "--timestamp-token", str(root / "token.der"),
+                        "--timestamp-trust-anchor", str(root / "anchor.pem"),
+                        "--timestamp-trust-anchor-pin", str(root / "timestamp-pin.json"),
+                        "--timestamp-anchor-attestation", str(root / "anchor-attestation.json"),
+                        "--timestamp-anchor-signature", str(root / "anchor-signature.json"),
+                        "--timestamp-governance-trust-store", str(root / "governance-store.json"),
+                        "--timestamp-governance-minimum-sequence", "4",
+                    ])
+        report = json.loads(output.getvalue())["signed_external_checkpoint"]
+        self.assertEqual(code, 1)
+        self.assertEqual(report["signed_checkpoint_verification"], "MISMATCH")
+        self.assertEqual(report["timestamp_anchor_provenance"]["provenance_verification"], "INVALID_SIGNATURE")
+        self.assertEqual(report["timestamp_evidence"]["timestamp_verification"], "NOT_PERFORMED")
+        verify.assert_not_called()
+
     def test_cli_rejects_partial_timestamp_provenance_bundle(self):
         with contextlib.redirect_stderr(io.StringIO()):
             with self.assertRaises(SystemExit) as raised:
