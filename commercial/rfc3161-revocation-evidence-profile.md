@@ -231,10 +231,45 @@ to return `tsa_certificate_revocation: NOT_CHECKED` and
 `historical_revocation_assurance: NOT_ESTABLISHED` until an explicit
 integration contract is added. The evaluator binds the issuer certificate to
 the prior timestamp result but does not independently re-authenticate the
-trust root. OCSP remains unimplemented. Synthetic integration tests cover
+trust root. The OCSP evaluator is limited to the issuer-signed RSA/SHA-256 subset described above. Synthetic integration tests cover
 valid direct CRLs, revoked and unlisted serials, issuer mismatch, bad
 signatures, missing CRLNumber/AKI, delta CRL rejection and incompatible
 evidence intervals.
+
+### Initial issuer-signed OCSP verification slice
+
+`experiments/rfc3161_ocsp_status.py` adds a separate
+`verify_tsa_ocsp_evidence(...)` path. It binds the supplied TSA and issuer
+certificates to the prior verified timestamp identity, requires the issuer
+certificate to authorize digital signatures, and accepts exactly one
+`SingleResponse` with a SHA-256 CertID matching issuer-name hash,
+issuer-key hash and serial. The responder must be the issuing CA itself;
+delegated responder certificates are rejected. The initial signature profile
+is RSA/SHA-256 only.
+
+The response signature is verified over the BasicOCSPResponse signed bytes
+with the bound issuer key. `producedAt`, `thisUpdate` and `nextUpdate` are
+required and checked for a coherent signed interval. If an OCSP request is
+supplied, its CertID is checked and any nonce must match exactly. A response
+nonce without the corresponding request is rejected. No network retrieval is
+performed.
+
+A `good` status is reported only as
+`GOOD_AT_OCSP_THIS_UPDATE_ONLY` when the signed interval covers the target;
+historical non-revocation remains `NOT_ESTABLISHED`. `unknown` remains
+`UNKNOWN`. A signed permanent revocation time at or before the token's
+asserted `genTime` can establish a revocation-by-target assertion.
+`certificateHold` remains indeterminate because it can be removed. OCSP
+`good` is not proof that the certificate was ever issued.
+
+This evaluator, like the CRL evaluator, is opt-in and separate from
+`verify_rfc3161_timestamp(...)`; the timestamp result's top-level revocation
+fields remain `NOT_CHECKED` / `NOT_ESTABLISHED` until a deliberate integration
+contract is added. It binds the issuer certificate to the prior timestamp
+result but does not independently re-authenticate the trust root. Synthetic
+tests cover issuer-signed good/revoked/unknown responses, exact CertID binding,
+signature verification, nonce match/mismatch, delegated-responder rejection
+and the temporary-hold boundary.
 
 ## 9. Implementation gates
 
