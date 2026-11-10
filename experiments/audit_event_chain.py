@@ -167,6 +167,75 @@ def append_audit_event(
     verify_event_chain(candidate)
     return candidate
 
+
+_CHECKPOINT_FIELDS = {
+    "record_version", "registration_event_id", "checkpoint_sequence",
+    "checkpoint_event_sha256", "anchored_at_utc", "anchor_reference",
+}
+
+
+def verify_external_checkpoint(events: list, checkpoint: dict) -> dict:
+    """Compare a retained chain prefix with an independently held checkpoint claim."""
+    chain_report = verify_event_chain(events)
+    if not events:
+        raise ValueError("an external checkpoint cannot be compared with an empty event chain.")
+    if not isinstance(checkpoint, dict):
+        raise ValueError("checkpoint must be an object.")
+    missing = _CHECKPOINT_FIELDS - set(checkpoint)
+    extra = set(checkpoint) - _CHECKPOINT_FIELDS
+    if missing:
+        raise ValueError("checkpoint missing field(s): " + ", ".join(sorted(missing)))
+    if extra:
+        raise ValueError("checkpoint contains unsupported field(s): " + ", ".join(sorted(extra)))
+    if checkpoint["record_version"] != "audit-chain-checkpoint/v1":
+        raise ValueError("checkpoint record_version must be audit-chain-checkpoint/v1.")
+    for field in ("registration_event_id", "checkpoint_event_sha256", "anchor_reference"):
+        value = checkpoint[field]
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"checkpoint {field} must be a non-empty string.")
+    if not isinstance(checkpoint["checkpoint_event_sha256"], str) or not re.fullmatch(
+        r"[0-9a-f]{64}", checkpoint["checkpoint_event_sha256"]
+    ):
+        raise ValueError("checkpoint_event_sha256 must be a lowercase SHA-256 digest.")
+    sequence = checkpoint["checkpoint_sequence"]
+    if isinstance(sequence, bool) or not isinstance(sequence, int) or sequence < 0:
+        raise ValueError("checkpoint_sequence must be a non-negative integer.")
+    anchored_at = _timestamp(checkpoint["anchored_at_utc"], "anchored_at_utc")
+    if sequence >= len(events):
+        return {
+            "checkpoint_binding": "MISMATCH",
+            "checkpoint_time_order": "NOT_COMPARABLE",
+            "anchor_authentication": "NOT_VERIFIED",
+            "anchor_reference": checkpoint["anchor_reference"],
+            "interpretation": (
+                "The retained event chain does not reach the checkpoint sequence. "
+                "The checkpoint may expose truncation, but its authenticity is not verified."
+            ),
+        }
+
+    event = events[sequence]
+    registration_matches = events[0]["event_id"] == checkpoint["registration_event_id"]
+    digest_matches = event["event_sha256"] == checkpoint["checkpoint_event_sha256"]
+    event_time = _timestamp(event["occurred_at_utc"], "checkpoint event timestamp")
+    time_order = "NOT_BEFORE_EVENT" if anchored_at >= event_time else "PRECEDES_EVENT"
+    return {
+        "checkpoint_binding": (
+            "MATCH" if registration_matches and digest_matches else "MISMATCH"
+        ),
+        "registration_event_matches": registration_matches,
+        "checkpoint_digest_matches": digest_matches,
+        "checkpoint_time_order": time_order,
+        "checkpoint_sequence": sequence,
+        "anchor_authentication": "NOT_VERIFIED",
+        "anchor_reference": checkpoint["anchor_reference"],
+        "interpretation": (
+            "This comparison checks whether the retained chain contains the event "
+            "named by the checkpoint and whether the claimed anchor time is not earlier "
+            "than that event. It does not authenticate the anchor, its timestamp, or "
+            "the independent storage that is said to hold it."
+        ),
+    }
+
 def main(argv=None) -> int:
     """Verify an event-chain JSON file without modifying it."""
     import argparse
@@ -177,15 +246,23 @@ def main(argv=None) -> int:
         description="Verify a retained ∂ss registration and outcome-access event chain."
     )
     parser.add_argument("event_chain", help="JSON file containing an array of audit events")
+    parser.add_argument("--checkpoint", help="Optional independently held checkpoint JSON file")
     args = parser.parse_args(argv)
     try:
         events = json.loads(Path(args.event_chain).read_text(encoding="utf-8"))
         report = verify_event_chain(events)
+        if args.checkpoint:
+            checkpoint = json.loads(Path(args.checkpoint).read_text(encoding="utf-8"))
+            report["external_checkpoint"] = verify_external_checkpoint(events, checkpoint)
     except (OSError, json.JSONDecodeError, ValueError) as exc:
         print(f"audit event chain error: {exc}", file=sys.stderr)
         return 2
     print(json.dumps(report, indent=2, sort_keys=True))
-    return 0 if report["required_event_sequence"] == "COMPLETE" else 1
+    checkpoint_ok = (not args.checkpoint or (
+        report["external_checkpoint"]["checkpoint_binding"] == "MATCH"
+        and report["external_checkpoint"]["checkpoint_time_order"] != "PRECEDES_EVENT"
+    ))
+    return 0 if report["required_event_sequence"] == "COMPLETE" and checkpoint_ok else 1
 
 
 if __name__ == "__main__":
