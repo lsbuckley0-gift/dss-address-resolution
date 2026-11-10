@@ -342,20 +342,25 @@ which both systems produced that class, baseline only, ∂ss only, or neither;
 the discordant-pair count; and the marginal prevalence difference
 (∂ss minus baseline).
 
-For each class, the report also calculates a two-sided exact McNemar p-value
-from the discordant pairs. This is a paired test of equal marginal proportions
-for that one-versus-rest endpoint; it does not treat baseline and ∂ss as
-independent samples. When there are no discordant pairs, the exact p-value is
-1.0. The direction and size of the observed prevalence difference remain
-visible regardless of the p-value.
+For each class, the report calculates a two-sided exact McNemar p-value
+from the discordant pairs, then applies the Holm procedure across the four
+outcome-class tests within that overall or stratum-specific comparison group.
+Both unadjusted and Holm-adjusted values are reported. This is a paired test of
+equal marginal proportions for that one-versus-rest endpoint; it does not
+treat baseline and ∂ss as independent samples. When there are no discordant
+pairs, the exact p-value is 1.0. The direction and size of the observed
+prevalence difference remain visible regardless of the p-value.
 
 The four outcome classes are mutually exclusive, so their one-versus-rest
-tests are dependent. Reported p-values are unadjusted and exploratory; they
-must not be read as four independent confirmations or as an automatic
-superiority decision. The exact McNemar calculation also assumes independent
-case pairs. If multiple rows belong to the same address, household, route,
-customer or other shared unit, the independence assumption may fail; a
-cluster-aware paired method is needed, and this report does not implement one.
+tests are dependent. Holm adjustment controls the family-wise error rate
+across the four tests within each reported comparison group under arbitrary
+dependence, but the overall and separate stratum families are not adjusted
+together. The results remain exploratory and must not be read as four
+independent confirmations or as an automatic superiority decision. The exact
+McNemar calculation also assumes independent case pairs. If multiple rows
+belong to the same address, household, route, customer or other shared unit,
+the independence assumption may fail; a cluster-aware paired method is needed,
+and this report does not implement one.
 A confirmatory study must pre-register one primary endpoint (or a defensible
 multiplicity procedure), its direction, analysis population and handling of
 strata before held-out outcomes are examined. Stratum-level comparisons are
