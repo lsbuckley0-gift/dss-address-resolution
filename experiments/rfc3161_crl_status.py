@@ -101,6 +101,22 @@ def _check_identity_binding(
         if authority_key_id.key_identifier != _subject_key_identifier(issuer_certificate):
             raise ValueError("TSA certificate Authority Key Identifier does not match supplied issuer.")
     try:
+        basic_constraints = issuer_certificate.extensions.get_extension_for_class(
+            x509.BasicConstraints
+        ).value
+    except x509.ExtensionNotFound as exc:
+        raise ValueError("issuer certificate has no BasicConstraints extension.") from exc
+    if not basic_constraints.ca:
+        raise ValueError("issuer certificate is not a CA certificate.")
+    try:
+        tsa_certificate.extensions.get_extension_for_class(
+            x509.CRLDistributionPoints
+        )
+    except x509.ExtensionNotFound:
+        pass
+    else:
+        raise ValueError("TSA certificate CRL distribution-point scope matching is unsupported.")
+    try:
         key_usage = issuer_certificate.extensions.get_extension_for_class(
             x509.KeyUsage
         ).value
@@ -178,9 +194,13 @@ def verify_tsa_crl_evidence(
     if this_update is None or next_update is None or next_update <= this_update:
         raise ValueError("CRL must contain an increasing thisUpdate/nextUpdate interval.")
 
-    revoked_entry = crl.get_revoked_certificate_by_serial_number(
-        tsa_certificate.serial_number
-    )
+    matching_entries = [
+        entry for entry in crl
+        if entry.serial_number == tsa_certificate.serial_number
+    ]
+    if len(matching_entries) > 1:
+        raise ValueError("CRL contains duplicate entries for the TSA certificate serial.")
+    revoked_entry = matching_entries[0] if matching_entries else None
     revocation_time = None
     revocation_reason = None
     status_at_target = "NOT_ESTABLISHED"
