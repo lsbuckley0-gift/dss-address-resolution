@@ -115,16 +115,28 @@ def classify_checkpoint_recovery(
 
     if acceptance_receipt is None:
         checkpoint_result = verify_external_checkpoint(events, checkpoint)
+        floor_status = "NOT_SUPPLIED"
+        if minimum_sequence is not None:
+            floor_status = (
+                "MEETS_FLOOR"
+                if checkpoint["checkpoint_sequence"] >= minimum_sequence
+                else "BELOW_FLOOR"
+            )
         return {
             "recovery_status": "PREPARED_NOT_ACCEPTED",
             "checkpoint_binding": checkpoint_result["checkpoint_binding"],
             "checkpoint_sequence": checkpoint["checkpoint_sequence"],
-            "rollback_floor": "NOT_COMPARABLE",
+            "rollback_floor": floor_status,
             "acceptance_authentication": "NOT_VERIFIED",
             "storage_atomicity": "NOT_VERIFIED",
             "interpretation": (
                 "A checkpoint payload is present without its acceptance receipt. "
-                "Treat it as prepared evidence, not as an accepted state."
+                "Treat it as prepared evidence, not as an accepted state. "
+                + (
+                    "Its sequence is below the independently supplied rollback floor."
+                    if floor_status == "BELOW_FLOOR"
+                    else "The supplied rollback floor is met or was not supplied."
+                )
             ),
         }
 
