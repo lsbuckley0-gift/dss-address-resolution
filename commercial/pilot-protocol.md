@@ -617,3 +617,35 @@ operational key and no real authority is configured. Outputs deliberately say
 authenticated evidence. A subsequent stage must verify a detached signature
 over a canonical checkpoint payload and separately establish the provenance
 and governance of the trust-store source.
+
+
+## Detached Ed25519 checkpoint signatures (v1)
+
+`experiments/checkpoint_signature.py` verifies a detached Ed25519 signature
+over a domain-separated canonical JSON representation of the complete
+checkpoint record. The signature envelope is defined by
+`experiments/schemas/audit-chain-checkpoint-signature-v1.schema.json`.
+Canonicalisation uses sorted object keys, compact separators and UTF-8, with
+the fixed domain prefix `∂ss-audit-checkpoint-signature/v1` followed by a
+newline. The signature therefore binds the checkpoint's registration event,
+sequence, event digest, claimed anchor time and anchor reference together.
+
+`verify_signed_checkpoint(events, checkpoint, signature_envelope, trust_store,
+at_utc=...)` first checks the checkpoint against the retained chain, then
+resolves the key under the explicit trust-store purpose, status and validity
+policy, and finally verifies the 64-byte Ed25519 signature. Unknown, revoked,
+disabled, out-of-purpose and out-of-validity keys do not reach signature
+verification. A modified checkpoint payload invalidates its detached signature.
+
+The pinned verification dependency is recorded in
+`requirements-audit-crypto.txt`. Tests generate ephemeral keys and synthetic
+checkpoint data; no private key or operational authority is committed.
+
+**Authentication boundary:** `signature_verification: VALID` means the
+private key corresponding to the configured public key signed these exact
+canonical bytes. It does not establish who controls that key, whether the
+trust-store itself came from an independently governed source, whether the
+claimed anchor time is true, or whether the underlying event happened. The
+combined result can be `MATCH` while authority and timestamp authentication
+remain explicitly `NOT_ESTABLISHED`. Independent trust-store governance and
+a trusted time source remain external requirements.
