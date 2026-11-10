@@ -18,7 +18,6 @@ from experiments.rfc3161_revocation_identity import (
     check_tsa_issuer_identity,
     sha256,
     single_pem_certificate,
-    subject_key_identifier,
 )
 
 
@@ -101,7 +100,12 @@ def verify_tsa_ocsp_evidence(
             raise ValueError("OCSP responder name does not match the bound issuer certificate.")
         responder_id_type = "NAME"
     else:
-        if response.responder_key_hash != subject_key_identifier(issuer_certificate):
+        # RFC 6960 ResponderID byKey is the SHA-1 hash of the responder
+        # public-key BIT STRING, not the certificate's optional SKI extension.
+        expected_responder_key_hash = x509.SubjectKeyIdentifier.from_public_key(
+            issuer_certificate.public_key()
+        ).digest
+        if response.responder_key_hash != expected_responder_key_hash:
             raise ValueError("OCSP responder key hash does not match the bound issuer key.")
         responder_id_type = "KEY_HASH"
 
