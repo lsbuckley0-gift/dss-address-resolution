@@ -1006,6 +1006,15 @@ The receipt binds the checkpoint's complete canonical JSON representation
 Its timestamp must not precede the checkpoint's claimed anchor time. The
 receipt schema rejects additional fields and malformed digests.
 
+When a payload is present without a receipt, the classifier still compares
+its sequence with any supplied operator-retained minimum. The recovery state
+remains `PREPARED_NOT_ACCEPTED` because the acceptance receipt is absent,
+while `rollback_floor` independently reports `BELOW_FLOOR`,
+`MEETS_FLOOR` or `NOT_SUPPLIED`. An incomplete write must not suppress a
+known rollback warning. A receipt without its payload similarly retains its
+own sequence-floor comparison but is never treated as a reconstructed
+checkpoint.
+
 **Recovery boundary:** `CONSISTENT_UNAUTHENTICATED` is deliberately not named
 `ACCEPTED`. The classifier does not authenticate the receipt issuer, verify
 that the receipt came from an independent system, establish either storage
