@@ -55,7 +55,7 @@
       ]
     },
     "issuer_trust": {
-      "const": "BOUND_TO_PRIOR_TIMESTAMP_RESULT_NOT_REAUTHENTICATED_HERE"
+      "const": "REVERIFIED_RELATIVE_TO_CALLER_SUPPLIED_PINNED_TIMESTAMP_ANCHOR"
     },
     "crl_evidence_verification": {
       "const": "VALID_RELATIVE_TO_BOUND_ISSUER_CERTIFICATE"
