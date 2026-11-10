@@ -758,3 +758,42 @@ private key in a temporary directory. Those tests exercise a real token
 signature, message-imprint comparison, timestamping EKU/purpose and chain
 verification, but do not establish a real TSA or operational trust anchor. No
 TSA URL, private key, real certificate or authority is embedded in this repository.
+
+
+### Binding trusted time to the registration checkpoint
+
+The signed-checkpoint verifier accepts the optional RFC 3161 evidence as a
+complete set: token DER, trust-anchor PEM and trust-anchor pin JSON. Optional
+intermediate certificates are supplied as untrusted PEM. When these inputs are
+present, the token is checked against the exact same domain-separated canonical
+checkpoint bytes covered by the Ed25519 signature. A timestamp over some other
+file or an unbound event-log digest is not interchangeable.
+
+For a registration-time claim, the checkpoint must refer to event sequence
+zero (the first `REGISTRATION_FROZEN` event). The verified TSA `genTime` must
+be at or after that event's recorded UTC time and strictly before the first
+`OUTCOME_ACCESS` event. A valid token outside that interval is cryptographically
+valid evidence but fails the registration-time binding. When timestamp inputs
+are supplied, the combined signed-checkpoint result requires both the Ed25519
+signature and this pre-outcome timestamp binding to match. Without timestamp
+inputs, the result explicitly reports `registration_timestamp_binding:
+NOT_SUPPLIED`; the signature-only result retains its narrower meaning.
+
+The CLI accepts these optional arguments only as a complete set:
+
+```bash
+python -m experiments.audit_event_chain events.json \
+  --signed-checkpoint checkpoint.json \
+  --signature checkpoint-signature.json \
+  --trust-store audit-trust-store.json \
+  --at-utc 2026-11-10T10:04:00Z \
+  --timestamp-token checkpoint-timestamp-token.der \
+  --timestamp-trust-anchor tsa-root.pem \
+  --timestamp-trust-anchor-pin tsa-root-pin.json \
+  --timestamp-intermediates tsa-intermediates.pem
+```
+
+The timestamp token must have been requested for the canonical checkpoint
+payload, not for the complete JSON file with arbitrary whitespace or for a
+different representation. The caller must retain the exact token, canonical
+payload inputs, anchor bytes, pin and any intermediate certificates used.
