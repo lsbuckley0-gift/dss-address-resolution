@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 from experiments.pilot_metrics import (evaluate, _exact_mcnemar_p_value, _clopper_pearson, _paired_prevalence_difference_interval, _primary_endpoint_spec_sha256)
 from experiments.registration_evidence import verify_registration_evidence
+from experiments.audit_event_chain import append_audit_event, verify_event_chain
 
 
 def decision(state, selected=None, complete=True, latency=None, review=None):
@@ -946,6 +947,118 @@ class RegistrationEvidenceTests(unittest.TestCase):
             )
             self.assertEqual(completed.returncode, 1)
             self.assertEqual(json.loads(completed.stdout)["specification_integrity"], "MISMATCH")
+
+
+class AuditEventChainTests(unittest.TestCase):
+    def setUp(self):
+        self.events = []
+        self.events = append_audit_event(
+            self.events, event_id="evt-registration", event_type="REGISTRATION_FROZEN",
+            occurred_at_utc="2026-10-01T09:00:00Z", actor_reference="reviewer-1",
+            evidence_reference="archive://registration",
+        )
+        self.events = append_audit_event(
+            self.events, event_id="evt-access-1", event_type="OUTCOME_ACCESS",
+            occurred_at_utc="2026-10-02T09:00:00Z", actor_reference="analyst-1",
+            evidence_reference="access-log://entry-1",
+        )
+        self.events = append_audit_event(
+            self.events, event_id="evt-analysis", event_type="ANALYSIS_STARTED",
+            occurred_at_utc="2026-10-02T09:01:00Z", actor_reference="analyst-1",
+            evidence_reference="analysis-run://run-1",
+        )
+
+    def test_complete_chain_is_hash_linked_and_explicitly_unanchored(self):
+        report = verify_event_chain(self.events)
+        self.assertEqual(report["chain_integrity"], "VALID_PREFIX")
+        self.assertEqual(report["required_event_sequence"], "COMPLETE")
+        self.assertEqual(report["event_count"], 3)
+        self.assertEqual(report["external_anchor_verification"], "NOT_VERIFIED")
+        self.assertEqual(len(report["chain_head_sha256"]), 64)
+
+    def test_content_tampering_is_detected(self):
+        tampered = [dict(event) for event in self.events]
+        tampered[1]["actor_reference"] = "different-actor"
+        with self.assertRaisesRegex(ValueError, "event_sha256 does not match"):
+            verify_event_chain(tampered)
+
+    def test_reordering_is_detected(self):
+        reordered = [self.events[1], self.events[0], self.events[2]]
+        with self.assertRaisesRegex(ValueError, "non-contiguous sequence|previous_event_sha256"):
+            verify_event_chain(reordered)
+
+    def test_valid_prefix_is_not_misreported_as_complete(self):
+        report = verify_event_chain(self.events[:2])
+        self.assertEqual(report["chain_integrity"], "VALID_PREFIX")
+        self.assertEqual(report["required_event_sequence"], "INCOMPLETE")
+        self.assertFalse(report["analysis_started"])
+
+    def test_every_outcome_access_can_be_recorded_including_after_analysis(self):
+        extended = append_audit_event(
+            self.events, event_id="evt-access-2", event_type="OUTCOME_ACCESS",
+            occurred_at_utc="2026-10-02T09:02:00Z", actor_reference="analyst-1",
+            evidence_reference="access-log://entry-2",
+        )
+        report = verify_event_chain(extended)
+        self.assertEqual(report["event_count"], 4)
+        self.assertEqual(report["required_event_sequence"], "COMPLETE")
+
+    def test_analysis_cannot_precede_first_outcome_access(self):
+        invalid = []
+        invalid = append_audit_event(
+            invalid, event_id="evt-registration", event_type="REGISTRATION_FROZEN",
+            occurred_at_utc="2026-10-01T09:00:00Z", actor_reference="reviewer-1",
+            evidence_reference="archive://registration",
+        )
+        with self.assertRaisesRegex(ValueError, "ANALYSIS_STARTED requires"):
+            append_audit_event(
+                invalid, event_id="evt-analysis", event_type="ANALYSIS_STARTED",
+                occurred_at_utc="2026-10-01T10:00:00Z", actor_reference="analyst-1",
+                evidence_reference="analysis-run://run-1",
+            )
+
+    def test_registration_must_be_first_and_analysis_can_start_only_once(self):
+        with self.assertRaisesRegex(ValueError, "REGISTRATION_FROZEN"):
+            append_audit_event(
+                [], event_id="evt-access", event_type="OUTCOME_ACCESS",
+                occurred_at_utc="2026-10-01T09:00:00Z", actor_reference="analyst-1",
+                evidence_reference="access-log://entry-1",
+            )
+        with self.assertRaisesRegex(ValueError, "ANALYSIS_STARTED may occur only once"):
+            append_audit_event(
+                self.events, event_id="evt-analysis-2", event_type="ANALYSIS_STARTED",
+                occurred_at_utc="2026-10-02T09:02:00Z", actor_reference="analyst-1",
+                evidence_reference="analysis-run://run-2",
+            )
+
+    def test_equal_or_earlier_event_timestamp_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "strictly later"):
+            append_audit_event(
+                self.events, event_id="evt-late-access", event_type="OUTCOME_ACCESS",
+                occurred_at_utc="2026-10-02T09:01:00Z", actor_reference="analyst-1",
+                evidence_reference="access-log://entry-2",
+            )
+
+    def test_append_refuses_a_tampered_existing_prefix(self):
+        tampered = [dict(event) for event in self.events]
+        tampered[0]["evidence_reference"] = "changed"
+        with self.assertRaisesRegex(ValueError, "event_sha256 does not match"):
+            append_audit_event(
+                tampered, event_id="evt-extra", event_type="OUTCOME_ACCESS",
+                occurred_at_utc="2026-10-02T09:02:00Z", actor_reference="analyst-1",
+                evidence_reference="access-log://entry-2",
+            )
+
+    def test_event_chain_schema_is_strict_and_uses_utc_pattern(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        schema_path = repo_root / "experiments" / "schemas" / "audit-event-chain-v1.schema.json"
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        self.assertEqual(schema["type"], "array")
+        self.assertFalse(schema["items"]["additionalProperties"])
+        pattern = schema["items"]["properties"]["occurred_at_utc"]["pattern"]
+        self.assertIsNotNone(re.fullmatch(pattern, "2026-10-01T09:00:00Z"))
+        self.assertIsNone(re.fullmatch(pattern, "2026-10-01T09:00:00+00:00"))
+
 
 if __name__ == "__main__":
     unittest.main()
