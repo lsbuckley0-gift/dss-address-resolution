@@ -19,7 +19,7 @@ _REQUIRED_FIELDS = {
     "previous_event_sha256", "event_sha256",
 }
 _TIMESTAMP = re.compile(
-    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$"
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$"
 )
 
 
@@ -166,3 +166,28 @@ def append_audit_event(
     candidate = [*events, record]
     verify_event_chain(candidate)
     return candidate
+
+def main(argv=None) -> int:
+    """Verify an event-chain JSON file without modifying it."""
+    import argparse
+    from pathlib import Path
+    import sys
+
+    parser = argparse.ArgumentParser(
+        description="Verify a retained ∂ss registration and outcome-access event chain."
+    )
+    parser.add_argument("event_chain", help="JSON file containing an array of audit events")
+    args = parser.parse_args(argv)
+    try:
+        events = json.loads(Path(args.event_chain).read_text(encoding="utf-8"))
+        report = verify_event_chain(events)
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
+        print(f"audit event chain error: {exc}", file=sys.stderr)
+        return 2
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return 0 if report["required_event_sequence"] == "COMPLETE" else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+
