@@ -252,7 +252,10 @@ ess_cert_id_chain = no
         target = datetime.fromisoformat(
             timestamp_result["tsa_asserted_gen_time_utc"].replace("Z", "+00:00")
         )
-        crl_der = self._build_tsa_crl(revoked_at=target - timedelta(hours=1))
+        crl_der = self._build_tsa_crl(
+            revoked_at=target - timedelta(hours=1),
+            this_update=(target - timedelta(minutes=30)).replace(tzinfo=None),
+        )
         result = verify_tsa_crl_evidence(
             timestamp_result, self.tsa_pem, self.ca_pem, crl_der
         )
