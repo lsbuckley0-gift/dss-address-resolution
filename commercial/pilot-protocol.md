@@ -583,7 +583,7 @@ For multiple independently retained checkpoints, supply an ordered array
 conforming to `experiments/schemas/audit-chain-checkpoint-series-v1.schema.json`:
 
 ```bash
-python -m experiments.audit_event_chain events.json --checkpoints checkpoints.json
+python -m experiments.audit_event_chain events.json --checkpoints checkpoints.json \\\n  --checkpoint-minimum-sequence 12
 ```
 
 The series verifier requires strictly increasing event sequence numbers,
@@ -596,10 +596,20 @@ event index, not a requirement to anchor every event. The verifier therefore
 checks the order and bindings of the checkpoints actually supplied; it does
 not establish that intermediate checkpoints were never omitted, that this is
 the latest series, or that an operator's retained history cannot be rolled
-back. A retained external high-water mark and its atomic, rollback-resistant
-update remain deployment responsibilities. If that state is unavailable or
-cannot be authenticated, the verifier cannot infer a safe floor from the
-presented checkpoint list. It still cannot authenticate the authority behind
+back. A caller may supply `minimum_sequence` to the API or
+`--checkpoint-minimum-sequence` to the CLI. The newest supplied checkpoint
+must be at or beyond that non-negative event-sequence floor; otherwise the
+series reports `rollback_floor: BELOW_FLOOR` and fails. Equality is accepted.
+When no floor is supplied, the result says `rollback_floor: NOT_SUPPLIED`.
+This detects a stale presented series only relative to the floor the operator
+provides; it cannot prove that the floor itself is genuine.
+
+The floor must be retained independently of the checkpoint files, updated
+atomically with the operator's acceptance record, and protected against
+rollback. If that state is unavailable or cannot be authenticated, the
+verifier cannot infer a safe floor from the presented checkpoint list. This
+is an operator-supplied precondition, not durable state managed by this
+library. The verifier still cannot authenticate the authority behind
 any entry.
 
 
