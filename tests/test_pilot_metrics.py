@@ -857,7 +857,7 @@ class RegistrationEvidenceTests(unittest.TestCase):
         result = verify_registration_evidence(self.endpoint, self.record)
         self.assertEqual(result["specification_integrity"], "MATCH")
         self.assertEqual(result["claimed_chronology"], "REGISTERED_BEFORE_OUTCOME_ACCESS")
-        self.assertEqual(result["claimed_analysis_order"], "ANALYSIS_AT_OR_AFTER_OUTCOME_ACCESS")
+        self.assertEqual(result["claimed_analysis_order"], "ANALYSIS_STRICTLY_AFTER_OUTCOME_ACCESS")
         self.assertEqual(result["timestamp_verification"], "NOT_INDEPENDENTLY_VERIFIED")
 
     def test_changed_endpoint_specification_fails_integrity(self):
@@ -880,7 +880,7 @@ class RegistrationEvidenceTests(unittest.TestCase):
     def test_analysis_before_outcome_access_is_flagged(self):
         record = dict(self.record, analysis_started_at_utc="2026-10-02T08:59:59Z")
         result = verify_registration_evidence(self.endpoint, record)
-        self.assertEqual(result["claimed_analysis_order"], "ANALYSIS_BEFORE_OUTCOME_ACCESS")
+        self.assertEqual(result["claimed_analysis_order"], "ANALYSIS_NOT_STRICTLY_AFTER_OUTCOME_ACCESS")
 
     def test_non_utc_or_malformed_timestamp_is_rejected(self):
         for value in ("2026-10-01T09:00:00+00:00", "2026-02-30T09:00:00Z", "yesterday"):
@@ -909,6 +909,12 @@ class RegistrationEvidenceTests(unittest.TestCase):
         self.assertIsNotNone(re.fullmatch(pattern, "2026-10-01T09:00:00Z"))
         self.assertIsNotNone(re.fullmatch(pattern, "2026-10-01T09:00:00.123Z"))
         self.assertIsNone(re.fullmatch(pattern, "2026-10-01T09:00:00+00:00"))
+
+
+    def test_analysis_with_same_recorded_timestamp_as_access_is_not_ordered(self):
+        record = dict(self.record, analysis_started_at_utc="2026-10-02T09:00:00Z")
+        result = verify_registration_evidence(self.endpoint, record)
+        self.assertEqual(result["claimed_analysis_order"], "ANALYSIS_NOT_STRICTLY_AFTER_OUTCOME_ACCESS")
 
 if __name__ == "__main__":
     unittest.main()
