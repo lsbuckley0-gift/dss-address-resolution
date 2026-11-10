@@ -53,6 +53,18 @@
         },
         "dss": {
           "$ref": "#/$defs/decision"
+        },
+        "stratum": {
+          "type": "string",
+          "enum": [
+            "EXACT",
+            "FORMATTING_ONLY",
+            "TYPO",
+            "DUPLICATE",
+            "CONFLICTING",
+            "INCOMPLETE",
+            "STALE"
+          ]
         }
       }
     },
