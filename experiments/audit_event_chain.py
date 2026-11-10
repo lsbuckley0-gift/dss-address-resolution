@@ -375,7 +375,21 @@ def main(argv=None) -> int:
     parser.add_argument("--timestamp-anchor-attestation", help="Signed RFC 3161 trust-anchor provenance attestation JSON")
     parser.add_argument("--timestamp-anchor-signature", help="Detached signature envelope for the trust-anchor provenance attestation")
     parser.add_argument("--timestamp-governance-trust-store", help="Explicit governance trust-store JSON for timestamp-anchor provenance")
-    parser.add_argument("--timestamp-governance-minimum-sequence", type=int, help="Operator-maintained anti-rollback floor for timestamp-anchor provenance")
+
+    def non_negative_integer(value):
+        try:
+            parsed = int(value)
+        except ValueError as exc:
+            raise argparse.ArgumentTypeError("must be a non-negative integer") from exc
+        if parsed < 0:
+            raise argparse.ArgumentTypeError("must be a non-negative integer")
+        return parsed
+
+    parser.add_argument(
+        "--timestamp-governance-minimum-sequence",
+        type=non_negative_integer,
+        help="Operator-maintained non-negative anti-rollback floor for timestamp-anchor provenance",
+    )
     parser.add_argument("--timestamp-governance-trust-store-pin", help="Optional out-of-band digest pin for the governance trust store")
     args = parser.parse_args(argv)
     signed_options = (args.signature, args.trust_store, args.at_utc)
