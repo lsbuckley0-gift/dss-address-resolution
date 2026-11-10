@@ -7,6 +7,7 @@
   "required": [
     "record_version",
     "registration_reference",
+    "registration_event_id",
     "endpoint_spec_sha256",
     "registered_at_utc",
     "outcomes_accessed_at_utc",
@@ -18,6 +19,10 @@
       "const": "registration-evidence/v1"
     },
     "registration_reference": {
+      "type": "string",
+      "minLength": 1
+    },
+    "registration_event_id": {
       "type": "string",
       "minLength": 1
     },
