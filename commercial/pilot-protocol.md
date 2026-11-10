@@ -919,3 +919,23 @@ the minimum sequence and rejects a negative floor during argument parsing.
 Provenance inputs without the complete RFC 3161 token/anchor/pin set are
 rejected. No real governance root or operational TSA material is supplied by
 this integration.
+
+### TSA certificate revocation boundary
+
+The RFC 3161 verifier evaluates the TSA certificate path at the token's
+asserted `genTime` using OpenSSL `-attime`. This is a historical
+certificate-validity/path check against the caller-supplied trust anchor; it
+is not a historical revocation check. The verifier accepts no CRL or OCSP
+response inputs and does not request revocation checking. It therefore reports
+`tsa_certificate_revocation: NOT_CHECKED` and
+`historical_revocation_assurance: NOT_ESTABLISHED` for every result,
+including a cryptographically valid token.
+
+A `VALID` timestamp result must not be interpreted as proof that the TSA
+signing certificate was unrevoked at `genTime`, nor as proof of its
+current revocation status. Establishing historical revocation would require
+separately authenticated revocation evidence, an explicit issuer/serial and
+certificate-identity binding, a defined evidence-time policy, and validation
+of the revocation evidence's signature, scope, freshness and applicable
+validity interval. None of those controls is implemented here. CRL/OCSP
+support is deferred rather than inferred from ordinary chain validation.
