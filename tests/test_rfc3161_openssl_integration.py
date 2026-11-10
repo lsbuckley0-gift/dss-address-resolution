@@ -431,7 +431,11 @@ ess_cert_id_chain = no
         config = (self.root / "tsa.cnf").read_text(encoding="utf-8")
         config = config.replace("tsa.pem", "tsa-dp.pem").replace(
             "tsa.key", "tsa-dp.key"
-        ).replace("serial", "serial-dp")
+        )
+        config = config.replace(
+            f"serial = {self.root / 'serial'}",
+            f"serial = {self.root / 'serial-dp'}",
+        )
         (self.root / "tsa-dp.cnf").write_text(config, encoding="utf-8")
         (self.root / "serial-dp").write_text("01\n", encoding="ascii")
         request = self.root / "request-dp.tsq"
