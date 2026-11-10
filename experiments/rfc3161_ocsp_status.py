@@ -25,12 +25,13 @@ from experiments.rfc3161_revocation_identity import (
 _MAX_OCSP_RESPONSE_BYTES = 2 * 1024 * 1024
 _MAX_OCSP_REQUEST_BYTES = 1024 * 1024
 _RSA_SHA256_OID = "1.2.840.113549.1.1.11"
+_OCSP_NONCE_OID = "1.3.6.1.5.5.7.48.1.2"
 
 
 def _nonce(extensions, field: str) -> bytes | None:
     found = None
     for extension in extensions:
-        if extension.oid == x509.oid.ExtensionOID.OCSP_NONCE:
+        if extension.oid.dotted_string == _OCSP_NONCE_OID:
             if extension.critical:
                 raise ValueError(f"{field} OCSP nonce must be non-critical.")
             if found is not None:
