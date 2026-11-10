@@ -372,16 +372,37 @@ def main(argv=None) -> int:
     parser.add_argument("--timestamp-trust-anchor", help="Caller-supplied timestamp CA trust-anchor PEM")
     parser.add_argument("--timestamp-trust-anchor-pin", help="Out-of-band digest pin for the exact trust-anchor PEM bytes")
     parser.add_argument("--timestamp-intermediates", help="Optional untrusted TSA/intermediate certificate PEM bundle")
+    parser.add_argument("--timestamp-anchor-attestation", help="Signed RFC 3161 trust-anchor provenance attestation JSON")
+    parser.add_argument("--timestamp-anchor-signature", help="Detached signature envelope for the trust-anchor provenance attestation")
+    parser.add_argument("--timestamp-governance-trust-store", help="Explicit governance trust-store JSON for timestamp-anchor provenance")
+    parser.add_argument("--timestamp-governance-minimum-sequence", type=int, help="Operator-maintained anti-rollback floor for timestamp-anchor provenance")
+    parser.add_argument("--timestamp-governance-trust-store-pin", help="Optional out-of-band digest pin for the governance trust store")
     args = parser.parse_args(argv)
     signed_options = (args.signature, args.trust_store, args.at_utc)
     timestamp_options = (args.timestamp_token, args.timestamp_trust_anchor, args.timestamp_trust_anchor_pin)
+    provenance_options = (
+        args.timestamp_anchor_attestation,
+        args.timestamp_anchor_signature,
+        args.timestamp_governance_trust_store,
+        args.timestamp_governance_minimum_sequence,
+    )
     if args.signed_checkpoint and not all(signed_options):
         parser.error("--signed-checkpoint requires --signature, --trust-store and --at-utc")
     if any(timestamp_options) and not all(timestamp_options):
         parser.error("--timestamp-token, --timestamp-trust-anchor and --timestamp-trust-anchor-pin are required together")
     if args.timestamp_intermediates and not all(timestamp_options):
         parser.error("--timestamp-intermediates requires all timestamp verification inputs")
-    if not args.signed_checkpoint and (any(signed_options) or args.trust_store_pin or any(timestamp_options) or args.timestamp_intermediates):
+    if any(provenance_options) and not all(provenance_options):
+        parser.error("--timestamp-anchor-attestation, --timestamp-anchor-signature, --timestamp-governance-trust-store and --timestamp-governance-minimum-sequence are required together")
+    if args.timestamp_governance_trust_store_pin and not all(provenance_options):
+        parser.error("--timestamp-governance-trust-store-pin requires the complete timestamp provenance inputs")
+    if any(provenance_options) and not all(timestamp_options):
+        parser.error("timestamp provenance inputs require the complete RFC 3161 timestamp inputs")
+    if not args.signed_checkpoint and (
+        any(signed_options) or args.trust_store_pin or any(timestamp_options)
+        or args.timestamp_intermediates or any(provenance_options)
+        or args.timestamp_governance_trust_store_pin
+    ):
         parser.error("signed-checkpoint and timestamp verification options require --signed-checkpoint")
     try:
         events = json.loads(Path(args.event_chain).read_text(encoding="utf-8"))
@@ -417,6 +438,22 @@ def main(argv=None) -> int:
                 Path(args.timestamp_intermediates).read_bytes()
                 if args.timestamp_intermediates else None
             )
+            timestamp_anchor_attestation = (
+                json.loads(Path(args.timestamp_anchor_attestation).read_text(encoding="utf-8"))
+                if args.timestamp_anchor_attestation else None
+            )
+            timestamp_anchor_signature_envelope = (
+                json.loads(Path(args.timestamp_anchor_signature).read_text(encoding="utf-8"))
+                if args.timestamp_anchor_signature else None
+            )
+            timestamp_governance_trust_store = (
+                json.loads(Path(args.timestamp_governance_trust_store).read_text(encoding="utf-8"))
+                if args.timestamp_governance_trust_store else None
+            )
+            timestamp_governance_trust_store_pin = (
+                json.loads(Path(args.timestamp_governance_trust_store_pin).read_text(encoding="utf-8"))
+                if args.timestamp_governance_trust_store_pin else None
+            )
             report["signed_external_checkpoint"] = verify_signed_checkpoint(
                 events, checkpoint, signature, trust_store, at_utc=args.at_utc,
                 trust_store_pin=trust_store_pin,
@@ -424,6 +461,11 @@ def main(argv=None) -> int:
                 timestamp_trust_anchor_pem=timestamp_trust_anchor_pem,
                 timestamp_trust_anchor_pin=timestamp_trust_anchor_pin,
                 timestamp_intermediates_pem=timestamp_intermediates_pem,
+                timestamp_anchor_attestation=timestamp_anchor_attestation,
+                timestamp_anchor_signature_envelope=timestamp_anchor_signature_envelope,
+                timestamp_governance_trust_store=timestamp_governance_trust_store,
+                timestamp_governance_minimum_sequence=args.timestamp_governance_minimum_sequence,
+                timestamp_governance_trust_store_pin=timestamp_governance_trust_store_pin,
             )
     except (OSError, json.JSONDecodeError, ValueError) as exc:
         print(f"audit event chain error: {exc}", file=sys.stderr)
