@@ -430,3 +430,40 @@ archived pre-registration record. The digest establishes content identity only;
 it does not establish when the record was created or whether it was concealed
 from analysts. Chronology still requires a trusted external timestamp or
 registration archive.
+
+## Registration evidence verifier (v1)
+
+`experiments/registration_evidence.py` provides an offline comparison between
+a declared primary endpoint and a separate registration evidence record. The
+record schema is
+`experiments/schemas/registration-evidence-v1.schema.json`. It binds the
+registration reference to the endpoint's SHA-256 specification fingerprint
+and records three distinct claimed events:
+
+1. `registered_at_utc`: when the frozen endpoint record was registered;
+2. `outcomes_accessed_at_utc`: when held-out outcomes were first accessed;
+3. `analysis_started_at_utc`: when analysis began.
+
+The verifier rejects missing or undeclared fields, malformed/non-UTC
+timestamps, and malformed digests. It reports whether the reference and
+scientific-specification digest match, whether the claimed registration time
+precedes outcome access, and whether analysis began at or after that access.
+The intended order is strict for registration: registration must precede
+outcome access. Analysis may begin at the same recorded instant as access.
+
+**Critical boundary:** these are chronology claims, not authenticated facts.
+The verifier always emits
+`timestamp_verification: NOT_INDEPENDENTLY_VERIFIED`. A timestamp-shaped
+string and an evidence reference do not authenticate a trusted timestamp
+authority, prove that the record existed at that time, establish who could
+read the outcomes, or prove that the access log is append-only. Those require
+independent timestamp/signature and access-control evidence, which this
+offline verifier does not implement. Do not upgrade its result to
+`VERIFIED`.
+
+This separation protects the study from a circular audit: reading the held-out
+outcomes is itself an event that must be recorded, not an invisible step that
+can be retrospectively moved to suit the result. The registration record must
+be preserved independently before outcome access; the outcome-access event
+must be recorded independently of the analysis report. A later report may
+compare those records, but must not rewrite them.
