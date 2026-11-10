@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import shutil
 import subprocess
+import time
 import tempfile
 import unittest
 
@@ -16,6 +17,7 @@ from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509 import ocsp
+from cryptography.x509.oid import ObjectIdentifier
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
@@ -393,6 +395,36 @@ ess_cert_id_chain = no
                 self._build_tsa_crl(delta=True),
             )
 
+    def test_crl_revocation_after_token_time_is_not_backdated(self):
+        timestamp_result = self._verified_timestamp_result()
+        target = datetime.fromisoformat(
+            timestamp_result["tsa_asserted_gen_time_utc"].replace("Z", "+00:00")
+        )
+        crl_der = self._build_tsa_crl(
+            revoked_at=(target + timedelta(hours=1)),
+            this_update=(target + timedelta(hours=2)).replace(tzinfo=None),
+        )
+        result = verify_tsa_crl_evidence(
+            timestamp_result, self.tsa_pem, self.ca_pem, crl_der
+        )
+        self.assertEqual(result["status_at_target_time"], "REVOCATION_AFTER_TARGET_REPORTED")
+        self.assertEqual(result["historical_revocation_assurance"], "NOT_ESTABLISHED")
+
+    def test_stale_unlisted_crl_is_not_assessed(self):
+        timestamp_result = self._verified_timestamp_result()
+        target = datetime.fromisoformat(
+            timestamp_result["tsa_asserted_gen_time_utc"].replace("Z", "+00:00")
+        )
+        crl_der = self._build_tsa_crl(
+            this_update=(target - timedelta(days=2)).replace(tzinfo=None),
+            next_update=(target - timedelta(days=1)).replace(tzinfo=None),
+        )
+        result = verify_tsa_crl_evidence(
+            timestamp_result, self.tsa_pem, self.ca_pem, crl_der
+        )
+        self.assertEqual(result["status_at_target_time"], "NOT_ESTABLISHED")
+        self.assertEqual(result["historical_revocation_assurance"], "NOT_ESTABLISHED")
+
     def test_unlisted_certificate_outside_crl_interval_is_not_assessed(self):
         timestamp_result = self._verified_timestamp_result()
         now = datetime.now(timezone.utc).replace(microsecond=0, tzinfo=None)
@@ -421,12 +453,16 @@ ess_cert_id_chain = no
         revocation_reason=None, nonce=None, cert=None, signer_key=None,
         responder_cert=None, responder_encoding=ocsp.OCSPResponderEncoding.NAME,
         included_certificates=None, this_update=None, next_update=None,
+        omit_next_update=False, extra_response_extension=None,
     ):
         issuer = x509.load_pem_x509_certificate(self.ca_pem)
         tsa = cert or x509.load_pem_x509_certificate(self.tsa_pem)
         now = datetime.now(timezone.utc).replace(microsecond=0, tzinfo=None)
         this_update = this_update or (now - timedelta(days=1))
-        next_update = next_update or (now + timedelta(days=1))
+        if not omit_next_update:
+            next_update = next_update or (now + timedelta(days=1))
+        else:
+            next_update = None
         responder_cert = responder_cert or issuer
         builder = (
             ocsp.OCSPResponseBuilder()
@@ -444,6 +480,8 @@ ess_cert_id_chain = no
         )
         if nonce is not None:
             builder = builder.add_extension(x509.OCSPNonce(nonce), critical=False)
+        if extra_response_extension is not None:
+            builder = builder.add_extension(extra_response_extension, critical=False)
         if included_certificates is not None:
             builder = builder.certificates(included_certificates)
         response = builder.sign(
@@ -548,6 +586,70 @@ ess_cert_id_chain = no
             verify_tsa_ocsp_evidence(
                 timestamp_result, self.tsa_pem, self.ca_pem, response_der
             )
+
+    def test_ocsp_future_dated_status_interval_is_rejected(self):
+        timestamp_result = self._verified_timestamp_result()
+        now = datetime.now(timezone.utc).replace(microsecond=0, tzinfo=None)
+        response_der = self._build_tsa_ocsp_response(
+            this_update=now + timedelta(days=1),
+            next_update=now + timedelta(days=2),
+        )
+        with self.assertRaisesRegex(ValueError, "producedAt must fall within"):
+            verify_tsa_ocsp_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem, response_der
+            )
+
+    def test_ocsp_stale_status_interval_is_rejected(self):
+        timestamp_result = self._verified_timestamp_result()
+        now = datetime.now(timezone.utc).replace(microsecond=0, tzinfo=None)
+        response_der = self._build_tsa_ocsp_response(
+            this_update=now - timedelta(days=2),
+            next_update=now - timedelta(days=1),
+        )
+        with self.assertRaisesRegex(ValueError, "producedAt must fall within"):
+            verify_tsa_ocsp_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem, response_der
+            )
+
+    def test_ocsp_requires_next_update(self):
+        timestamp_result = self._verified_timestamp_result()
+        response_der = self._build_tsa_ocsp_response(omit_next_update=True)
+        with self.assertRaisesRegex(ValueError, "increasing thisUpdate/nextUpdate"):
+            verify_tsa_ocsp_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem, response_der
+            )
+
+    def test_ocsp_unknown_response_extension_is_rejected(self):
+        timestamp_result = self._verified_timestamp_result()
+        unknown = x509.UnrecognizedExtension(
+            ObjectIdentifier("1.2.3.4.5.6"), b"\\x05\\x00"
+        )
+        response_der = self._build_tsa_ocsp_response(
+            extra_response_extension=unknown
+        )
+        with self.assertRaisesRegex(ValueError, "unsupported extension"):
+            verify_tsa_ocsp_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem, response_der
+            )
+
+    def test_ocsp_revocation_after_token_time_is_not_backdated(self):
+        timestamp_result = self._verified_timestamp_result()
+        target = datetime.fromisoformat(
+            timestamp_result["tsa_asserted_gen_time_utc"].replace("Z", "+00:00")
+        )
+        time.sleep(2)
+        response_der = self._build_tsa_ocsp_response(
+            status=ocsp.OCSPCertStatus.REVOKED,
+            revocation_time=(target + timedelta(seconds=1)).replace(tzinfo=None),
+            revocation_reason=x509.ReasonFlags.key_compromise,
+            this_update=(target + timedelta(seconds=1)).replace(tzinfo=None),
+            next_update=(target + timedelta(days=1)).replace(tzinfo=None),
+        )
+        result = verify_tsa_ocsp_evidence(
+            timestamp_result, self.tsa_pem, self.ca_pem, response_der
+        )
+        self.assertEqual(result["status_at_target_time"], "REVOCATION_AFTER_TARGET_REPORTED")
+        self.assertEqual(result["historical_revocation_assurance"], "NOT_ESTABLISHED")
 
     def test_ocsp_nonce_must_match_the_supplied_request(self):
         timestamp_result = self._verified_timestamp_result()
