@@ -60,6 +60,8 @@ class RFC3161TimestampTests(unittest.TestCase):
         self.assertEqual(result["historical_revocation_assurance"], "NOT_ESTABLISHED")
         self.assertEqual(result["tsa_certificate_revocation"], "NOT_CHECKED")
         self.assertEqual(result["historical_revocation_assurance"], "NOT_ESTABLISHED")
+        self.assertEqual(result["tsa_certificate_revocation"], "NOT_CHECKED")
+        self.assertEqual(result["historical_revocation_assurance"], "NOT_ESTABLISHED")
         run.assert_not_called()
 
     @patch("experiments.rfc3161_timestamp.subprocess.run")
