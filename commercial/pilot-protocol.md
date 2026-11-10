@@ -834,3 +834,12 @@ anchor is embedded. Synthetic keys in tests are ephemeral and are not
 operational trust material. The attestation verifier is a separate preflight;
 it does not silently upgrade the RFC 3161 verifier's trust anchor or claim
 that the attestation's governance root has been independently established.
+
+
+The API `verify_rfc3161_timestamp_with_provenance(...)` composes these
+stages in the safe order: it verifies the signed provenance attestation first,
+and does not invoke OpenSSL timestamp verification unless that preflight
+returns `VALID_RELATIVE_TO_CALLER_GOVERNANCE_STORE`. The composite result
+retains `governance_authentication: NOT_ESTABLISHED` even when both stages
+pass. The detached signature envelope has its own strict schema at
+`experiments/schemas/rfc3161-tsa-anchor-provenance-signature-v1.schema.json`.
