@@ -206,6 +206,8 @@ def verify_tsa_ocsp_evidence(
             status_at_target = "REVOCATION_AFTER_TARGET_REPORTED"
 
     return {
+        "result_version": "rfc3161-tsa-revocation-verification-result/v1-draft",
+        "evidence_type": "OCSP_BASIC_RESPONSE",
         "ocsp_evidence_verification": "VALID_RELATIVE_TO_BOUND_ISSUER_CERTIFICATE",
         "tsa_certificate_identity_binding": "MATCH",
         "ocsp_signature": "VALID",
