@@ -193,6 +193,7 @@ ess_cert_id_chain = no
         self, *, revoked_at=None, signer_key=None, include_number=True,
         include_aki=True, delta=False, this_update=None, next_update=None,
         revocation_reason=None, duplicate_target_entry=False,
+        crl_aki_issuer_serial=None,
     ):
         issuer = x509.load_pem_x509_certificate(self.ca_pem)
         now = datetime.now(timezone.utc).replace(microsecond=0, tzinfo=None)
@@ -207,12 +208,19 @@ ess_cert_id_chain = no
         if include_number:
             builder = builder.add_extension(x509.CRLNumber(7), critical=False)
         if include_aki:
-            builder = builder.add_extension(
-                x509.AuthorityKeyIdentifier.from_issuer_public_key(
+            if crl_aki_issuer_serial is None:
+                crl_aki = x509.AuthorityKeyIdentifier.from_issuer_public_key(
                     self.ca_key.public_key()
-                ),
-                critical=False,
-            )
+                )
+            else:
+                crl_aki = x509.AuthorityKeyIdentifier(
+                    x509.SubjectKeyIdentifier.from_public_key(
+                        self.ca_key.public_key()
+                    ).digest,
+                    [x509.DirectoryName(issuer.issuer)],
+                    crl_aki_issuer_serial,
+                )
+            builder = builder.add_extension(crl_aki, critical=False)
         if delta:
             builder = builder.add_extension(
                 x509.DeltaCRLIndicator(6), critical=True
@@ -354,6 +362,17 @@ ess_cert_id_chain = no
             revocation_reason=x509.ReasonFlags.remove_from_crl,
         )
         with self.assertRaisesRegex(ValueError, "removeFromCRL is unsupported"):
+            verify_tsa_crl_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem, crl_der
+            )
+
+    def test_crl_aki_issuer_serial_must_match_bound_issuer_certificate(self):
+        timestamp_result = self._verified_timestamp_result()
+        issuer = x509.load_pem_x509_certificate(self.ca_pem)
+        crl_der = self._build_tsa_crl(
+            crl_aki_issuer_serial=issuer.serial_number + 1
+        )
+        with self.assertRaisesRegex(ValueError, "issuer/serial does not match"):
             verify_tsa_crl_evidence(
                 timestamp_result, self.tsa_pem, self.ca_pem, crl_der
             )
