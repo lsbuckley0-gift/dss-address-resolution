@@ -1,0 +1,223 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/dss/schemas/rfc3161-tsa-revocation-evidence-v1-draft.schema.json",
+  "title": "RFC 3161 TSA revocation evidence envelope (draft)",
+  "description": "Untrusted evidence capture envelope only. Schema validity does not authenticate evidence, validate its signature, establish signer authorization, or establish certificate status.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "record_version",
+    "evidence_id",
+    "evidence_type",
+    "der_base64",
+    "der_sha256",
+    "acquired_at_utc",
+    "acquisition_clock_trust",
+    "acquisition_reference",
+    "target_certificate",
+    "claimed_binding"
+  ],
+  "properties": {
+    "record_version": {
+      "const": "rfc3161-tsa-revocation-evidence/v1-draft"
+    },
+    "evidence_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evidence_type": {
+      "enum": [
+        "CRL",
+        "OCSP_BASIC_RESPONSE"
+      ]
+    },
+    "der_base64": {
+      "type": "string",
+      "contentEncoding": "base64",
+      "minLength": 1
+    },
+    "der_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "acquired_at_utc": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "acquisition_clock_trust": {
+      "enum": [
+        "INDEPENDENTLY_GOVERNED",
+        "CALLER_ASSERTED",
+        "UNKNOWN"
+      ]
+    },
+    "acquisition_reference": {
+      "type": "string",
+      "minLength": 1
+    },
+    "target_certificate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "certificate_der_sha256",
+        "issuer_name_der_sha256",
+        "issuer_spki_sha256",
+        "serial_hex"
+      ],
+      "properties": {
+        "certificate_der_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "issuer_name_der_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "issuer_spki_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "serial_hex": {
+          "type": "string",
+          "pattern": "^(0|[1-9a-f][0-9a-f]*)$"
+        }
+      }
+    },
+    "claimed_binding": {
+      "description": "Unverified identifiers extracted from the evidence; must be independently checked against target_certificate during verification.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "issuer_name_der_sha256",
+        "serial_hex"
+      ],
+      "properties": {
+        "issuer_name_der_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "issuer_spki_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "serial_hex": {
+          "type": "string",
+          "pattern": "^(0|[1-9a-f][0-9a-f]*)$"
+        },
+        "cert_id_hash_algorithm": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cert_id_issuer_name_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]+$"
+        },
+        "cert_id_issuer_key_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]+$"
+        }
+      }
+    },
+    "parser_observations": {
+      "description": "Optional untrusted parser output. Never use these fields as proof without signature, authorization, scope and time validation.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "this_update_utc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "next_update_utc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "produced_at_utc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "revocation_time_utc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "crl_number": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "base_crl_number": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "ocsp_status": {
+          "enum": [
+            "good",
+            "revoked",
+            "unknown"
+          ]
+        },
+        "crl_scope_complete": {
+          "type": "boolean"
+        },
+        "indirect_crl": {
+          "type": "boolean"
+        },
+        "delta_crl": {
+          "type": "boolean"
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "evidence_type": {
+            "const": "CRL"
+          }
+        },
+        "required": [
+          "evidence_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "claimed_binding": {
+            "required": [
+              "issuer_name_der_sha256",
+              "serial_hex"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "evidence_type": {
+            "const": "OCSP_BASIC_RESPONSE"
+          }
+        },
+        "required": [
+          "evidence_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "claimed_binding": {
+            "required": [
+              "issuer_name_der_sha256",
+              "serial_hex",
+              "cert_id_hash_algorithm",
+              "cert_id_issuer_name_hash",
+              "cert_id_issuer_key_hash"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
