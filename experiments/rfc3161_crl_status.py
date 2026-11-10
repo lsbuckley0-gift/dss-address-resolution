@@ -84,7 +84,7 @@ def verify_tsa_crl_evidence(
         ).value
     except x509.ExtensionNotFound as exc:
         raise ValueError("CRL Authority Key Identifier extension is required.") from exc
-    if crl_aki.key_identifier is None or crl_aki.key_identifier != _subject_key_identifier(
+    if crl_aki.key_identifier is None or crl_aki.key_identifier != subject_key_identifier(
         issuer_certificate
     ):
         raise ValueError("CRL Authority Key Identifier does not match the bound issuer key.")
