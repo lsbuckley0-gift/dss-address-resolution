@@ -15,7 +15,7 @@ import sys
 from experiments.pilot_metrics import _primary_endpoint_spec_sha256
 
 _REQUIRED = {
-    "record_version", "registration_reference", "endpoint_spec_sha256",
+    "record_version", "registration_reference", "registration_event_id", "endpoint_spec_sha256",
     "registered_at_utc", "outcomes_accessed_at_utc",
     "analysis_started_at_utc", "timestamp_evidence_reference",
 }
@@ -47,7 +47,7 @@ def verify_registration_evidence(endpoint: dict, record: dict) -> dict:
         raise ValueError("registration evidence contains unsupported field(s): " + ", ".join(sorted(extra)))
     if record["record_version"] != "registration-evidence/v1":
         raise ValueError("record_version must be registration-evidence/v1.")
-    for field in ("registration_reference", "endpoint_spec_sha256", "timestamp_evidence_reference"):
+    for field in ("registration_reference", "registration_event_id", "endpoint_spec_sha256", "timestamp_evidence_reference"):
         value = record[field]
         if not isinstance(value, str) or not value.strip():
             raise ValueError(f"{field} must be a non-empty string.")
