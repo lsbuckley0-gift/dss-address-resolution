@@ -90,6 +90,14 @@ class PilotMetricsTests(unittest.TestCase):
         self.assertTrue(requirements["properties"]["required_strata"]["uniqueItems"])
         self.assertEqual(requirements["properties"]["minimum_case_count"]["minimum"], 1)
         self.assertEqual(requirements["properties"]["minimum_unique_gold_case_count"]["minimum"], 1)
+        decision_requirements = schema["properties"]["decision_requirements"]
+        self.assertEqual(decision_requirements["required"], [
+            "system", "max_false_accept_rate_upper_95pct",
+            "max_false_reject_rate_upper_95pct", "minimum_coverage",
+            "maximum_review_routed_rate", "maximum_median_review_seconds",
+            "minimum_review_time_measurement_coverage",
+        ])
+        self.assertEqual(decision_requirements["properties"]["minimum_coverage"]["maximum"], 1)
 
     def test_dataset_provenance_is_required(self):
         with self.assertRaisesRegex(ValueError, "dataset_id must be a non-empty string"):
@@ -177,7 +185,7 @@ class PilotMetricsTests(unittest.TestCase):
             report = json.loads(completed.stdout)
             self.assertEqual(json.loads(output_path.read_text(encoding="utf-8")), report)
         self.assertEqual(report["dataset_id"], "paired-pilot-synthetic")
-        self.assertEqual(report["report_version"], "paired-pilot-metrics/1.6")
+        self.assertEqual(report["report_version"], "paired-pilot-metrics/1.7")
         self.assertEqual(report["case_count"], 4)
         self.assertEqual(set(report["stratum_metrics"]), {"EXACT", "TYPO", "FORMATTING_ONLY", "CONFLICTING"})
         self.assertEqual(report["stratum_metrics"]["TYPO"]["case_count"], 1)
@@ -428,6 +436,96 @@ class PilotMetricsTests(unittest.TestCase):
         self.assertEqual(gate["strata"]["TYPO"]["status"], "SUFFICIENT")
         self.assertEqual(gate["unassessed_strata"], ["FORMATTING_ONLY"])
         self.assertEqual(gate["status"], "INSUFFICIENT")
+
+    def test_decision_assessment_passes_only_when_all_preregistered_limits_pass(self):
+        data = pilot_data([
+            {"case_id": "a", "gold_candidate_id": "A",
+             "baseline": decision("VERIFIED", "A", review=None),
+             "dss": decision("VERIFIED", "A")},
+            {"case_id": "b", "gold_candidate_id": "B",
+             "baseline": decision("VERIFIED", "B"),
+             "dss": decision("UNRESOLVED", review=20)},
+            {"case_id": "c", "gold_candidate_id": None,
+             "baseline": decision("UNRESOLVED"),
+             "dss": decision("UNRESOLVED", review=40)},
+        ])
+        data["decision_requirements"] = {
+            "system": "dss",
+            "max_false_accept_rate_upper_95pct": 0.0,
+            "max_false_reject_rate_upper_95pct": 1.0,
+            "minimum_coverage": 0.0,
+            "maximum_review_routed_rate": 1.0,
+            "maximum_median_review_seconds": 40,
+            "minimum_review_time_measurement_coverage": 1.0,
+        }
+        assessment = evaluate(data)["decision_assessment"]
+        self.assertEqual(assessment["status"], "PASS")
+        self.assertEqual(assessment["criteria"]["false_accept_rate_upper_95pct"]["observed"], 0.0)
+
+    def test_decision_assessment_uses_upper_wilson_bound_not_point_rate(self):
+        data = pilot_data([
+            {"case_id": "only", "gold_candidate_id": "A",
+             "baseline": decision("VERIFIED", "A"),
+             "dss": decision("VERIFIED", "WRONG")},
+        ])
+        data["decision_requirements"] = {
+            "system": "dss", "max_false_accept_rate_upper_95pct": 0.5,
+            "max_false_reject_rate_upper_95pct": 1.0, "minimum_coverage": 0.0,
+            "maximum_review_routed_rate": 1.0, "maximum_median_review_seconds": 60,
+            "minimum_review_time_measurement_coverage": 0.0,
+        }
+        assessment = evaluate(data)["decision_assessment"]
+        criterion = assessment["criteria"]["false_accept_rate_upper_95pct"]
+        self.assertEqual(criterion["status"], "FAIL")
+        self.assertGreater(criterion["observed"], 0.5)
+
+    def test_decision_assessment_is_indeterminate_when_error_denominator_missing(self):
+        data = pilot_data([
+            {"case_id": "ambiguous", "gold_candidate_id": None,
+             "baseline": decision("UNRESOLVED"), "dss": decision("UNRESOLVED")},
+        ])
+        data["decision_requirements"] = {
+            "system": "dss", "max_false_accept_rate_upper_95pct": 0.1,
+            "max_false_reject_rate_upper_95pct": 0.1, "minimum_coverage": 0.0,
+            "maximum_review_routed_rate": 1.0, "maximum_median_review_seconds": 60,
+            "minimum_review_time_measurement_coverage": 0.0,
+        }
+        assessment = evaluate(data)["decision_assessment"]
+        self.assertEqual(assessment["status"], "INDETERMINATE")
+        self.assertEqual(assessment["criteria"]["false_reject_rate_upper_95pct"]["status"], "INDETERMINATE")
+
+    def test_decision_assessment_is_indeterminate_when_routed_review_time_is_missing(self):
+        data = pilot_data([
+            {"case_id": "known", "gold_candidate_id": "A",
+             "baseline": decision("UNRESOLVED"),
+             "dss": {"terminal_state": "UNRESOLVED", "selected_candidate_id": None,
+                     "trace_complete": True, "review_routed": True}},
+        ])
+        data["decision_requirements"] = {
+            "system": "dss", "max_false_accept_rate_upper_95pct": 1.0,
+            "max_false_reject_rate_upper_95pct": 1.0, "minimum_coverage": 0.0,
+            "maximum_review_routed_rate": 1.0, "maximum_median_review_seconds": 60,
+            "minimum_review_time_measurement_coverage": 1.0,
+        }
+        assessment = evaluate(data)["decision_assessment"]
+        self.assertEqual(assessment["status"], "INDETERMINATE")
+        self.assertEqual(assessment["criteria"]["median_review_seconds"]["status"], "INDETERMINATE")
+
+    def test_decision_requirements_reject_out_of_range_or_boolean_thresholds(self):
+        data = json.loads(json.dumps(self.data))
+        data["decision_requirements"] = {
+            "system": "dss", "max_false_accept_rate_upper_95pct": 1.1,
+            "max_false_reject_rate_upper_95pct": 1.0, "minimum_coverage": 0.0,
+            "maximum_review_routed_rate": 1.0, "maximum_median_review_seconds": 60,
+            "minimum_review_time_measurement_coverage": 1.0,
+        }
+        with self.assertRaisesRegex(ValueError, "max_false_accept_rate_upper_95pct"):
+            evaluate(data)
+
+    def test_decision_assessment_is_not_configured_without_preregistered_thresholds(self):
+        assessment = evaluate(self.data)["decision_assessment"]
+        self.assertEqual(assessment["status"], "NOT_CONFIGURED")
+        self.assertEqual(assessment["criteria"], {})
 
 if __name__ == "__main__":
     unittest.main()
