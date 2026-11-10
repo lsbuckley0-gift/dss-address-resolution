@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from experiments.pilot_metrics import (evaluate, _exact_mcnemar_p_value, _clopper_pearson, _paired_prevalence_difference_interval, _primary_endpoint_spec_sha256)
+from experiments.registration_evidence import verify_registration_evidence
 
 
 def decision(state, selected=None, complete=True, latency=None, review=None):
@@ -829,6 +830,72 @@ class PilotMetricsTests(unittest.TestCase):
     def test_pilot_readiness_is_not_configured_when_both_gates_are_absent(self):
         readiness = evaluate(self.data)["pilot_readiness"]
         self.assertEqual(readiness["status"], "NOT_CONFIGURED")
+
+
+class RegistrationEvidenceTests(unittest.TestCase):
+    def setUp(self):
+        self.endpoint = {
+            "outcome_class": "FALSE_ACCEPT",
+            "expected_direction": "LOWER",
+            "analysis_population": "ALL_PAIRED_CASES",
+            "alpha": 0.05,
+            "registration_reference": "protocol-v1",
+            "frozen_before_outcomes_review": True,
+        }
+        self.record = {
+            "record_version": "registration-evidence/v1",
+            "registration_reference": "protocol-v1",
+            "endpoint_spec_sha256": _primary_endpoint_spec_sha256(self.endpoint),
+            "registered_at_utc": "2026-10-01T09:00:00Z",
+            "outcomes_accessed_at_utc": "2026-10-02T09:00:00Z",
+            "analysis_started_at_utc": "2026-10-02T10:00:00Z",
+            "timestamp_evidence_reference": "archive://record-17",
+        }
+
+    def test_matching_digest_and_claimed_order_are_reported_without_trust_claim(self):
+        result = verify_registration_evidence(self.endpoint, self.record)
+        self.assertEqual(result["specification_integrity"], "MATCH")
+        self.assertEqual(result["claimed_chronology"], "REGISTERED_BEFORE_OUTCOME_ACCESS")
+        self.assertEqual(result["claimed_analysis_order"], "ANALYSIS_AT_OR_AFTER_OUTCOME_ACCESS")
+        self.assertEqual(result["timestamp_verification"], "NOT_INDEPENDENTLY_VERIFIED")
+
+    def test_changed_endpoint_specification_fails_integrity(self):
+        changed = dict(self.endpoint, alpha=0.01)
+        result = verify_registration_evidence(changed, self.record)
+        self.assertEqual(result["specification_integrity"], "MISMATCH")
+        self.assertFalse(result["digest_matches"])
+
+    def test_changed_registration_reference_fails_integrity(self):
+        record = dict(self.record, registration_reference="other-record")
+        result = verify_registration_evidence(self.endpoint, record)
+        self.assertEqual(result["specification_integrity"], "MISMATCH")
+        self.assertFalse(result["registration_reference_matches"])
+
+    def test_registration_at_or_after_outcome_access_is_not_preregistered(self):
+        record = dict(self.record, registered_at_utc="2026-10-02T09:00:00Z")
+        result = verify_registration_evidence(self.endpoint, record)
+        self.assertEqual(result["claimed_chronology"], "NOT_REGISTERED_BEFORE_OUTCOME_ACCESS")
+
+    def test_analysis_before_outcome_access_is_flagged(self):
+        record = dict(self.record, analysis_started_at_utc="2026-10-02T08:59:59Z")
+        result = verify_registration_evidence(self.endpoint, record)
+        self.assertEqual(result["claimed_analysis_order"], "ANALYSIS_BEFORE_OUTCOME_ACCESS")
+
+    def test_non_utc_or_malformed_timestamp_is_rejected(self):
+        for value in ("2026-10-01T09:00:00+00:00", "2026-02-30T09:00:00Z", "yesterday"):
+            with self.subTest(value=value):
+                record = dict(self.record, registered_at_utc=value)
+                with self.assertRaisesRegex(ValueError, "ISO 8601 UTC|valid UTC"):
+                    verify_registration_evidence(self.endpoint, record)
+
+    def test_unknown_or_missing_record_fields_are_rejected(self):
+        with self.assertRaisesRegex(ValueError, "unsupported field"):
+            verify_registration_evidence(self.endpoint, dict(self.record, outcome="WIN"))
+        record = dict(self.record)
+        del record["timestamp_evidence_reference"]
+        with self.assertRaisesRegex(ValueError, "missing field"):
+            verify_registration_evidence(self.endpoint, record)
+
 
 if __name__ == "__main__":
     unittest.main()
