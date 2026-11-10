@@ -78,6 +78,8 @@ def verify_tsa_crl_evidence(
         crl_number = crl.extensions.get_extension_for_class(x509.CRLNumber).value.crl_number
     except x509.ExtensionNotFound as exc:
         raise ValueError("CRLNumber extension is required.") from exc
+    if crl_number < 0:
+        raise ValueError("CRLNumber must be a non-negative integer.")
     try:
         crl_aki = crl.extensions.get_extension_for_class(
             x509.AuthorityKeyIdentifier
