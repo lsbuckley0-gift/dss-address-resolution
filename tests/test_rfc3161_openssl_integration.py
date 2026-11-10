@@ -125,6 +125,13 @@ class RFC3161OpenSSLIntegrationTests(unittest.TestCase):
         self.assertTrue(self.revocation_result_validator.is_valid(ocsp_result))
 
         invalid_crl = dict(crl_result)
+        invalid_crl["revocation_reason"] = "remove_from_crl"
+        self.assertFalse(self.revocation_result_validator.is_valid(invalid_crl))
+        invalid_crl = dict(crl_result)
+        invalid_crl["revocation_time_utc"] = "2026-01-01T00:00:00+00:00"
+        self.assertFalse(self.revocation_result_validator.is_valid(invalid_crl))
+
+        invalid_crl = dict(crl_result)
         invalid_crl["historical_revocation_assurance"] = (
             "REVOKED_BY_TARGET_TIME_UNDER_SIGNED_OCSP_ASSERTION"
         )
