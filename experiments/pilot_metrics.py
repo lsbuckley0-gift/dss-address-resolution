@@ -53,7 +53,7 @@ def _validate(data):
     if not isinstance(data, dict) or not isinstance(data.get("cases"), list):
         raise ValueError("Input must be an object containing a cases array.")
     _reject_extra_fields(
-        data, {"dataset_id", "dataset_version", "cases"}, "input"
+        data, {"dataset_id", "dataset_version", "cases", "sample_requirements"}, "input"
     )
     for field in ("dataset_id", "dataset_version"):
         value = data.get(field)
@@ -61,6 +61,26 @@ def _validate(data):
             raise ValueError(f"{field} must be a non-empty string.")
     if not data["cases"]:
         raise ValueError("Evaluation requires at least one paired case.")
+    requirements = data.get("sample_requirements")
+    if requirements is not None:
+        if not isinstance(requirements, dict):
+            raise ValueError("sample_requirements must be an object.")
+        _reject_extra_fields(
+            requirements,
+            {"required_strata", "minimum_case_count", "minimum_unique_gold_case_count"},
+            "sample_requirements",
+        )
+        required_strata = requirements.get("required_strata")
+        if not isinstance(required_strata, list) or not required_strata:
+            raise ValueError("sample_requirements.required_strata must be a non-empty array.")
+        if any(not isinstance(label, str) or label not in STRATA for label in required_strata):
+            raise ValueError("sample_requirements.required_strata contains an invalid stratum.")
+        if len(set(required_strata)) != len(required_strata):
+            raise ValueError("sample_requirements.required_strata must not contain duplicates.")
+        for field in ("minimum_case_count", "minimum_unique_gold_case_count"):
+            value = requirements.get(field)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+                raise ValueError(f"sample_requirements.{field} must be a positive integer.")
     seen = set()
     for index, case in enumerate(data["cases"]):
         prefix = f"cases[{index}]"
@@ -212,6 +232,49 @@ def _system_metrics(cases, system):
     }
 
 
+def _sample_sufficiency(data, cases):
+    requirements = data.get("sample_requirements")
+    if requirements is None:
+        return {
+            "status": "NOT_CONFIGURED",
+            "requirements": None,
+            "strata": {},
+            "interpretation": "No sample-count gate was pre-registered in the input.",
+        }
+    results = {}
+    for label in requirements["required_strata"]:
+        group = [case for case in cases if case.get("stratum", "UNSPECIFIED") == label]
+        case_count = len(group)
+        unique_gold_count = sum(case["gold_candidate_id"] is not None for case in group)
+        missing = case_count == 0
+        below_minimum = (
+            case_count < requirements["minimum_case_count"]
+            or unique_gold_count < requirements["minimum_unique_gold_case_count"]
+        )
+        status = "MISSING" if missing else ("BELOW_MINIMUM" if below_minimum else "SUFFICIENT")
+        results[label] = {
+            "status": status,
+            "case_count": case_count,
+            "unique_gold_case_count": unique_gold_count,
+            "minimum_case_count": requirements["minimum_case_count"],
+            "minimum_unique_gold_case_count": requirements["minimum_unique_gold_case_count"],
+        }
+    overall = "SUFFICIENT" if all(item["status"] == "SUFFICIENT" for item in results.values()) else "INSUFFICIENT"
+    return {
+        "status": overall,
+        "requirements": {
+            "required_strata": list(requirements["required_strata"]),
+            "minimum_case_count": requirements["minimum_case_count"],
+            "minimum_unique_gold_case_count": requirements["minimum_unique_gold_case_count"],
+        },
+        "strata": results,
+        "interpretation": (
+            "Count screening only: meeting these minima does not establish representative sampling, "
+            "statistical power, precision, or field performance."
+        ),
+    }
+
+
 def evaluate(data):
     _validate(data)
     cases = data["cases"]
@@ -224,6 +287,7 @@ def evaluate(data):
         "paired_case_count": len(cases),
         "paired_outcome_matrix": _paired_outcome_matrix(cases),
         "stratum_metrics": _stratum_metrics(cases),
+        "sample_sufficiency": _sample_sufficiency(data, cases),
         "method_notes": [
             "A decision is automatically accepted when terminal_state is VERIFIED or CORRECTED.",
             "A false accept is any automatic acceptance whose selected candidate differs from the gold candidate, including cases labelled with no unique answer.",
@@ -233,6 +297,7 @@ def evaluate(data):
             "The paired outcome matrix places each case once at the intersection of its baseline and dss outcome classes, exposing case-level trade-offs without treating the systems as independent samples.",
             "Stratum metrics repeat the same paired measures within each declared case stratum; omitted stratum labels are grouped explicitly as UNSPECIFIED, never silently assigned to a fault class.",
             "Stratum rates are descriptive and retain their raw denominators; small or synthetic strata do not establish statistical significance or field performance.",
+            "The optional sample_sufficiency gate checks only pre-registered raw-case and unique-gold counts for required strata; passing it does not establish representative sampling, statistical power, precision or field performance.",
             "The 95% interval is the Wilson score interval; no interval is emitted when there are no automatic acceptances.",
             "Latency percentiles use nearest-rank; missing measurements are excluded and counted.",
             "Review time is summarised only for unresolved cases with a supplied review_seconds value.",
