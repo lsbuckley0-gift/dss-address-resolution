@@ -751,7 +751,9 @@ truth. A pin match is not authority authentication.
 
 The verifier returns non-valid states for a pin mismatch, malformed token,
 failed OpenSSL verification, missing OpenSSL executable or timeout. It never
-falls back to machine time or the host's default CA store. The test suite uses
-synthetic inputs and mocked OpenSSL outcomes for deterministic boundary tests;
-those tests do not establish a real TSA or operational trust anchor. No TSA
-URL, private key, real certificate or authority is embedded in this repository.
+falls back to machine time or the host's default CA store. The test suite includes deterministic mocked boundary tests and end-to-end
+OpenSSL tests that generate an ephemeral synthetic CA, TSA certificate and
+private key in a temporary directory. Those tests exercise a real token
+signature, message-imprint comparison, timestamping EKU/purpose and chain
+verification, but do not establish a real TSA or operational trust anchor. No
+TSA URL, private key, real certificate or authority is embedded in this repository.
