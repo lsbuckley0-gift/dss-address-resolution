@@ -119,10 +119,8 @@ class RFC3161OpenSSLIntegrationTests(unittest.TestCase):
     def test_revocation_result_schema_rejects_cross_evidence_claims(self):
         timestamp_result = self._verified_timestamp_result()
         crl_result = verify_tsa_crl_evidence(
-            timestamp_result, self.tsa_pem, self.ca_pem, self._build_tsa_crl()
-        ,
-            timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+            timestamp_result, self.tsa_pem, self.ca_pem, self._build_tsa_crl(),
+            timestamp_verification_inputs=self._timestamp_verification_inputs(),
         )
         ocsp_result = verify_tsa_ocsp_evidence(
             timestamp_result, self.tsa_pem, self.ca_pem,
@@ -378,10 +376,8 @@ ess_cert_id_chain = no
         timestamp_result = self._verified_timestamp_result()
         crl_der = self._build_tsa_crl()
         result = verify_tsa_crl_evidence(
-            timestamp_result, self.tsa_pem, self.ca_pem, crl_der
-        ,
-            timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+            timestamp_result, self.tsa_pem, self.ca_pem, crl_der,
+            timestamp_verification_inputs=self._timestamp_verification_inputs(),
         )
         self.revocation_result_validator.validate(result)
         self.assertEqual(
@@ -410,10 +406,8 @@ ess_cert_id_chain = no
             this_update=(target - timedelta(minutes=30)).replace(tzinfo=None),
         )
         result = verify_tsa_crl_evidence(
-            timestamp_result, self.tsa_pem, self.ca_pem, crl_der
-        ,
-            timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+            timestamp_result, self.tsa_pem, self.ca_pem, crl_der,
+            timestamp_verification_inputs=self._timestamp_verification_inputs(),
         )
         self.assertEqual(result["status_at_target_time"], "REVOKED_AT_OR_BEFORE_TARGET")
         self.assertEqual(
@@ -564,10 +558,8 @@ ess_cert_id_chain = no
         )
         with self.assertRaisesRegex(ValueError, "duplicate entries"):
             verify_tsa_crl_evidence(
-                timestamp_result, self.tsa_pem, self.ca_pem, crl_der
-            ,
-                timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                timestamp_result, self.tsa_pem, self.ca_pem, crl_der,
+                timestamp_verification_inputs=self._timestamp_verification_inputs(),
             )
 
     def test_certificate_hold_does_not_become_permanent_historical_revocation(self):
@@ -581,10 +573,8 @@ ess_cert_id_chain = no
             revocation_reason=x509.ReasonFlags.certificate_hold,
         )
         result = verify_tsa_crl_evidence(
-            timestamp_result, self.tsa_pem, self.ca_pem, crl_der
-        ,
-            timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+            timestamp_result, self.tsa_pem, self.ca_pem, crl_der,
+            timestamp_verification_inputs=self._timestamp_verification_inputs(),
         )
         self.assertEqual(
             result["status_at_target_time"],
@@ -604,10 +594,8 @@ ess_cert_id_chain = no
         )
         with self.assertRaisesRegex(ValueError, "removeFromCRL is unsupported"):
             verify_tsa_crl_evidence(
-                timestamp_result, self.tsa_pem, self.ca_pem, crl_der
-            ,
-                timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                timestamp_result, self.tsa_pem, self.ca_pem, crl_der,
+                timestamp_verification_inputs=self._timestamp_verification_inputs(),
             )
 
     def test_crl_aki_issuer_serial_must_match_bound_issuer_certificate(self):
@@ -618,10 +606,8 @@ ess_cert_id_chain = no
         )
         with self.assertRaisesRegex(ValueError, "issuer/serial does not match"):
             verify_tsa_crl_evidence(
-                timestamp_result, self.tsa_pem, self.ca_pem, crl_der
-            ,
-                timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                timestamp_result, self.tsa_pem, self.ca_pem, crl_der,
+                timestamp_verification_inputs=self._timestamp_verification_inputs(),
             )
 
     def test_tsa_certificate_crl_distribution_point_scope_is_rejected(self):
@@ -694,10 +680,8 @@ ess_cert_id_chain = no
         timestamp_result = self._verified_timestamp_result()
         with self.assertRaises(ValueError):
             verify_tsa_crl_evidence(
-                timestamp_result, self.tsa_pem, self.ca_pem, b"not a DER CRL"
-            ,
-                timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                timestamp_result, self.tsa_pem, self.ca_pem, b"not a DER CRL",
+                timestamp_verification_inputs=self._timestamp_verification_inputs(),
             )
 
     def test_crl_invalidity_date_is_rejected_until_semantics_are_supported(self):
@@ -712,10 +696,8 @@ ess_cert_id_chain = no
         )
         with self.assertRaisesRegex(ValueError, "InvalidityDate semantics are unsupported"):
             verify_tsa_crl_evidence(
-                timestamp_result, self.tsa_pem, self.ca_pem, crl_der
-            ,
-                timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                timestamp_result, self.tsa_pem, self.ca_pem, crl_der,
+                timestamp_verification_inputs=self._timestamp_verification_inputs(),
             )
 
     def test_indirect_crl_certificate_issuer_entry_is_rejected(self):
@@ -730,10 +712,8 @@ ess_cert_id_chain = no
         )
         with self.assertRaisesRegex(ValueError, "indirect CRL certificateIssuer"):
             verify_tsa_crl_evidence(
-                timestamp_result, self.tsa_pem, self.ca_pem, crl_der
-            ,
-                timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                timestamp_result, self.tsa_pem, self.ca_pem, crl_der,
+                timestamp_verification_inputs=self._timestamp_verification_inputs(),
             )
 
     def test_indirect_crl_certificate_issuer_on_unrelated_entry_is_rejected(self):
@@ -743,10 +723,8 @@ ess_cert_id_chain = no
         )
         with self.assertRaisesRegex(ValueError, "indirect CRL certificateIssuer"):
             verify_tsa_crl_evidence(
-                timestamp_result, self.tsa_pem, self.ca_pem, crl_der
-            ,
-                timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                timestamp_result, self.tsa_pem, self.ca_pem, crl_der,
+                timestamp_verification_inputs=self._timestamp_verification_inputs(),
             )
 
     def test_crl_without_next_update_is_rejected(self):
@@ -774,10 +752,8 @@ ess_cert_id_chain = no
         ):
             with self.assertRaisesRegex(ValueError, "increasing thisUpdate/nextUpdate"):
                 verify_tsa_crl_evidence(
-                    timestamp_result, self.tsa_pem, self.ca_pem, crl_der
-                ,
-                    timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                    timestamp_result, self.tsa_pem, self.ca_pem, crl_der,
+                    timestamp_verification_inputs=self._timestamp_verification_inputs(),
                 )
 
     def test_unsupported_critical_crl_extension_is_rejected(self):
@@ -855,10 +831,8 @@ ess_cert_id_chain = no
             this_update=(target + timedelta(hours=2)).replace(tzinfo=None),
         )
         result = verify_tsa_crl_evidence(
-            timestamp_result, self.tsa_pem, self.ca_pem, crl_der
-        ,
-            timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+            timestamp_result, self.tsa_pem, self.ca_pem, crl_der,
+            timestamp_verification_inputs=self._timestamp_verification_inputs(),
         )
         self.assertEqual(result["status_at_target_time"], "REVOCATION_AFTER_TARGET_REPORTED")
         self.assertEqual(result["historical_revocation_assurance"], "NOT_ESTABLISHED")
@@ -873,10 +847,8 @@ ess_cert_id_chain = no
             next_update=(target - timedelta(days=1)).replace(tzinfo=None),
         )
         result = verify_tsa_crl_evidence(
-            timestamp_result, self.tsa_pem, self.ca_pem, crl_der
-        ,
-            timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+            timestamp_result, self.tsa_pem, self.ca_pem, crl_der,
+            timestamp_verification_inputs=self._timestamp_verification_inputs(),
         )
         self.assertEqual(result["status_at_target_time"], "NOT_ESTABLISHED")
         self.assertEqual(result["historical_revocation_assurance"], "NOT_ESTABLISHED")
@@ -889,10 +861,8 @@ ess_cert_id_chain = no
             next_update=now + timedelta(days=2),
         )
         result = verify_tsa_crl_evidence(
-            timestamp_result, self.tsa_pem, self.ca_pem, crl_der
-        ,
-            timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+            timestamp_result, self.tsa_pem, self.ca_pem, crl_der,
+            timestamp_verification_inputs=self._timestamp_verification_inputs(),
         )
         self.assertEqual(result["status_at_target_time"], "NOT_ESTABLISHED")
         self.assertEqual(result["historical_revocation_assurance"], "NOT_ESTABLISHED")
@@ -954,10 +924,8 @@ ess_cert_id_chain = no
         timestamp_result = self._verified_timestamp_result()
         response_der = self._build_tsa_ocsp_response()
         result = verify_tsa_ocsp_evidence(
-            timestamp_result, self.tsa_pem, self.ca_pem, response_der
-        ,
-            timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+            timestamp_result, self.tsa_pem, self.ca_pem, response_der,
+            timestamp_verification_inputs=self._timestamp_verification_inputs(),
         )
         self.revocation_result_validator.validate(result)
         self.assertEqual(result["ocsp_evidence_verification"], "VALID_RELATIVE_TO_BOUND_ISSUER_CERTIFICATE")
@@ -984,10 +952,8 @@ ess_cert_id_chain = no
             this_update=(target - timedelta(minutes=30)).replace(tzinfo=None),
         )
         result = verify_tsa_ocsp_evidence(
-            timestamp_result, self.tsa_pem, self.ca_pem, response_der
-        ,
-            timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+            timestamp_result, self.tsa_pem, self.ca_pem, response_der,
+            timestamp_verification_inputs=self._timestamp_verification_inputs(),
         )
         self.assertEqual(result["status_at_target_time"], "REVOKED_AT_OR_BEFORE_TARGET")
         self.assertEqual(
@@ -1008,10 +974,8 @@ ess_cert_id_chain = no
         )
         with self.assertRaisesRegex(ValueError, "removeFromCRL is unsupported"):
             verify_tsa_ocsp_evidence(
-                timestamp_result, self.tsa_pem, self.ca_pem, response_der
-            ,
-                timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                timestamp_result, self.tsa_pem, self.ca_pem, response_der,
+                timestamp_verification_inputs=self._timestamp_verification_inputs(),
             )
 
     def test_ocsp_certificate_hold_remains_historically_indeterminate(self):
@@ -1026,10 +990,8 @@ ess_cert_id_chain = no
             this_update=(target - timedelta(minutes=30)).replace(tzinfo=None),
         )
         result = verify_tsa_ocsp_evidence(
-            timestamp_result, self.tsa_pem, self.ca_pem, response_der
-        ,
-            timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+            timestamp_result, self.tsa_pem, self.ca_pem, response_der,
+            timestamp_verification_inputs=self._timestamp_verification_inputs(),
         )
         self.assertEqual(
             result["status_at_target_time"],
@@ -1062,10 +1024,8 @@ ess_cert_id_chain = no
         ):
             with self.assertRaisesRegex(ValueError, "exactly one OCSP SingleResponse"):
                 verify_tsa_ocsp_evidence(
-                    timestamp_result, self.tsa_pem, self.ca_pem, response_der
-                ,
-                    timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                    timestamp_result, self.tsa_pem, self.ca_pem, response_der,
+                    timestamp_verification_inputs=self._timestamp_verification_inputs(),
                 )
 
     def test_ocsp_unknown_status_is_not_promoted_to_good(self):
@@ -1074,10 +1034,8 @@ ess_cert_id_chain = no
             status=ocsp.OCSPCertStatus.UNKNOWN
         )
         result = verify_tsa_ocsp_evidence(
-            timestamp_result, self.tsa_pem, self.ca_pem, response_der
-        ,
-            timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+            timestamp_result, self.tsa_pem, self.ca_pem, response_der,
+            timestamp_verification_inputs=self._timestamp_verification_inputs(),
         )
         self.assertEqual(result["status_at_target_time"], "UNKNOWN")
         self.assertEqual(result["historical_revocation_assurance"], "NOT_ESTABLISHED")
@@ -1092,10 +1050,8 @@ ess_cert_id_chain = no
         response_der = self._build_tsa_ocsp_response(cert=other_tsa)
         with self.assertRaisesRegex(ValueError, "CertID does not identify"):
             verify_tsa_ocsp_evidence(
-                timestamp_result, self.tsa_pem, self.ca_pem, response_der
-            ,
-                timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                timestamp_result, self.tsa_pem, self.ca_pem, response_der,
+                timestamp_verification_inputs=self._timestamp_verification_inputs(),
             )
 
     def test_ocsp_response_signature_must_verify_under_bound_issuer(self):
@@ -1110,20 +1066,16 @@ ess_cert_id_chain = no
         )
         with self.assertRaisesRegex(ValueError, "signature does not verify"):
             verify_tsa_ocsp_evidence(
-                timestamp_result, self.tsa_pem, self.ca_pem, response_der
-            ,
-                timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                timestamp_result, self.tsa_pem, self.ca_pem, response_der,
+                timestamp_verification_inputs=self._timestamp_verification_inputs(),
             )
 
     def test_malformed_ocsp_der_is_rejected(self):
         timestamp_result = self._verified_timestamp_result()
         with self.assertRaises(ValueError):
             verify_tsa_ocsp_evidence(
-                timestamp_result, self.tsa_pem, self.ca_pem, b"not a DER OCSP response"
-            ,
-                timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                timestamp_result, self.tsa_pem, self.ca_pem, b"not a DER OCSP response",
+                timestamp_verification_inputs=self._timestamp_verification_inputs(),
             )
 
     def test_ocsp_future_dated_status_interval_is_rejected(self):
@@ -1135,10 +1087,8 @@ ess_cert_id_chain = no
         )
         with self.assertRaisesRegex(ValueError, "producedAt must fall within"):
             verify_tsa_ocsp_evidence(
-                timestamp_result, self.tsa_pem, self.ca_pem, response_der
-            ,
-                timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                timestamp_result, self.tsa_pem, self.ca_pem, response_der,
+                timestamp_verification_inputs=self._timestamp_verification_inputs(),
             )
 
     def test_ocsp_stale_status_interval_is_rejected(self):
@@ -1150,10 +1100,8 @@ ess_cert_id_chain = no
         )
         with self.assertRaisesRegex(ValueError, "producedAt must fall within"):
             verify_tsa_ocsp_evidence(
-                timestamp_result, self.tsa_pem, self.ca_pem, response_der
-            ,
-                timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                timestamp_result, self.tsa_pem, self.ca_pem, response_der,
+                timestamp_verification_inputs=self._timestamp_verification_inputs(),
             )
 
     def test_ocsp_requires_next_update(self):
@@ -1161,10 +1109,8 @@ ess_cert_id_chain = no
         response_der = self._build_tsa_ocsp_response(omit_next_update=True)
         with self.assertRaisesRegex(ValueError, "increasing thisUpdate/nextUpdate"):
             verify_tsa_ocsp_evidence(
-                timestamp_result, self.tsa_pem, self.ca_pem, response_der
-            ,
-                timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                timestamp_result, self.tsa_pem, self.ca_pem, response_der,
+                timestamp_verification_inputs=self._timestamp_verification_inputs(),
             )
 
     def test_ocsp_unknown_response_extension_is_rejected(self):
@@ -1177,10 +1123,8 @@ ess_cert_id_chain = no
         )
         with self.assertRaisesRegex(ValueError, "unsupported extension"):
             verify_tsa_ocsp_evidence(
-                timestamp_result, self.tsa_pem, self.ca_pem, response_der
-            ,
-                timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                timestamp_result, self.tsa_pem, self.ca_pem, response_der,
+                timestamp_verification_inputs=self._timestamp_verification_inputs(),
             )
 
     def test_ocsp_revocation_after_token_time_is_not_backdated(self):
@@ -1197,10 +1141,8 @@ ess_cert_id_chain = no
             next_update=(target + timedelta(days=1)).replace(tzinfo=None),
         )
         result = verify_tsa_ocsp_evidence(
-            timestamp_result, self.tsa_pem, self.ca_pem, response_der
-        ,
-            timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+            timestamp_result, self.tsa_pem, self.ca_pem, response_der,
+            timestamp_verification_inputs=self._timestamp_verification_inputs(),
         )
         self.assertEqual(result["status_at_target_time"], "REVOCATION_AFTER_TARGET_REPORTED")
         self.assertEqual(result["historical_revocation_assurance"], "NOT_ESTABLISHED")
@@ -1211,10 +1153,8 @@ ess_cert_id_chain = no
             responder_encoding=ocsp.OCSPResponderEncoding.HASH
         )
         result = verify_tsa_ocsp_evidence(
-            timestamp_result, self.tsa_pem, self.ca_pem, response_der
-        ,
-            timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+            timestamp_result, self.tsa_pem, self.ca_pem, response_der,
+            timestamp_verification_inputs=self._timestamp_verification_inputs(),
         )
         self.assertEqual(result["responder_id_type"], "KEY_HASH")
         self.assertEqual(result["responder_authorization"], "ISSUING_CA_DIRECTLY_SIGNED")
@@ -1230,10 +1170,8 @@ ess_cert_id_chain = no
             create=True,
         ):
             result = verify_tsa_ocsp_evidence(
-                timestamp_result, self.tsa_pem, self.ca_pem, response_der
-            ,
-                timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                timestamp_result, self.tsa_pem, self.ca_pem, response_der,
+                timestamp_verification_inputs=self._timestamp_verification_inputs(),
             )
         self.assertEqual(result["responder_id_type"], "KEY_HASH")
         self.assertEqual(result["responder_authorization"], "ISSUING_CA_DIRECTLY_SIGNED")
@@ -1276,10 +1214,8 @@ ess_cert_id_chain = no
         )
         with self.assertRaisesRegex(ValueError, "only SHA-256 OCSP CertID"):
             verify_tsa_ocsp_evidence(
-                timestamp_result, self.tsa_pem, self.ca_pem, response_der
-            ,
-                timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                timestamp_result, self.tsa_pem, self.ca_pem, response_der,
+                timestamp_verification_inputs=self._timestamp_verification_inputs(),
             )
 
     def test_unsuccessful_ocsp_response_is_rejected(self):
@@ -1290,10 +1226,8 @@ ess_cert_id_chain = no
         response_der = response.public_bytes(serialization.Encoding.DER)
         with self.assertRaisesRegex(ValueError, "not SUCCESSFUL"):
             verify_tsa_ocsp_evidence(
-                timestamp_result, self.tsa_pem, self.ca_pem, response_der
-            ,
-                timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                timestamp_result, self.tsa_pem, self.ca_pem, response_der,
+                timestamp_verification_inputs=self._timestamp_verification_inputs(),
             )
 
     def test_ocsp_nonce_must_match_the_supplied_request(self):
@@ -1323,10 +1257,8 @@ ess_cert_id_chain = no
         response_der = self._build_tsa_ocsp_response(nonce=b"unsolicited")
         with self.assertRaisesRegex(ValueError, "cannot be matched without a request"):
             verify_tsa_ocsp_evidence(
-                timestamp_result, self.tsa_pem, self.ca_pem, response_der
-            ,
-                timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                timestamp_result, self.tsa_pem, self.ca_pem, response_der,
+                timestamp_verification_inputs=self._timestamp_verification_inputs(),
             )
 
     def test_delegated_ocsp_responder_is_rejected_by_initial_profile(self):
@@ -1349,10 +1281,8 @@ ess_cert_id_chain = no
         )
         with self.assertRaisesRegex(ValueError, "delegated OCSP responder certificates are unsupported"):
             verify_tsa_ocsp_evidence(
-                timestamp_result, self.tsa_pem, self.ca_pem, response_der
-            ,
-                timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                timestamp_result, self.tsa_pem, self.ca_pem, response_der,
+                timestamp_verification_inputs=self._timestamp_verification_inputs(),
             )
 
     def test_real_token_signature_imprint_purpose_and_chain_verify(self):
