@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "∂ss registration evidence record",
+  "description": "Metadata-only chronology and endpoint-integrity record. Timestamp claims are not authenticated by this schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "record_version",
+    "registration_reference",
+    "endpoint_spec_sha256",
+    "registered_at_utc",
+    "outcomes_accessed_at_utc",
+    "analysis_started_at_utc",
+    "timestamp_evidence_reference"
+  ],
+  "properties": {
+    "record_version": {
+      "const": "registration-evidence/v1"
+    },
+    "registration_reference": {
+      "type": "string",
+      "minLength": 1
+    },
+    "endpoint_spec_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "registered_at_utc": {
+      "type": "string",
+      "pattern": "^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}(?:\\\\.\\\\d+)?Z$"
+    },
+    "outcomes_accessed_at_utc": {
+      "type": "string",
+      "pattern": "^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}(?:\\\\.\\\\d+)?Z$"
+    },
+    "analysis_started_at_utc": {
+      "type": "string",
+      "pattern": "^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}(?:\\\\.\\\\d+)?Z$"
+    },
+    "timestamp_evidence_reference": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}\n
