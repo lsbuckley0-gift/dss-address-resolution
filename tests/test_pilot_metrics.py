@@ -5,7 +5,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from experiments.pilot_metrics import evaluate
+from experiments.pilot_metrics import evaluate, _exact_mcnemar_p_value
 
 
 def decision(state, selected=None, complete=True, latency=None, review=None):
@@ -284,6 +284,20 @@ class PilotMetricsTests(unittest.TestCase):
             comparisons["CORRECT_ABSTENTION"]["holm_adjusted_p_value_within_four_outcome_family"],
             0.125,
         )
+
+    def test_exact_mcnemar_is_symmetric_bounded_and_exact_for_small_pairs(self):
+        self.assertEqual(_exact_mcnemar_p_value(0, 0), 1.0)
+        self.assertEqual(_exact_mcnemar_p_value(6, 0), 0.03125)
+        self.assertEqual(_exact_mcnemar_p_value(0, 6), 0.03125)
+        for baseline_only in range(8):
+            for dss_only in range(8):
+                value = _exact_mcnemar_p_value(baseline_only, dss_only)
+                self.assertGreaterEqual(value, 0.0)
+                self.assertLessEqual(value, 1.0)
+                self.assertEqual(
+                    value,
+                    _exact_mcnemar_p_value(dss_only, baseline_only),
+                )
 
     def test_paired_class_comparison_partitions_each_stratum(self):
         report = evaluate(self.data)
