@@ -40,8 +40,32 @@ def verify_signed_checkpoint(
     timestamp_trust_anchor_pem: bytes | None = None,
     timestamp_trust_anchor_pin: dict | None = None,
     timestamp_intermediates_pem: bytes | None = None,
+    timestamp_anchor_attestation: dict | None = None,
+    timestamp_anchor_signature_envelope: dict | None = None,
+    timestamp_governance_trust_store: dict | None = None,
+    timestamp_governance_minimum_sequence: int | None = None,
+    timestamp_governance_trust_store_pin: dict | None = None,
 ) -> dict:
-    """Verify checkpoint signature and optional RFC 3161 pre-outcome timestamp."""
+    """Verify checkpoint signature and optional RFC 3161 pre-outcome timestamp.
+
+    Provenance verification is an explicit opt-in bundle. When present, the
+    attested anchor provenance is checked before the timestamp token; when
+    absent, the established caller-pinned timestamp-only path is unchanged.
+    """
+    provenance_inputs = (
+        timestamp_anchor_attestation is not None,
+        timestamp_anchor_signature_envelope is not None,
+        timestamp_governance_trust_store is not None,
+        timestamp_governance_minimum_sequence is not None,
+    )
+    if any(provenance_inputs) and not all(provenance_inputs):
+        raise ValueError(
+            "timestamp_anchor_attestation, timestamp_anchor_signature_envelope, "
+            "timestamp_governance_trust_store and timestamp_governance_minimum_sequence "
+            "must be supplied together."
+        )
+    if timestamp_governance_trust_store_pin is not None and not all(provenance_inputs):
+        raise ValueError("timestamp_governance_trust_store_pin requires the complete provenance inputs.")
     timestamp_inputs = (
         timestamp_token_der is not None,
         timestamp_trust_anchor_pem is not None,
@@ -129,17 +153,38 @@ def verify_signed_checkpoint(
         and checkpoint_result["checkpoint_time_order"] == "NOT_BEFORE_EVENT"
     )
     timestamp_result = None
+    timestamp_provenance_result = None
     timestamp_binding = "NOT_SUPPLIED"
     if all(timestamp_inputs):
-        from experiments.rfc3161_timestamp import verify_rfc3161_timestamp
+        payload = canonical_checkpoint_payload(checkpoint)
+        if all(provenance_inputs):
+            from experiments.rfc3161_anchor_provenance import verify_rfc3161_timestamp_with_provenance
 
-        timestamp_result = verify_rfc3161_timestamp(
-            timestamp_token_der,
-            canonical_checkpoint_payload(checkpoint),
-            timestamp_trust_anchor_pem,
-            timestamp_trust_anchor_pin,
-            intermediates_pem=timestamp_intermediates_pem,
-        )
+            composite = verify_rfc3161_timestamp_with_provenance(
+                timestamp_token_der,
+                payload,
+                timestamp_trust_anchor_pem,
+                timestamp_trust_anchor_pin,
+                timestamp_anchor_attestation,
+                timestamp_anchor_signature_envelope,
+                timestamp_governance_trust_store,
+                at_utc=at_utc,
+                minimum_sequence=timestamp_governance_minimum_sequence,
+                governance_trust_store_pin=timestamp_governance_trust_store_pin,
+                intermediates_pem=timestamp_intermediates_pem,
+            )
+            timestamp_result = composite["timestamp_evidence"]
+            timestamp_provenance_result = composite["anchor_provenance"]
+        else:
+            from experiments.rfc3161_timestamp import verify_rfc3161_timestamp
+
+            timestamp_result = verify_rfc3161_timestamp(
+                timestamp_token_der,
+                payload,
+                timestamp_trust_anchor_pem,
+                timestamp_trust_anchor_pin,
+                intermediates_pem=timestamp_intermediates_pem,
+            )
         if timestamp_result["timestamp_verification"] == "VALID":
             first_access = next(
                 (event for event in events if event["event_type"] == "OUTCOME_ACCESS"),
@@ -182,6 +227,11 @@ def verify_signed_checkpoint(
         "checkpoint": checkpoint_result,
         "registration_timestamp_binding": timestamp_binding,
         "timestamp_evidence": timestamp_result if timestamp_result is not None else {"timestamp_verification": "NOT_SUPPLIED"},
+        "timestamp_anchor_provenance": (
+            timestamp_provenance_result if timestamp_provenance_result is not None
+            else {"provenance_verification": "NOT_SUPPLIED"}
+        ),
+        "governance_authentication": "NOT_ESTABLISHED",
         "authority_authentication": "NOT_ESTABLISHED",
         "timestamp_authentication": timestamp_authentication,
         "trust_policy_pin": pin_result if pin_result is not None else {"trust_policy_pin": "NOT_CHECKED"},
