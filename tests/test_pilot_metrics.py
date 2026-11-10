@@ -177,7 +177,7 @@ class PilotMetricsTests(unittest.TestCase):
             report = json.loads(completed.stdout)
             self.assertEqual(json.loads(output_path.read_text(encoding="utf-8")), report)
         self.assertEqual(report["dataset_id"], "paired-pilot-synthetic")
-        self.assertEqual(report["report_version"], "paired-pilot-metrics/1.4")
+        self.assertEqual(report["report_version"], "paired-pilot-metrics/1.5")
         self.assertEqual(report["case_count"], 4)
         self.assertEqual(set(report["stratum_metrics"]), {"EXACT", "TYPO", "FORMATTING_ONLY", "CONFLICTING"})
         self.assertEqual(report["stratum_metrics"]["TYPO"]["case_count"], 1)
@@ -396,6 +396,22 @@ class PilotMetricsTests(unittest.TestCase):
                 }
                 with self.assertRaisesRegex(ValueError, "minimum_case_count must be a positive integer"):
                     evaluate(data)
+
+    def test_sample_gate_fails_closed_when_any_case_is_unclassified(self):
+        data = pilot_data([
+            {"case_id": "classified", "gold_candidate_id": "A", "stratum": "TYPO",
+             "baseline": decision("VERIFIED", "A"), "dss": decision("VERIFIED", "A")},
+            {"case_id": "unclassified", "gold_candidate_id": "B",
+             "baseline": decision("VERIFIED", "B"), "dss": decision("VERIFIED", "B")},
+        ])
+        data["sample_requirements"] = {
+            "required_strata": ["TYPO"], "minimum_case_count": 1,
+            "minimum_unique_gold_case_count": 1,
+        }
+        gate = evaluate(data)["sample_sufficiency"]
+        self.assertEqual(gate["strata"]["TYPO"]["status"], "SUFFICIENT")
+        self.assertEqual(gate["unclassified_case_count"], 1)
+        self.assertEqual(gate["status"], "INSUFFICIENT")
 
 if __name__ == "__main__":
     unittest.main()
