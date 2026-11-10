@@ -78,7 +78,7 @@ def _validate(data):
             raise ValueError(f"Duplicate case_id: {case_id}")
         seen.add(case_id)
         stratum = case.get("stratum", "UNSPECIFIED")
-        if stratum not in STRATA and stratum != "UNSPECIFIED":
+        if not isinstance(stratum, str) or (stratum not in STRATA and stratum != "UNSPECIFIED"):
             allowed = ", ".join(sorted(STRATA))
             raise ValueError(f"{prefix}.stratum must be one of: {allowed}.")
         if "gold_candidate_id" not in case:
@@ -216,7 +216,7 @@ def evaluate(data):
     _validate(data)
     cases = data["cases"]
     return {
-        "report_version": "paired-pilot-metrics/1.2",
+        "report_version": "paired-pilot-metrics/1.3",
         "dataset_id": data.get("dataset_id"),
         "dataset_version": data.get("dataset_version"),
         "case_count": len(cases),
