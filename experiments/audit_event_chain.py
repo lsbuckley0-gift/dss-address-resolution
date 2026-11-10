@@ -176,7 +176,7 @@ _CHECKPOINT_FIELDS = {
 
 def verify_external_checkpoint(events: list, checkpoint: dict) -> dict:
     """Compare a retained chain prefix with an independently held checkpoint claim."""
-    chain_report = verify_event_chain(events)
+    verify_event_chain(events)
     if not events:
         raise ValueError("an external checkpoint cannot be compared with an empty event chain.")
     if not isinstance(checkpoint, dict):
