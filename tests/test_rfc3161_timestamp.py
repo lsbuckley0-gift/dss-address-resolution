@@ -29,6 +29,7 @@ class RFC3161TimestampTests(unittest.TestCase):
         run.side_effect = [
             subprocess.CompletedProcess([], 0, self.time_text, ""),
             subprocess.CompletedProcess([], 0, "Verification: OK\n", ""),
+            subprocess.CompletedProcess([], 1, "", "synthetic signer extraction unavailable"),
         ]
         result = verify_rfc3161_timestamp(
             self.token, self.data, self.anchor, self.pin,
@@ -41,6 +42,11 @@ class RFC3161TimestampTests(unittest.TestCase):
         self.assertEqual(result["anchor_provenance"], "NOT_ESTABLISHED")
         self.assertEqual(result["tsa_certificate_revocation"], "NOT_CHECKED")
         self.assertEqual(result["historical_revocation_assurance"], "NOT_ESTABLISHED")
+        self.assertEqual(result["tsa_signer_certificate_identity"], "NOT_EXTRACTED")
+        self.assertEqual(
+            result["tsa_signer_certificate_identity_error"],
+            "synthetic signer extraction unavailable",
+        )
         self.assertEqual(result["event_truth"], "NOT_ESTABLISHED")
         verify_args = run.call_args_list[1].args[0]
         self.assertIn("-attime", verify_args)
