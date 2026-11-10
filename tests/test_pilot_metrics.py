@@ -14,6 +14,10 @@ def decision(state, selected=None, complete=True, latency=None, review=None):
             "review_seconds": review, "review_routed": review is not None}
 
 
+def pilot_data(cases):
+    return {"dataset_id": "unit-test", "dataset_version": "v1", "cases": cases}
+
+
 class PilotMetricsTests(unittest.TestCase):
     def setUp(self):
         self.data = {
@@ -49,15 +53,22 @@ class PilotMetricsTests(unittest.TestCase):
         self.assertEqual(report["systems"]["dss"]["review_time_measurement_coverage"], 1.0)
 
     def test_zero_acceptances_has_null_rate_and_interval(self):
-        data = {"cases": [
+        data = pilot_data([
             {"case_id": "c1", "gold_candidate_id": "A",
              "baseline": decision("UNRESOLVED"),
              "dss": decision("UNRESOLVED")}
-        ]}
+        ])
         metrics = evaluate(data)["systems"]["dss"]
         self.assertIsNone(metrics["false_accept_rate"])
         self.assertIsNone(metrics["false_accept_rate_95pct_wilson"])
 
+
+
+    def test_dataset_provenance_is_required(self):
+        with self.assertRaisesRegex(ValueError, "dataset_id must be a non-empty string"):
+            evaluate({"cases": self.data["cases"]})
+        with self.assertRaisesRegex(ValueError, "dataset_version must be a non-empty string"):
+            evaluate({"dataset_id": "dataset", "cases": self.data["cases"]})
 
     def test_missing_gold_label_is_rejected_instead_of_treated_as_ambiguous(self):
         data = {"cases": [
@@ -71,7 +82,7 @@ class PilotMetricsTests(unittest.TestCase):
 
     def test_empty_evaluation_set_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "at least one paired case"):
-            evaluate({"cases": []})
+            evaluate(pilot_data([]))
 
     def test_non_boolean_trace_completeness_is_rejected(self):
         data = {"cases": [
@@ -104,7 +115,7 @@ class PilotMetricsTests(unittest.TestCase):
         case = self.data["cases"][0]
         duplicate = dict(case)
         with self.assertRaisesRegex(ValueError, "Duplicate case_id"):
-            evaluate({"cases": [case, duplicate]})
+            evaluate(pilot_data([case, duplicate]))
 
     def test_unresolved_cannot_claim_selected_candidate(self):
         data = {"cases": [
