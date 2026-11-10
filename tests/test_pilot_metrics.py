@@ -293,6 +293,23 @@ class PilotMetricsTests(unittest.TestCase):
         ]))
         self.assertEqual(report["stratum_metrics"]["UNSPECIFIED"]["case_count"], 1)
 
+
+    def test_stratum_matrices_recompose_global_paired_matrix_exactly(self):
+        report = evaluate(self.data)
+        global_matrix = report["paired_outcome_matrix"]
+        strata = report["stratum_metrics"]
+        for baseline_class in global_matrix:
+            for dss_class in global_matrix[baseline_class]:
+                stratum_total = sum(
+                    item["paired_outcome_matrix"][baseline_class][dss_class]
+                    for item in strata.values()
+                )
+                self.assertEqual(
+                    stratum_total,
+                    global_matrix[baseline_class][dss_class],
+                    msg=f"stratum decomposition lost transition {baseline_class} -> {dss_class}",
+                )
+
     def test_unknown_stratum_is_rejected(self):
         data = pilot_data([
             {"case_id": "unknown", "gold_candidate_id": "A", "stratum": "NEAR_ENOUGH",
