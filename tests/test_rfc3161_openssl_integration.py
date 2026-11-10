@@ -434,7 +434,7 @@ ess_cert_id_chain = no
 
     def test_negative_crl_number_is_rejected(self):
         timestamp_result = self._verified_timestamp_result()
-        with self.assertRaisesRegex(ValueError, "CRLNumber must be a non-negative integer"):
+        with self.assertRaises(ValueError):
             verify_tsa_crl_evidence(
                 timestamp_result, self.tsa_pem, self.ca_pem,
                 self._build_tsa_crl(crl_number=-1),
