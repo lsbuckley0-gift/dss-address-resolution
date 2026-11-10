@@ -44,8 +44,8 @@ class RFC3161TimestampTests(unittest.TestCase):
         self.assertIn("-attime", verify_args)
         self.assertEqual(verify_args[verify_args.index("-attime") + 1], "1794315600")
         self.assertIn("timestampsign", verify_args)
-        self.assertIn("-no-CApath", verify_args)
-        self.assertIn("-no-CAstore", verify_args)
+        self.assertIn("-CApath", verify_args)
+        self.assertTrue(verify_args[verify_args.index("-CApath") + 1].endswith("empty-ca-path"))
         self.assertIn("-untrusted", verify_args)
 
     @patch("experiments.rfc3161_timestamp.subprocess.run")
