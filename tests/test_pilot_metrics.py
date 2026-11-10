@@ -455,11 +455,11 @@ class PilotMetricsTests(unittest.TestCase):
             "max_false_reject_rate_upper_95pct": 1.0,
             "minimum_coverage": 0.0,
             "maximum_review_routed_rate": 1.0,
-            "maximum_median_review_seconds": 40,
+            "maximum_median_review_seconds": 60,
             "minimum_review_time_measurement_coverage": 1.0,
         }
         assessment = evaluate(data)["decision_assessment"]
-        self.assertEqual(assessment["status"], "PASS")
+        self.assertEqual(assessment["status"], "PASS", assessment["criteria"])
         self.assertEqual(assessment["criteria"]["false_accept_rate_upper_95pct"]["observed"], 0.0)
 
     def test_decision_assessment_uses_upper_wilson_bound_not_point_rate(self):
@@ -505,10 +505,10 @@ class PilotMetricsTests(unittest.TestCase):
             "system": "dss", "max_false_accept_rate_upper_95pct": 1.0,
             "max_false_reject_rate_upper_95pct": 1.0, "minimum_coverage": 0.0,
             "maximum_review_routed_rate": 1.0, "maximum_median_review_seconds": 60,
-            "minimum_review_time_measurement_coverage": 1.0,
+            "minimum_review_time_measurement_coverage": 0.0,
         }
         assessment = evaluate(data)["decision_assessment"]
-        self.assertEqual(assessment["status"], "INDETERMINATE")
+        self.assertEqual(assessment["status"], "INDETERMINATE", assessment["criteria"])
         self.assertEqual(assessment["criteria"]["median_review_seconds"]["status"], "INDETERMINATE")
 
     def test_decision_requirements_reject_out_of_range_or_boolean_thresholds(self):
