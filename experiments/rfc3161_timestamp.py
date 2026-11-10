@@ -88,8 +88,9 @@ def _extract_signer_certificate_identity(
     directory: Path,
     openssl_binary: str,
     timeout_seconds: int,
+    issuer_certificates_pem: bytes,
 ) -> dict:
-    """Extract the CMS signer certificate after timestamp verification succeeds.
+    """Extract the CMS signer and its issuer identity after timestamp verification succeeds.
 
     CMS signature/content verification is repeated with certificate-path
     verification disabled because the caller has already completed the stricter
@@ -127,15 +128,72 @@ def _extract_signer_certificate_identity(
         certificate = x509.load_pem_x509_certificate(signer_pem)
         certificate_der = certificate.public_bytes(serialization.Encoding.DER)
         issuer_name_der = certificate.issuer.public_bytes()
-        issuer_spki_der = certificate.public_key().public_bytes(
+        issuer_candidates = x509.load_pem_x509_certificates(issuer_certificates_pem)
+        candidates = [
+            candidate for candidate in issuer_candidates
+            if candidate.subject.public_bytes() == issuer_name_der
+        ]
+        try:
+            authority_key_id = certificate.extensions.get_extension_for_class(
+                x509.AuthorityKeyIdentifier
+            ).value
+        except x509.ExtensionNotFound:
+            authority_key_id = None
+        if authority_key_id is not None:
+            if authority_key_id.key_identifier is not None:
+                def candidate_key_id(candidate):
+                    try:
+                        return candidate.extensions.get_extension_for_class(
+                            x509.SubjectKeyIdentifier
+                        ).value.digest
+                    except x509.ExtensionNotFound:
+                        return x509.SubjectKeyIdentifier.from_public_key(
+                            candidate.public_key()
+                        ).digest
+                candidates = [
+                    candidate for candidate in candidates
+                    if candidate_key_id(candidate) == authority_key_id.key_identifier
+                ]
+            if authority_key_id.authority_cert_serial_number is not None:
+                candidates = [
+                    candidate for candidate in candidates
+                    if candidate.serial_number == authority_key_id.authority_cert_serial_number
+                ]
+            if authority_key_id.authority_cert_issuer is not None:
+                directory_names = [
+                    name.value for name in authority_key_id.authority_cert_issuer
+                    if isinstance(name, x509.DirectoryName)
+                ]
+                if not directory_names:
+                    raise ValueError("TSA certificate AKI issuer form is unsupported.")
+                candidates = [
+                    candidate for candidate in candidates
+                    if candidate.issuer in directory_names
+                ]
+        if len(candidates) != 1:
+            raise ValueError(
+                "TSA issuer certificate could not be identified uniquely from "
+                "the caller-supplied chain certificates."
+            )
+        issuer_certificate = candidates[0]
+        issuer_certificate_der = issuer_certificate.public_bytes(
+            serialization.Encoding.DER
+        )
+        issuer_spki_der = issuer_certificate.public_key().public_bytes(
+            serialization.Encoding.DER,
+            serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        subject_spki_der = certificate.public_key().public_bytes(
             serialization.Encoding.DER,
             serialization.PublicFormat.SubjectPublicKeyInfo,
         )
     except (ValueError, TypeError) as exc:
-        raise ValueError("OpenSSL returned an unusable TSA signer certificate.") from exc
+        raise ValueError("OpenSSL returned an unusable TSA signer/issuer identity.") from exc
     return {
         "certificate_der_sha256": hashlib.sha256(certificate_der).hexdigest(),
+        "subject_spki_sha256": hashlib.sha256(subject_spki_der).hexdigest(),
         "issuer_name_der_sha256": hashlib.sha256(issuer_name_der).hexdigest(),
+        "issuer_certificate_der_sha256": hashlib.sha256(issuer_certificate_der).hexdigest(),
         "issuer_spki_sha256": hashlib.sha256(issuer_spki_der).hexdigest(),
         "serial_hex": format(certificate.serial_number, "x"),
     }
@@ -230,7 +288,8 @@ def verify_rfc3161_timestamp(
             if completed.returncode == 0:
                 try:
                     signer_identity = _extract_signer_certificate_identity(
-                        token_path, root, openssl_binary, timeout_seconds
+                        token_path, root, openssl_binary, timeout_seconds,
+                        trust_anchor_pem + (intermediates_pem or b""),
                     )
                 except FileNotFoundError:
                     signer_identity_error = "OpenSSL executable was not found for CMS signer extraction."
