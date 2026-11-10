@@ -193,8 +193,10 @@ def _extract_signer_certificate_identity(
             serialization.Encoding.DER,
             serialization.PublicFormat.SubjectPublicKeyInfo,
         )
-    except (ValueError, TypeError) as exc:
-        raise ValueError("OpenSSL returned an unusable TSA signer/issuer identity.") from exc
+    except Exception as exc:
+        raise ValueError(
+            "OpenSSL returned an unusable TSA signer/issuer identity: " + str(exc)
+        ) from exc
     return {
         "certificate_der_sha256": hashlib.sha256(certificate_der).hexdigest(),
         "subject_spki_sha256": hashlib.sha256(subject_spki_der).hexdigest(),
