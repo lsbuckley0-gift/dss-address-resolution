@@ -214,11 +214,15 @@ ess_cert_id_chain = no
         include_aki=True, delta=False, this_update=None, next_update=None,
         revocation_reason=None, duplicate_target_entry=False,
         crl_aki_issuer_serial=None, issuing_distribution_point=None,
+        omit_next_update=False, unsupported_crl_extension=None,
     ):
         issuer = x509.load_pem_x509_certificate(self.ca_pem)
         now = datetime.now(timezone.utc).replace(microsecond=0, tzinfo=None)
         this_update = this_update or (now - timedelta(days=1))
-        next_update = next_update or (now + timedelta(days=1))
+        if not omit_next_update:
+            next_update = next_update or (now + timedelta(days=1))
+        else:
+            next_update = None
         builder = (
             x509.CertificateRevocationListBuilder()
             .issuer_name(issuer.subject)
@@ -248,6 +252,10 @@ ess_cert_id_chain = no
         if issuing_distribution_point is not None:
             builder = builder.add_extension(
                 issuing_distribution_point, critical=True
+            )
+        if unsupported_crl_extension is not None:
+            builder = builder.add_extension(
+                unsupported_crl_extension, critical=True
             )
         if revoked_at is not None:
             tsa = x509.load_pem_x509_certificate(self.tsa_pem)
@@ -464,6 +472,25 @@ ess_cert_id_chain = no
                 timestamp_result, tsa_pem, self.ca_pem, crl_der
             )
 
+    def test_crl_requires_next_update(self):
+        timestamp_result = self._verified_timestamp_result()
+        with self.assertRaisesRegex(ValueError, "increasing thisUpdate/nextUpdate"):
+            verify_tsa_crl_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem,
+                self._build_tsa_crl(omit_next_update=True),
+            )
+
+    def test_unsupported_critical_crl_extension_is_rejected(self):
+        timestamp_result = self._verified_timestamp_result()
+        unknown = x509.UnrecognizedExtension(
+            ObjectIdentifier("1.2.3.4.5.8"), b"\\x05\\x00"
+        )
+        with self.assertRaisesRegex(ValueError, "unsupported extension"):
+            verify_tsa_crl_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem,
+                self._build_tsa_crl(unsupported_crl_extension=unknown),
+            )
+
     def test_crl_with_partial_reason_scope_is_rejected(self):
         timestamp_result = self._verified_timestamp_result()
         idp = x509.IssuingDistributionPoint(
@@ -639,6 +666,22 @@ ess_cert_id_chain = no
             result["historical_revocation_assurance"],
             "REVOKED_BY_TARGET_TIME_UNDER_SIGNED_OCSP_ASSERTION",
         )
+
+    def test_ocsp_remove_from_crl_reason_is_rejected(self):
+        timestamp_result = self._verified_timestamp_result()
+        target = datetime.fromisoformat(
+            timestamp_result["tsa_asserted_gen_time_utc"].replace("Z", "+00:00")
+        )
+        response_der = self._build_tsa_ocsp_response(
+            status=ocsp.OCSPCertStatus.REVOKED,
+            revocation_time=(target - timedelta(hours=1)).replace(tzinfo=None),
+            revocation_reason=x509.ReasonFlags.remove_from_crl,
+            this_update=(target - timedelta(minutes=30)).replace(tzinfo=None),
+        )
+        with self.assertRaisesRegex(ValueError, "removeFromCRL is unsupported"):
+            verify_tsa_ocsp_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem, response_der
+            )
 
     def test_ocsp_certificate_hold_remains_historically_indeterminate(self):
         timestamp_result = self._verified_timestamp_result()
