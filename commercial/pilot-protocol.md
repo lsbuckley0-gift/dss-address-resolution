@@ -1,109 +1,132 @@
-# ∂ss — Pilot and Evaluation Protocol
+# ∂ss Address Resolution Loop
 
-## Purpose
+A strict control loop for resolving noisy, incomplete, or conflicting address and identity records.
 
-Evaluate whether the ∂ss control loop reduces unsafe address acceptance while maintaining useful resolution coverage and an operationally acceptable review burden.
+∂ss is designed as a verification envelope around candidate generation. It distinguishes a plausible candidate from an established resolution. If the evidence does not support a safe, unique landing, the outcome is `UNRESOLVED`.
 
-This protocol does not assume that ∂ss already achieves any performance target. Targets are agreed with the pilot customer before the test set is opened.
+## The Core Problem
 
-## 1. Dataset requirements
+Address workflows encounter incomplete, mistyped, stale, duplicated and conflicting records. A textually similar candidate is not automatically the intended destination.
 
-Use a customer-approved dataset with documented lawful basis, data minimisation, retention period, access controls and permitted processing. Do not upload personal address data to a public repository or public demo.
+An unsafe acceptance can propagate into fulfilment, customer records and downstream systems. The relative cost of a false acceptance and a human-reviewed unresolved case depends on the organisation and use case; it should be measured in each deployment rather than assumed universally.
 
-Each test case should contain:
-- Stable, pseudonymous case ID.
-- Original intended address record.
-- Candidate set and source/provenance.
-- Gold-standard intended delivery point or an explicit "no unique answer" label.
-- Known corruption/ambiguity category.
-- Dataset version and label provenance.
+## The Five-Step Loop
 
-Suggested case strata:
-- Exact record.
-- Formatting-only variation.
-- Typographical error.
-- Missing premise identifier.
-- Conflicting postcode and street.
-- Multiple plausible premises.
-- New/unknown address absent from reference data.
-- Flat/sub-premise ambiguity.
-- Stale or superseded address.
-- Deliberately misleading near-match.
+1. **Intended Address (I):** Preserve the exact intended destination and its provenance.
+2. **Resolution:** Evaluate candidates and their evidence; permit no candidate or multiple candidates.
+3. **Operation:** Apply only an authorised, recorded transformation.
+4. **Return Check (∂ss):** Compare the observed result against the original intention using declared, field-aware rules.
+5. **Terminal State:** `VERIFIED` | `CORRECTED` | `UNRESOLVED`.
 
-Split data into development and held-out evaluation sets. Keep all variants of the same underlying address in one split to prevent leakage. Record class balance and sampling method.
+**Governing principle:** the forward operation must satisfy the return check. An unresolved outcome is valid when evidence does not support a confident landing.
 
-## 2. Baselines
+## Why UNRESOLVED Is First-Class
 
-Run the customer's existing process on the same held-out cases. Where relevant, include:
-- Exact-match baseline.
-- Existing address provider or candidate-generation service.
-- ∂ss control workflow using the same candidates and reference data.
+- Similarity is evidence, not proof of destination identity.
+- Conflicting or ambiguous cases must not be forced into an automatic match.
+- Decisions, including refusals, should retain the evidence, rule and reason that produced the outcome.
+- Human review remains an explicit route where automation cannot safely decide.
 
-Do not compare systems using different reference datasets, licensing rights, candidate pools or label rules without disclosing the difference.
+## Quick Start
 
-## 3. Required metrics
+The synthetic demonstration has no third-party dependencies and uses fictional records only.
 
-Report counts as well as rates, with confidence intervals where sample size permits.
+```bash
+python demo/dss_demo.py
+python demo/dss_demo.py --json-out demo-trace.json
+python -m unittest discover -s tests -v
+```
 
-- **False-accept rate:** incorrectly accepted records / all records automatically accepted.
-- **False-accept prevalence:** incorrectly accepted records / all evaluation records.
-- **Correct auto-resolution rate:** correctly resolved automatically / all evaluation records.
-- **Coverage:** automatically resolved records / all evaluation records.
-- **Unresolved rate:** unresolved records / all evaluation records.
-- **Correction precision:** correct corrections / all corrections applied.
-- **Review burden:** cases routed to human review and median review time.
-- **Latency:** median and 95th percentile processing time.
-- **Trace completeness:** decisions with all required evidence, rule/version and operation fields / all decisions.
+See [the demonstration guide](demo/README.md) for its scope and limitations.
 
-Never report a zero false-accept rate without its numerator, denominator, sample composition and uncertainty. A small test set cannot establish a universal zero-error guarantee.
+A separate [synthetic vehicle-event collision benchmark](experiments/README.md) tests identity preservation across parcel-event sequences.
 
-## 4. Acceptance criteria
+## Core Loop Checks
 
-Agree criteria with the customer before evaluation. A sample template:
+The original `dss_loop.py` resolver treats a normalised UK postcode as its
+outward and inward code together. The final two whitespace-separated tokens
+are parsed as the postcode; preceding tokens are the premise and street.
+Direct unit tests cover exact verification, one-edit street and postcode
+correction, compressed postcode normalisation, rejection when a valid candidate
+belongs to a different intended identity, conflicting postcodes, failed and
+inconclusive return checks, and the rule that a missing candidate skips
+operation and return check.
 
-- False-accept rate is below the customer's pre-agreed risk threshold.
-- Correct auto-resolution coverage does not fall below the agreed minimum.
-- Every automatic correction passes the return check.
-- Every unresolved case is retained and routed according to the agreed workflow.
-- Trace completeness meets the agreed audit requirement.
-- Latency and operating cost remain within the customer's limits.
+Run the dependency-free core tests with:
+`python -m unittest discover -s tests -v`.
 
-The customer owns risk thresholds. No universal threshold is asserted here.
+## Legacy Fuzzy Comparison Harness
 
-## 5. Decision trace schema
+The optional `run_test.py` comparison uses RapidFuzz as its baseline. Install
+its pinned dependency and run:
 
-For each case, preserve at minimum:
-- case_id
-- intended_record_hash or protected reference
-- candidate IDs and evidence provenance
-- normalisation and comparison rules with versions
-- selected candidate, if any
-- operation performed, if any
-- return-check result and field-level differences
-- terminal state
-- reason code
-- timestamp and software version
+```bash
+python -m pip install -r requirements-comparison.txt
+python -m unittest discover -s tests -p 'test_comparison.py' -v
+python run_test.py
+```
 
-Avoid storing raw personal data in logs unless strictly necessary and explicitly approved. Prefer pseudonymous identifiers and protected references.
+The comparison applies the same `dss_loop.normalise` function to incoming
+text and authority-record strings before fuzzy scoring. Its policy is explicit:
+`token_set_ratio`, a score threshold of 80, and abstention when the highest
+score is tied. This avoids granting the baseline an arbitrary first-record
+decision in an ambiguous tie. The ∂ss harness separately asserts every declared
+terminal outcome, fixture accounting, and zero false accepts.
 
-## 6. Reproducibility
+These are synthetic fixtures, not a representative accuracy study. Threshold
+selection, tie policy and normalisation must be fixed before evaluation on a
+representative labelled dataset; results should not be generalised from this
+small comparison.
 
-- Freeze code commit, configuration, rules and reference-data version.
-- Freeze the held-out dataset and label file before running.
-- Record environment and dependency versions.
-- Run each baseline and ∂ss on identical cases.
-- Preserve machine-readable outputs and a human-readable report.
-- Have an independent reviewer inspect all false accepts and a sample of each other outcome.
-- Publish only synthetic or appropriately anonymised examples.
+## Commercial and Evaluation Documents
 
-## 7. Pilot report
+- [Commercial market position](commercial/market-position.md)
+- [Pilot and evaluation protocol](commercial/pilot-protocol.md)
+- [Reproducible demonstration specification](commercial/demo-spec.md)
 
-The final report must state:
-1. Scope and exclusions.
-2. Data provenance and permissions.
-3. Dataset size and strata.
-4. Baseline and ∂ss results with denominators.
-5. False accepts and unresolved cases inspected individually.
-6. Operational impact, latency and cost.
-7. Limitations and unresolved risks.
-8. Recommendation: stop, revise, extend or proceed to integration.
+## Important Scope
+
+The included demonstration is a small reference implementation of the decision discipline. It is not a production address matcher, does not use live or licensed address data, and does not establish accuracy or superiority over existing services.
+
+Production use requires representative, lawfully obtained and labelled data; agreed identity rules; security and privacy review; integration testing; and an evaluation against the customer's current baseline. Do not upload personal address data or licensed PAF data to this public repository.
+
+## Status
+
+The repository describes the method and contains a synthetic demonstration with automated tests. Customer performance, operational readiness and commercial value remain to be established through a controlled pilot.
+
+## Executable paired pilot metrics
+
+A paired pilot must score both systems against the same gold label for every
+case. The repository includes a metadata-only evaluator:
+
+```bash
+python experiments/pilot_metrics.py path/to/paired-pilot.json --json-out pilot-report.json
+python -m unittest discover -s tests -v
+```
+
+The input is a JSON object with dataset_id, dataset_version and a cases array.
+Each case has a unique pseudonymous case_id, gold_candidate_id (a candidate ID
+or null when no unique answer exists), and baseline/dss decision objects.
+Each decision contains terminal_state (VERIFIED, CORRECTED or UNRESOLVED),
+selected_candidate_id (null only when unresolved), trace_complete (boolean),
+and optional non-negative latency_ms and review_seconds. Review time is only
+valid for unresolved cases. Do not include raw addresses or customer identifiers.
+
+The evaluator rejects duplicate case IDs, invalid states, accepted decisions
+without a candidate, unresolved decisions with a selected candidate, malformed
+trace flags and invalid measurements. Both systems are scored over the same
+paired cases. A wrong candidate or any acceptance where the gold label is null
+counts as a false accept.
+
+The JSON report gives raw counts and explicit denominators for false-accept
+rate, false-accept prevalence, correct auto-resolution, coverage, unresolved
+rate, correction precision, trace completeness, review time and latency.
+False-accept rate includes a 95% Wilson score interval; latency p95 uses the
+nearest-rank definition. Missing latency/review measurements are counted
+separately rather than imputed. An empty acceptance denominator yields null,
+not a misleading zero rate.
+
+The evaluator does not decide whether a pilot passes. Risk thresholds, minimum
+coverage, acceptable review burden, dataset strata, label adjudication and
+confidence requirements must be agreed before opening the held-out set.
+This is a report calculator, not a customer-data store or an address matcher.
