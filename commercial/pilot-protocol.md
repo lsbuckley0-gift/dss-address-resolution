@@ -204,6 +204,16 @@ the baseline decision and columns classify the ∂ss decision as correct automat
 resolution, false accept, false reject or correct abstention. Every paired case
 appears in exactly one cell. This exposes case-level trade-offs—for example, a
 baseline false accept becoming a ∂ss false reject—rather than hiding them inside
-separate aggregate rates. The report format is `paired-pilot-metrics/1.2`.
+separate aggregate rates. The report format is `paired-pilot-metrics/1.3`. The report also groups the
+same measures by case stratum. Accepted labels are `EXACT`, `FORMATTING_ONLY`,
+`TYPO`, `DUPLICATE`, `CONFLICTING`, `INCOMPLETE` and `STALE`. The input
+field is optional for compatibility; omitted labels are explicitly reported as
+`UNSPECIFIED`, not silently assigned to a disturbance class. Unknown or
+non-string labels are rejected. Each stratum includes its case count, both
+systems' metrics and its own paired outcome matrix, so denominators remain
+visible within the subgroup. Stratum rates are descriptive; small sample sizes
+and synthetic fixtures do not establish statistical significance or field
+performance. Pre-register the classification rules and sampling plan before
+held-out scoring.
 
 This is a report calculator, not a customer-data store or an address matcher.
