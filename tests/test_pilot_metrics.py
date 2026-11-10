@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from experiments.pilot_metrics import (evaluate, _exact_mcnemar_p_value, _clopper_pearson, _paired_prevalence_difference_interval, _primary_endpoint_spec_sha256)
 from experiments.registration_evidence import verify_registration_evidence
-from experiments.audit_event_chain import append_audit_event, verify_event_chain, verify_external_checkpoint, verify_checkpoint_series
+from experiments.audit_event_chain import append_audit_event, verify_event_chain, verify_external_checkpoint, verify_checkpoint_series, verify_registration_chain_binding
 
 
 def decision(state, selected=None, complete=True, latency=None, review=None):
@@ -847,6 +847,7 @@ class RegistrationEvidenceTests(unittest.TestCase):
         self.record = {
             "record_version": "registration-evidence/v1",
             "registration_reference": "protocol-v1",
+            "registration_event_id": "evt-registration",
             "endpoint_spec_sha256": _primary_endpoint_spec_sha256(self.endpoint),
             "registered_at_utc": "2026-10-01T09:00:00Z",
             "outcomes_accessed_at_utc": "2026-10-02T09:00:00Z",
@@ -1103,6 +1104,53 @@ class AuditEventChainTests(unittest.TestCase):
         self.assertIsNotNone(re.fullmatch(pattern, "2026-10-01T09:00:00.123456Z"))
         self.assertIsNone(re.fullmatch(pattern, "2026-10-01T09:00:00.1234567Z"))
 
+
+    def test_registration_record_is_bound_to_the_first_hash_linked_event(self):
+        endpoint = {
+            "outcome_class": "FALSE_ACCEPT",
+            "expected_direction": "LOWER",
+            "analysis_population": "ALL_PAIRED_CASES",
+            "alpha": 0.05,
+            "registration_reference": "protocol-v1",
+            "frozen_before_outcomes_review": True,
+        }
+        record = {
+            "record_version": "registration-evidence/v1",
+            "registration_reference": "protocol-v1",
+            "registration_event_id": "evt-registration",
+            "endpoint_spec_sha256": _primary_endpoint_spec_sha256(endpoint),
+            "registered_at_utc": "2026-10-01T09:00:00Z",
+            "outcomes_accessed_at_utc": "2026-10-02T09:00:00Z",
+            "analysis_started_at_utc": "2026-10-02T10:00:00Z",
+            "timestamp_evidence_reference": "archive://record-17",
+        }
+        result = verify_registration_chain_binding(endpoint, record, self.events)
+        self.assertEqual(result["registration_chain_binding"], "MATCH")
+        self.assertTrue(result["registration_event_id_matches"])
+        self.assertEqual(result["timestamp_verification"], "NOT_INDEPENDENTLY_VERIFIED")
+
+    def test_registration_chain_binding_rejects_a_different_event_id(self):
+        endpoint = {
+            "outcome_class": "FALSE_ACCEPT",
+            "expected_direction": "LOWER",
+            "analysis_population": "ALL_PAIRED_CASES",
+            "alpha": 0.05,
+            "registration_reference": "protocol-v1",
+            "frozen_before_outcomes_review": True,
+        }
+        record = {
+            "record_version": "registration-evidence/v1",
+            "registration_reference": "protocol-v1",
+            "registration_event_id": "some-other-event",
+            "endpoint_spec_sha256": _primary_endpoint_spec_sha256(endpoint),
+            "registered_at_utc": "2026-10-01T09:00:00Z",
+            "outcomes_accessed_at_utc": "2026-10-02T09:00:00Z",
+            "analysis_started_at_utc": "2026-10-02T10:00:00Z",
+            "timestamp_evidence_reference": "archive://record-17",
+        }
+        result = verify_registration_chain_binding(endpoint, record, self.events)
+        self.assertEqual(result["registration_chain_binding"], "MISMATCH")
+        self.assertFalse(result["registration_event_id_matches"])
 
     def _checkpoint(self):
         return {
