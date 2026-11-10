@@ -191,6 +191,44 @@ implementation references: [RFC 3161](https://www.rfc-editor.org/rfc/rfc3161),
 [OpenSSL timestamp command](https://docs.openssl.org/3.0/man1/openssl-ts/),
 and [OpenSSL CMS command](https://docs.openssl.org/3.0/man1/openssl-cms/).
 
+### Initial direct-CRL verification slice
+
+`experiments/rfc3161_crl_status.py` adds a standalone
+`verify_tsa_crl_evidence(...)` path. It requires a prior `VALID` timestamp
+result with extracted signer identity, then binds the supplied TSA and issuer
+certificates to the exact certificate and issuer digests in that result. It
+checks that the issuer is a CA authorized for CRL signing, matches the TSA
+certificate's issuer name and Authority Key Identifier, and verifies the CRL
+signature under that issuer key.
+
+The first supported CRL subset is intentionally narrow: a direct complete
+CRL with CRLNumber and Authority Key Identifier, no Issuing Distribution Point,
+no delta/freshest-CRL extension, and no CRLDistributionPoints extension on
+the TSA certificate (distribution-point scope matching is not implemented).
+Unsupported extensions, duplicate target serial entries, indirect entries,
+missing required time fields, wrong issuer identity and invalid signatures
+fail closed.
+
+A signed entry whose `revocationDate` is at or before the token's asserted
+`genTime` is reported as
+`REVOKED_AT_OR_BEFORE_TARGET`, with the result explicitly labelled as an
+issuer-signed revocation-time assertion. Absence from a CRL is only reported
+as `NOT_LISTED_AT_CRL_THIS_UPDATE` when the CRL interval covers the target;
+it never becomes a positive non-revocation result. Outside that interval,
+status remains `NOT_ESTABLISHED`. The CRL's `thisUpdate` is itself an
+issuer-signed time assertion, not an independently timestamped clock.
+
+This CRL evaluator is a separate opt-in function; it is not yet wired into
+`verify_rfc3161_timestamp(...)`. The timestamp verifier therefore continues
+to return `tsa_certificate_revocation: NOT_CHECKED` and
+`historical_revocation_assurance: NOT_ESTABLISHED` until an explicit
+integration contract is added. The evaluator binds the issuer certificate to
+the prior timestamp result but does not independently re-authenticate the
+trust root. OCSP remains unimplemented. Synthetic integration tests cover
+valid direct CRLs, revoked and unlisted serials, issuer mismatch, bad
+signatures, missing CRLNumber/AKI, delta CRL rejection and incompatible
+evidence intervals.
+
 ## 9. Implementation gates
 
 No runtime support should be added until the following gates are satisfied:
