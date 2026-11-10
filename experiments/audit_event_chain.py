@@ -237,10 +237,18 @@ def verify_external_checkpoint(events: list, checkpoint: dict) -> dict:
     }
 
 
-def verify_checkpoint_series(events: list, checkpoints: list) -> dict:
-    """Verify multiple checkpoints bind one chain in strictly increasing order."""
+def verify_checkpoint_series(
+    events: list, checkpoints: list, *, minimum_sequence: int | None = None
+) -> dict:
+    """Verify ordered checkpoints and, optionally, a caller-retained rollback floor."""
     if not isinstance(checkpoints, list) or not checkpoints:
         raise ValueError("checkpoints must be a non-empty list.")
+    if minimum_sequence is not None and (
+        isinstance(minimum_sequence, bool)
+        or not isinstance(minimum_sequence, int)
+        or minimum_sequence < 0
+    ):
+        raise ValueError("minimum_sequence must be a non-negative integer when supplied.")
     results = []
     previous_sequence = -1
     previous_time = None
@@ -263,14 +271,23 @@ def verify_checkpoint_series(events: list, checkpoints: list) -> dict:
         previous_time = anchored_at
         seen_references.add(reference)
 
+    floor_status = "NOT_SUPPLIED"
+    if minimum_sequence is not None:
+        floor_status = (
+            "MEETS_FLOOR"
+            if previous_sequence >= minimum_sequence
+            else "BELOW_FLOOR"
+        )
     series_matches = all(
         result["checkpoint_binding"] == "MATCH"
         and result["checkpoint_time_order"] == "NOT_BEFORE_EVENT"
         and result.get("series_order") == "INCREASING"
         for result in results
-    )
+    ) and floor_status != "BELOW_FLOOR"
     return {
         "checkpoint_series_integrity": "MATCH" if series_matches else "MISMATCH",
+        "minimum_sequence": minimum_sequence,
+        "rollback_floor": floor_status,
         "checkpoint_count": len(results),
         "checkpoints": results,
         "anchor_authentication": "NOT_VERIFIED",
@@ -390,6 +407,7 @@ def main(argv=None) -> int:
         type=non_negative_integer,
         help="Operator-maintained non-negative anti-rollback floor for timestamp-anchor provenance",
     )
+    parser.add_argument("--checkpoint-minimum-sequence", type=non_negative_integer, help="Operator-retained minimum event sequence for checkpoint-series rollback detection")
     parser.add_argument("--timestamp-governance-trust-store-pin", help="Optional out-of-band digest pin for the governance trust store")
     args = parser.parse_args(argv)
     signed_options = (args.signature, args.trust_store, args.at_utc)
@@ -424,9 +442,13 @@ def main(argv=None) -> int:
         if args.checkpoint:
             checkpoint = json.loads(Path(args.checkpoint).read_text(encoding="utf-8"))
             report["external_checkpoint"] = verify_external_checkpoint(events, checkpoint)
+        if args.checkpoint_minimum_sequence is not None and not args.checkpoints:
+            parser.error("--checkpoint-minimum-sequence requires --checkpoints")
         if args.checkpoints:
             checkpoints = json.loads(Path(args.checkpoints).read_text(encoding="utf-8"))
-            report["external_checkpoints"] = verify_checkpoint_series(events, checkpoints)
+            report["external_checkpoints"] = verify_checkpoint_series(
+                events, checkpoints, minimum_sequence=args.checkpoint_minimum_sequence
+            )
         if args.signed_checkpoint:
             from experiments.checkpoint_signature import verify_signed_checkpoint
 
