@@ -324,6 +324,25 @@ ess_cert_id_chain = no
                 timestamp_result, self.tsa_pem, self.ca_pem, crl_der
             )
 
+    def test_certificate_hold_does_not_become_permanent_historical_revocation(self):
+        timestamp_result = self._verified_timestamp_result()
+        target = datetime.fromisoformat(
+            timestamp_result["tsa_asserted_gen_time_utc"].replace("Z", "+00:00")
+        )
+        crl_der = self._build_tsa_crl(
+            revoked_at=target - timedelta(hours=1),
+            this_update=(target - timedelta(minutes=30)).replace(tzinfo=None),
+            revocation_reason=x509.ReasonFlags.certificate_hold,
+        )
+        result = verify_tsa_crl_evidence(
+            timestamp_result, self.tsa_pem, self.ca_pem, crl_der
+        )
+        self.assertEqual(
+            result["status_at_target_time"],
+            "CERTIFICATE_HOLD_REPORTED_TARGET_STATUS_NOT_ESTABLISHED",
+        )
+        self.assertEqual(result["historical_revocation_assurance"], "NOT_ESTABLISHED")
+
     def test_remove_from_crl_reason_is_rejected_without_delta_support(self):
         timestamp_result = self._verified_timestamp_result()
         target = datetime.fromisoformat(
