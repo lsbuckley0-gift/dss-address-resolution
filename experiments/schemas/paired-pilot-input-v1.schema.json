@@ -1,0 +1,181 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/dss/paired-pilot-input-v1.schema.json",
+  "title": "∂ss paired pilot metrics input",
+  "description": "Metadata-only paired evaluation input. Do not include raw addresses or customer-identifying data.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "dataset_id",
+    "dataset_version",
+    "cases"
+  ],
+  "properties": {
+    "dataset_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "dataset_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/case"
+      }
+    }
+  },
+  "$defs": {
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "case_id",
+        "gold_candidate_id",
+        "baseline",
+        "dss"
+      ],
+      "properties": {
+        "case_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "gold_candidate_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "baseline": {
+          "$ref": "#/$defs/decision"
+        },
+        "dss": {
+          "$ref": "#/$defs/decision"
+        }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "terminal_state",
+        "selected_candidate_id",
+        "trace_complete",
+        "review_routed"
+      ],
+      "properties": {
+        "terminal_state": {
+          "enum": [
+            "VERIFIED",
+            "CORRECTED",
+            "UNRESOLVED"
+          ]
+        },
+        "selected_candidate_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "trace_complete": {
+          "type": "boolean"
+        },
+        "review_routed": {
+          "type": "boolean"
+        },
+        "latency_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "review_seconds": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "terminal_state": {
+                "const": "UNRESOLVED"
+              }
+            },
+            "required": [
+              "terminal_state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "selected_candidate_id": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "terminal_state": {
+                "enum": [
+                  "VERIFIED",
+                  "CORRECTED"
+                ]
+              }
+            },
+            "required": [
+              "terminal_state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "selected_candidate_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "review_routed": {
+                "const": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "review_routed": {
+                "const": true
+              }
+            },
+            "required": [
+              "review_routed"
+            ]
+          },
+          "then": {
+            "properties": {
+              "terminal_state": {
+                "const": "UNRESOLVED"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "review_seconds"
+            ]
+          },
+          "then": {
+            "properties": {
+              "review_routed": {
+                "const": true
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
