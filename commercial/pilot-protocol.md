@@ -589,9 +589,18 @@ python -m experiments.audit_event_chain events.json --checkpoints checkpoints.js
 The series verifier requires strictly increasing event sequence numbers,
 strictly increasing claimed anchor times and distinct anchor references.
 Every checkpoint must bind to the same registration event and to the digest
-at its declared sequence. This can expose a retained chain that has been cut
-back before a previously anchored point. It still cannot prove that the
-checkpoint list is complete or authenticate the authority behind any entry.
+at its declared sequence. Reordered or replayed checkpoints, duplicate anchor
+references, non-increasing anchor times and digest mismatches produce a series
+mismatch. Event-sequence gaps are permitted: checkpoint sequence identifies an
+event index, not a requirement to anchor every event. The verifier therefore
+checks the order and bindings of the checkpoints actually supplied; it does
+not establish that intermediate checkpoints were never omitted, that this is
+the latest series, or that an operator's retained history cannot be rolled
+back. A retained external high-water mark and its atomic, rollback-resistant
+update remain deployment responsibilities. If that state is unavailable or
+cannot be authenticated, the verifier cannot infer a safe floor from the
+presented checkpoint list. It still cannot authenticate the authority behind
+any entry.
 
 
 ## Explicit audit trust-store preflight (v1)
