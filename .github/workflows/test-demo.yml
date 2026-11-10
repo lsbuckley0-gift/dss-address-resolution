@@ -19,8 +19,10 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install legacy comparison dependency
-        run: python -m pip install -r requirements-comparison.txt
+      - name: Install pinned test and audit dependencies
+        run: |
+          python -m pip install -r requirements-comparison.txt
+          python -m pip install -r requirements-audit-crypto.txt
       - name: Run unit tests
         run: python -m unittest discover -s tests -v
       - name: Validate paired pilot JSON Schema syntax
@@ -32,6 +34,7 @@ jobs:
           python -m json.tool experiments/schemas/audit-chain-checkpoint-v1.schema.json > /dev/null
           python -m json.tool experiments/schemas/audit-chain-checkpoint-series-v1.schema.json > /dev/null
           python -m json.tool experiments/schemas/audit-trust-store-v1.schema.json > /dev/null
+          python -m json.tool experiments/schemas/audit-chain-checkpoint-signature-v1.schema.json > /dev/null
       - name: Run paired pilot metrics fixture
         run: python experiments/pilot_metrics.py experiments/fixtures/paired-pilot-synthetic-v1.json --json-out /tmp/paired-pilot-report.json
       - name: Run legacy fuzzy comparison harness
