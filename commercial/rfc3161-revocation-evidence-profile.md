@@ -3,7 +3,7 @@
 **Status:** narrow experimental CRL/OCSP evaluators implemented; not integrated into the primary timestamp-verification API  
 **Profile identifier:** `rfc3161-tsa-revocation-evidence/v1-draft`
 
-This profile documents the deliberately narrow CRL and OCSP evidence evaluators in `experiments/rfc3161_crl_status.py` and `experiments/rfc3161_ocsp_status.py`. Those functions accept and evaluate evidence relative to the exact issuer certificate identity extracted by a prior successful timestamp verification. They are experimental, caller-invoked slices: the primary RFC 3161 timestamp verifier does not call them and must continue to report:
+This profile documents the deliberately narrow CRL and OCSP evidence evaluators in `experiments/rfc3161_crl_status.py` and `experiments/rfc3161_ocsp_status.py`. Those functions accept original timestamp verification inputs and independently re-run the RFC 3161 signature, imprint, purpose and path checks before accepting any supplied result dictionary. They then compare the dictionary's signer identity and generation time with the independently extracted values. The caller's dictionary is not treated as an authenticated capability or proof of origin. The evaluators are experimental, caller-invoked slices: the primary RFC 3161 timestamp verifier does not call them and must continue to report:
 
 - `tsa_certificate_revocation: NOT_CHECKED`
 - `historical_revocation_assurance: NOT_ESTABLISHED`
@@ -11,6 +11,8 @@ This profile documents the deliberately narrow CRL and OCSP evidence evaluators 
 No input file, schema declaration or successful timestamp path check may upgrade those values by implication.
 
 ## 1. Separate the claims
+
+The evidence-evaluator API requires `timestamp_verification_inputs`: the original token DER, exact imprinted data, trust-anchor PEM bytes and pin, plus any intermediates. It independently calls the timestamp verifier and rejects a supplied result dictionary unless its verification state, asserted generation time and extracted signer identity match that fresh result. This prevents a fabricated or modified dictionary from serving as authority by itself. It does not authenticate the caller's anchor pin or its provisioning channel; those remain separate trust-governance inputs.
 
 The following are different assertions and must never be collapsed into one boolean:
 
@@ -231,9 +233,9 @@ This CRL evaluator is a separate opt-in function; it is not yet wired into
 `verify_rfc3161_timestamp(...)`. The timestamp verifier therefore continues
 to return `tsa_certificate_revocation: NOT_CHECKED` and
 `historical_revocation_assurance: NOT_ESTABLISHED` until an explicit
-integration contract is added. The evaluator binds the issuer certificate to
-the prior timestamp result but does not independently re-authenticate the
-trust root. The OCSP evaluator is limited to the issuer-signed RSA/SHA-256 subset described above. Synthetic integration tests cover
+integration contract is added. The evaluator re-verifies the original token against the supplied pinned
+anchor and intermediates on every call. The pin itself remains caller-supplied
+and its provenance is not independently authenticated. The OCSP evaluator is limited to the issuer-signed RSA/SHA-256 subset described above. Synthetic integration tests cover
 valid direct CRLs, revoked and unlisted serials, issuer mismatch, bad
 signatures, missing CRLNumber/AKI, negative CRLNumber rejection, delta and indirect CRL rejection,
 partial-reason scope, TSA CRLDistributionPoints, list-wide indirect-CRL
