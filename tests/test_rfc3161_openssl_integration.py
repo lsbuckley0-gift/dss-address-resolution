@@ -112,6 +112,36 @@ class RFC3161OpenSSLIntegrationTests(unittest.TestCase):
             schema, format_checker=FormatChecker()
         )
 
+    def test_revocation_result_schema_rejects_cross_evidence_claims(self):
+        timestamp_result = self._verified_timestamp_result()
+        crl_result = verify_tsa_crl_evidence(
+            timestamp_result, self.tsa_pem, self.ca_pem, self._build_tsa_crl()
+        )
+        ocsp_result = verify_tsa_ocsp_evidence(
+            timestamp_result, self.tsa_pem, self.ca_pem,
+            self._build_tsa_ocsp_response(),
+        )
+        self.assertTrue(self.revocation_result_validator.is_valid(crl_result))
+        self.assertTrue(self.revocation_result_validator.is_valid(ocsp_result))
+
+        invalid_crl = dict(crl_result)
+        invalid_crl["historical_revocation_assurance"] = (
+            "REVOKED_BY_TARGET_TIME_UNDER_SIGNED_OCSP_ASSERTION"
+        )
+        self.assertFalse(self.revocation_result_validator.is_valid(invalid_crl))
+        invalid_crl = dict(crl_result)
+        invalid_crl["ocsp_signature"] = "VALID"
+        self.assertFalse(self.revocation_result_validator.is_valid(invalid_crl))
+
+        invalid_ocsp = dict(ocsp_result)
+        invalid_ocsp["historical_revocation_assurance"] = (
+            "REVOKED_BY_TARGET_TIME_UNDER_SIGNED_CRL_ASSERTION"
+        )
+        self.assertFalse(self.revocation_result_validator.is_valid(invalid_ocsp))
+        invalid_ocsp = dict(ocsp_result)
+        invalid_ocsp["crl_signature"] = "VALID"
+        self.assertFalse(self.revocation_result_validator.is_valid(invalid_ocsp))
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="dss-rfc3161-integration-")
         self.root = Path(self.temp.name)
