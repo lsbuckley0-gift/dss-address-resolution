@@ -179,7 +179,6 @@ class TimestampAnchorProvenanceTests(unittest.TestCase):
             "sha256": "0" * 64,
             "source_reference": "independently-held synthetic pin",
         }
-        result = self.verify()
         result = verify_timestamp_anchor_provenance(
             self.anchor, self.attestation, self.envelope, self.store,
             at_utc="2026-11-10T13:00:00Z", minimum_sequence=4,
