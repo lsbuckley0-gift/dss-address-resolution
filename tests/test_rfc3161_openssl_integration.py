@@ -188,6 +188,22 @@ ess_cert_id_chain = no
             serialization.PublicFormat.SubjectPublicKeyInfo,
         )
         self.assertEqual(
+            extracted_identity["subject_spki_sha256"],
+            hashlib.sha256(
+                tsa_certificate.public_key().public_bytes(
+                    serialization.Encoding.DER,
+                    serialization.PublicFormat.SubjectPublicKeyInfo,
+                )
+            ).hexdigest(),
+        )
+        issuer_certificate = x509.load_pem_x509_certificate(self.ca_pem)
+        self.assertEqual(
+            extracted_identity["issuer_certificate_der_sha256"],
+            hashlib.sha256(
+                issuer_certificate.public_bytes(serialization.Encoding.DER)
+            ).hexdigest(),
+        )
+        self.assertEqual(
             extracted_identity["issuer_spki_sha256"],
             hashlib.sha256(issuer_spki).hexdigest(),
         )
