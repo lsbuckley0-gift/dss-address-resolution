@@ -830,6 +830,12 @@ clock assertion, not a trusted timestamp. A deployment must define and
 independently protect its clock source and record the time basis used for each
 verification; this verifier does not attest to wall-clock accuracy.
 
+The governance-key eligibility interval uses the same half-open convention:
+`valid_from_utc <= at_utc < valid_until_utc`. The exact start instant is
+eligible; the exact end instant and any earlier instant are not. Both checks
+consume the same caller-supplied `at_utc`; neither makes that clock reading
+independently trustworthy.
+
 The anti-rollback floor is also caller-supplied state, not durable state managed
 by this library. An operator deployment must retain the highest accepted
 sequence per governance authority/policy scope in storage protected against
