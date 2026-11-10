@@ -137,6 +137,8 @@ def verify_rfc3161_timestamp(
             token_path.write_bytes(token_der)
             data_path.write_bytes(data)
             anchor_path.write_bytes(trust_anchor_pem)
+            empty_ca_path = root / "empty-ca-path"
+            empty_ca_path.mkdir()
             intermediate_path = None
             if intermediates_pem is not None:
                 intermediate_path = root / "intermediates.pem"
@@ -148,7 +150,7 @@ def verify_rfc3161_timestamp(
                 openssl_binary, "ts", "-verify", "-token_in",
                 "-in", str(token_path), "-data", str(data_path),
                 "-CAfile", str(anchor_path), "-attime", epoch,
-                "-purpose", "timestampsign", "-no-CApath", "-no-CAstore",
+                "-purpose", "timestampsign", "-CApath", str(empty_ca_path),
                 "-x509_strict",
             ]
             if intermediate_path is not None:
