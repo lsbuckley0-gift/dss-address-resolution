@@ -128,6 +128,14 @@ def verify_rfc3161_timestamp(
             "trust_anchor": pin_result,
             "timestamp_authentication": "NOT_ESTABLISHED",
             "event_truth": "NOT_ESTABLISHED",
+            "tsa_certificate_revocation": "NOT_CHECKED",
+            "historical_revocation_assurance": "NOT_ESTABLISHED",
+            "tsa_certificate_revocation": "NOT_CHECKED",
+            "historical_revocation_assurance": "NOT_ESTABLISHED",
+            "tsa_certificate_revocation": "NOT_CHECKED",
+            "historical_revocation_assurance": "NOT_ESTABLISHED",
+            "tsa_certificate_revocation": "NOT_CHECKED",
+            "historical_revocation_assurance": "NOT_ESTABLISHED",
         }
 
     try:
@@ -201,6 +209,8 @@ def verify_rfc3161_timestamp(
         "certificate_validation_time": "TOKEN_GEN_TIME",
         "trust_anchor": pin_result,
         "anchor_provenance": "NOT_ESTABLISHED",
+        "tsa_certificate_revocation": "NOT_CHECKED",
+        "historical_revocation_assurance": "NOT_ESTABLISHED",
         "timestamp_authentication": "CRYPTOGRAPHICALLY_VALID_RELATIVE_TO_CALLER_ANCHOR" if verified else "NOT_ESTABLISHED",
         "event_truth": "NOT_ESTABLISHED",
         "verification_engine": "OpenSSL ts -verify",
