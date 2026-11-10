@@ -60,6 +60,57 @@
           "minimum": 1
         }
       }
+    },
+    "decision_requirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "system",
+        "max_false_accept_rate_upper_95pct",
+        "max_false_reject_rate_upper_95pct",
+        "minimum_coverage",
+        "maximum_review_routed_rate",
+        "maximum_median_review_seconds",
+        "minimum_review_time_measurement_coverage"
+      ],
+      "properties": {
+        "system": {
+          "type": "string",
+          "enum": [
+            "baseline",
+            "dss"
+          ]
+        },
+        "max_false_accept_rate_upper_95pct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "max_false_reject_rate_upper_95pct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "minimum_coverage": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "maximum_review_routed_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "maximum_median_review_seconds": {
+          "type": "number",
+          "minimum": 0
+        },
+        "minimum_review_time_measurement_coverage": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
     }
   },
   "$defs": {
