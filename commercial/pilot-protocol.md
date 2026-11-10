@@ -468,3 +468,15 @@ can be retrospectively moved to suit the result. The registration record must
 be preserved independently before outcome access; the outcome-access event
 must be recorded independently of the analysis report. A later report may
 compare those records, but must not rewrite them.
+
+Run the comparison with separate JSON files:
+
+```bash
+python -m experiments.registration_evidence paired-pilot.json registration-evidence.json
+```
+
+The pilot input must contain its `primary_endpoint`; the second file must
+conform to the registration-evidence schema. Exit code `0` means the digest,
+reference and *claimed* event order are internally consistent; it does not
+mean the timestamp is trusted. Exit code `1` means an integrity or claimed
+chronology check failed. Exit code `2` means the files or record are invalid.
