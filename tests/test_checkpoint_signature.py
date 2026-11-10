@@ -171,6 +171,7 @@ class CheckpointSignatureTests(unittest.TestCase):
                 ("checkpoint.json", self.checkpoint),
                 ("signature.json", self.envelope),
                 ("trust.json", self.store),
+                ("trust-pin.json", {"sha256": trust_store_sha256(self.store), "source_reference": "operator-provisioned://cli-test"}),
             ):
                 (root / name).write_text(json.dumps(value), encoding="utf-8")
             output = io.StringIO()
@@ -180,10 +181,12 @@ class CheckpointSignatureTests(unittest.TestCase):
                     "--signed-checkpoint", str(root / "checkpoint.json"),
                     "--signature", str(root / "signature.json"),
                     "--trust-store", str(root / "trust.json"),
+                    "--trust-store-pin", str(root / "trust-pin.json"),
                     "--at-utc", "2026-11-10T10:04:00Z",
                 ])
             self.assertEqual(code, 0)
             self.assertIn('"signed_checkpoint_verification": "MATCH"', output.getvalue())
+            self.assertIn('"trust_policy_pin": "MATCH"', output.getvalue())
 
     def test_cli_returns_one_for_invalid_signature(self):
         invalid = dict(self.envelope)
