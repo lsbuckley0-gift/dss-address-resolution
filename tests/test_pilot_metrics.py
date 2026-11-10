@@ -2,6 +2,7 @@
 import json
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from experiments.pilot_metrics import evaluate
@@ -117,12 +118,15 @@ class PilotMetricsTests(unittest.TestCase):
         repo_root = Path(__file__).resolve().parents[1]
         fixture = repo_root / "experiments" / "fixtures" / "paired-pilot-synthetic-v1.json"
         script = repo_root / "experiments" / "pilot_metrics.py"
-        completed = subprocess.run(
-            [sys.executable, str(script), str(fixture)],
-            cwd=repo_root, capture_output=True, text=True, check=False,
-        )
-        self.assertEqual(completed.returncode, 0, msg=completed.stderr)
-        report = json.loads(completed.stdout)
+        with tempfile.TemporaryDirectory() as temporary:
+            output_path = Path(temporary) / "pilot-report.json"
+            completed = subprocess.run(
+                [sys.executable, str(script), str(fixture), "--json-out", str(output_path)],
+                cwd=repo_root, capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(completed.returncode, 0, msg=completed.stderr)
+            report = json.loads(completed.stdout)
+            self.assertEqual(json.loads(output_path.read_text(encoding="utf-8")), report)
         self.assertEqual(report["dataset_id"], "paired-pilot-synthetic")
         self.assertEqual(report["case_count"], 4)
 
