@@ -170,6 +170,37 @@ ess_cert_id_chain = no
         self.assertEqual(result["anchor_provenance"], "NOT_ESTABLISHED")
         self.assertEqual(result["tsa_certificate_revocation"], "NOT_CHECKED")
         self.assertEqual(result["historical_revocation_assurance"], "NOT_ESTABLISHED")
+        self.assertEqual(result["tsa_signer_certificate_identity"], "EXTRACTED")
+        self.assertEqual(
+            result["tsa_signer_certificate"]["certificate_der_sha256"],
+            hashlib.sha256(self.tsa_pem and x509.load_pem_x509_certificate(self.tsa_pem).public_bytes(serialization.Encoding.DER)).hexdigest(),
+        )
+        self.assertEqual(
+            result["tsa_signer_certificate"]["serial_hex"],
+            format(x509.load_pem_x509_certificate(self.tsa_pem).serial_number, "x"),
+        )
+
+    def test_signer_extraction_failure_does_not_upgrade_revocation_or_invalidate_token(self):
+        from unittest.mock import patch
+
+        with patch(
+            "experiments.rfc3161_timestamp._extract_signer_certificate_identity",
+            side_effect=ValueError("synthetic extraction failure"),
+        ):
+            result = verify_rfc3161_timestamp(
+                self.token_der, self.data, self.ca_pem, self.pin,
+                intermediates_pem=self.tsa_pem,
+                openssl_binary=self.openssl,
+            )
+        self.assertEqual(result["timestamp_verification"], "VALID", result)
+        self.assertEqual(result["tsa_signer_certificate_identity"], "NOT_EXTRACTED")
+        self.assertIsNone(result["tsa_signer_certificate"])
+        self.assertEqual(
+            result["tsa_signer_certificate_identity_error"],
+            "synthetic extraction failure",
+        )
+        self.assertEqual(result["tsa_certificate_revocation"], "NOT_CHECKED")
+        self.assertEqual(result["historical_revocation_assurance"], "NOT_ESTABLISHED")
 
     def test_real_token_verifies_after_ephemeral_anchor_provenance(self):
         governance_private = Ed25519PrivateKey.generate()
