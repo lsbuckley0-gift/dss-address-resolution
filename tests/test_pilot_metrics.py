@@ -886,11 +886,18 @@ class RegistrationEvidenceTests(unittest.TestCase):
         self.assertEqual(result["claimed_analysis_order"], "ANALYSIS_NOT_STRICTLY_AFTER_OUTCOME_ACCESS")
 
     def test_non_utc_or_malformed_timestamp_is_rejected(self):
-        for value in ("2026-10-01T09:00:00+00:00", "2026-02-30T09:00:00Z", "2026-10-01T09:00:00.1234567Z", "yesterday"):
-            with self.subTest(value=value):
-                record = dict(self.record, registered_at_utc=value)
-                with self.assertRaisesRegex(ValueError, "ISO 8601 UTC|valid UTC"):
-                    verify_registration_evidence(self.endpoint, record)
+        invalid_values = (
+            "2026-10-01T09:00:00+00:00",
+            "2026-02-30T09:00:00Z",
+            "2026-10-01T09:00:00.1234567Z",
+            "yesterday",
+        )
+        for field in ("registered_at_utc", "outcomes_accessed_at_utc", "analysis_started_at_utc"):
+            for value in invalid_values:
+                with self.subTest(field=field, value=value):
+                    record = dict(self.record, **{field: value})
+                    with self.assertRaisesRegex(ValueError, "ISO 8601 UTC|valid UTC"):
+                        verify_registration_evidence(self.endpoint, record)
 
     def test_unknown_or_missing_record_fields_are_rejected(self):
         with self.assertRaisesRegex(ValueError, "unsupported field"):
@@ -908,12 +915,13 @@ class RegistrationEvidenceTests(unittest.TestCase):
         schema = json.loads(schema_path.read_text(encoding="utf-8"))
         self.assertFalse(schema["additionalProperties"])
         self.assertEqual(schema["properties"]["record_version"]["const"], "registration-evidence/v1")
-        pattern = schema["properties"]["registered_at_utc"]["pattern"]
-        self.assertIsNotNone(re.fullmatch(pattern, "2026-10-01T09:00:00Z"))
-        self.assertIsNotNone(re.fullmatch(pattern, "2026-10-01T09:00:00.123Z"))
-        self.assertIsNotNone(re.fullmatch(pattern, "2026-10-01T09:00:00.123456Z"))
-        self.assertIsNone(re.fullmatch(pattern, "2026-10-01T09:00:00.1234567Z"))
-        self.assertIsNone(re.fullmatch(pattern, "2026-10-01T09:00:00+00:00"))
+        for field in ("registered_at_utc", "outcomes_accessed_at_utc", "analysis_started_at_utc"):
+            pattern = schema["properties"][field]["pattern"]
+            self.assertIsNotNone(re.fullmatch(pattern, "2026-10-01T09:00:00Z"))
+            self.assertIsNotNone(re.fullmatch(pattern, "2026-10-01T09:00:00.123Z"))
+            self.assertIsNotNone(re.fullmatch(pattern, "2026-10-01T09:00:00.123456Z"))
+            self.assertIsNone(re.fullmatch(pattern, "2026-10-01T09:00:00.1234567Z"))
+            self.assertIsNone(re.fullmatch(pattern, "2026-10-01T09:00:00+00:00"))
 
 
     def test_analysis_with_same_recorded_timestamp_as_access_is_not_ordered(self):
