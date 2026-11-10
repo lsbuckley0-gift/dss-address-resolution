@@ -1,5 +1,6 @@
 """Tests for the paired pilot metrics contract."""
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -896,6 +897,18 @@ class RegistrationEvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "missing field"):
             verify_registration_evidence(self.endpoint, record)
 
+
+
+    def test_registration_evidence_schema_has_usable_utc_timestamp_pattern(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        schema_path = repo_root / "experiments" / "schemas" / "registration-evidence-v1.schema.json"
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        self.assertFalse(schema["additionalProperties"])
+        self.assertEqual(schema["properties"]["record_version"]["const"], "registration-evidence/v1")
+        pattern = schema["properties"]["registered_at_utc"]["pattern"]
+        self.assertIsNotNone(re.fullmatch(pattern, "2026-10-01T09:00:00Z"))
+        self.assertIsNotNone(re.fullmatch(pattern, "2026-10-01T09:00:00.123Z"))
+        self.assertIsNone(re.fullmatch(pattern, "2026-10-01T09:00:00+00:00"))
 
 if __name__ == "__main__":
     unittest.main()
