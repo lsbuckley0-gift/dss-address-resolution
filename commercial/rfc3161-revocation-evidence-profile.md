@@ -271,19 +271,36 @@ tests cover issuer-signed good/revoked/unknown responses, exact CertID binding,
 signature verification, nonce match/mismatch, delegated-responder rejection
 and the temporary-hold boundary.
 
-## 9. Implementation gates
+## 9. Remaining integration gates
 
-No runtime support should be added until the following gates are satisfied:
+The first opt-in CRL and OCSP evaluators now exist, but they are not wired into
+the primary timestamp-verification result. The following gates remain before
+that integration or any top-level positive revocation claim:
 
-1. A versioned schema exists for the evidence envelope and policy.
-2. The exact TSA signer certificate is exposed from the timestamp-token verification stage without weakening the existing signature/path checks.
-3. Issuer and responder authorization rules are explicit and independently testable.
-4. Snapshot and retrospective-history modes have separate test vectors and result semantics.
-5. Tests cover wrong issuer, same serial/different issuer, wrong issuer-key hash, unauthorized delegated responder, invalid signature, stale/future evidence, missing nextUpdate policy, incomplete CRL reason scope, indirect CRL, delta/base mismatch, `removeFromCRL`, OCSP `unknown`, and revocationTime on either side of the target instant.
-6. Synthetic fixtures prove the negative cases; no production authority, private key or live endpoint is required.
-7. Documentation and API results continue to say `NOT_ESTABLISHED` for unsupported evidence forms.
+1. Promote the draft evidence-envelope schema and policy to a versioned,
+   reviewed API contract; JSON structure alone does not authenticate evidence.
+2. Preserve the exact signer and issuer certificate identities already
+   extracted after successful RFC 3161 verification.
+3. Keep the current supported subsets explicit: direct complete CRLs only;
+   issuer-signed RSA/SHA-256 OCSP only. Indirect/delta CRLs and delegated OCSP
+   responders remain unsupported.
+4. Do not infer historical non-revocation from one CRL/OCSP good snapshot.
+   A future historical-good claim requires authenticated history or a
+   separately specified authoritative issuer assertion.
+5. Add remaining adversarial vectors for future/stale OCSP times, revocation
+   after target, malformed/unsupported critical extensions, incomplete CRL
+   reason scope, indirect CRLs, delta/base mismatch, and responder
+   authorization failures.
+6. Keep synthetic fixtures self-contained; no production authority, private
+   key or live endpoint is required.
+7. Keep unsupported and ambiguous outcomes explicitly
+   `NOT_ESTABLISHED`; do not convert them to `good`, `false` or a successful
+   revocation check.
 
-The first implementation slice should be deliberately narrow: one complete direct CRL profile and one issuer-signed OCSP profile, each with an explicit policy and independently verified synthetic fixtures. Do not add indirect/delta CRLs or delegated OCSP responders until their additional authorization and scope rules have dedicated coverage.
+The next useful step is a focused adversarial test pass over both standalone
+evaluators, especially revocation-time ordering and unsupported scope forms.
+Only after those tests and a stable policy contract should an optional
+CRL/OCSP input be added to the primary timestamp verifier.
 
 ## 10. Standards references
 
