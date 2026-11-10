@@ -843,3 +843,33 @@ returns `VALID_RELATIVE_TO_CALLER_GOVERNANCE_STORE`. The composite result
 retains `governance_authentication: NOT_ESTABLISHED` even when both stages
 pass. The detached signature envelope has its own strict schema at
 `experiments/schemas/rfc3161-tsa-anchor-provenance-signature-v1.schema.json`.
+
+
+### Provenance-first integration with signed registration checkpoints
+
+The Python API `verify_signed_checkpoint(...)` can opt into the provenance-first
+path by supplying all four of `timestamp_anchor_attestation`,
+`timestamp_anchor_signature_envelope`, `timestamp_governance_trust_store` and
+`timestamp_governance_minimum_sequence`, alongside the existing complete RFC
+3161 token, anchor and anchor-pin inputs. A governance trust-store pin is
+optional and is supplied separately as `timestamp_governance_trust_store_pin`.
+Partial provenance bundles are rejected. The operator-maintained minimum
+sequence is mandatory whenever provenance is enabled; it is not inferred from
+the attestation.
+
+The checkpoint verifier then calls
+`verify_rfc3161_timestamp_with_provenance(...)`: the attestation must validate
+against the caller-supplied governance store before OpenSSL is invoked. The
+anchor provenance attestation digest and the timestamp trust-anchor pin are
+separate checks: the former binds the anchor bytes to a signed governance
+record; the latter compares those same bytes with an independently supplied
+SHA-256 pin. Both must match. Results expose
+`timestamp_anchor_provenance` separately from `timestamp_evidence`, and
+`governance_authentication` remains `NOT_ESTABLISHED`.
+
+This is an explicit opt-in Python API extension. Existing callers that omit
+the provenance bundle retain the previous timestamp-only behaviour, and
+callers that omit all timestamp inputs retain signature-only behaviour. The
+current event-chain CLI continues to support the timestamp-only input set; it
+does not yet expose the provenance bundle. No real governance root or
+operational TSA material is supplied by this integration.
