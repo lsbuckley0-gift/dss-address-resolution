@@ -209,7 +209,16 @@ same measures by case stratum. Accepted labels are `EXACT`, `FORMATTING_ONLY`,
 `TYPO`, `DUPLICATE`, `CONFLICTING`, `INCOMPLETE` and `STALE`. The input
 field is optional for compatibility; omitted labels are explicitly reported as
 `UNSPECIFIED`, not silently assigned to a disturbance class. Unknown or
-non-string labels are rejected. Each stratum includes its case count, both
+non-string labels are rejected. Each case receives one primary stratum; where
+several disturbances coexist, the primary-classification rule must be declared
+before scoring and secondary disturbances must not be silently discarded from
+the underlying study record. The labels mean: EXACT (no material input
+disturbance), FORMATTING_ONLY (presentation changes only), TYPO (textual
+mutation), DUPLICATE (multiple records or candidates representing a duplicate
+condition), CONFLICTING (contradictory identity evidence), INCOMPLETE (required
+identity evidence absent) and STALE (record freshness or version is out of
+date). These are study classifications, not automatic conclusions made by the
+evaluator. Each stratum includes its case count, both
 systems' metrics and its own paired outcome matrix, so denominators remain
 visible within the subgroup. Stratum rates are descriptive; small sample sizes
 and synthetic fixtures do not establish statistical significance or field
