@@ -801,3 +801,36 @@ The timestamp token must have been requested for the canonical checkpoint
 payload, not for the complete JSON file with arbitrary whitespace or for a
 different representation. The caller must retain the exact token, canonical
 payload inputs, anchor bytes, pin and any intermediate certificates used.
+
+
+## RFC 3161 trust-anchor provenance attestation (v1)
+
+`experiments/rfc3161_anchor_provenance.py` defines a detached Ed25519
+attestation over a canonical, domain-separated record. The record binds the
+SHA-256 digest of the exact TSA trust-anchor PEM bytes to the declared
+authority name, intended usage (`RFC3161_TSA_TRUST_ANCHOR`), policy version,
+monotonic sequence, issue and expiry times, and a source reference. The
+signature envelope identifies the governance key. The JSON Schema is
+`experiments/schemas/rfc3161-tsa-anchor-provenance-v1.schema.json`.
+
+Verification requires a caller-supplied governance trust store containing an
+eligible Ed25519 key permitted for `RFC3161_TRUST_ANCHOR_PROVENANCE`. The
+authority name in the attestation must match the authority name attached to
+that eligible key. The verifier checks the exact anchor-byte digest, signature,
+attestation validity interval and an operator-supplied minimum sequence.
+The minimum sequence is anti-rollback state only if the operator retains it
+independently; it must never be reset from the attestation being checked.
+An optional trust-store digest pin detects policy drift but does not
+authenticate its own source.
+
+**Critical boundary:** `VALID_RELATIVE_TO_CALLER_GOVERNANCE_STORE` means only
+that the attestation signature verifies under the eligible public key in the
+supplied trust store and that the signed fields bind the supplied anchor.
+`authority_authentication` deliberately remains `NOT_ESTABLISHED`. This
+module does not authenticate the governance key, trust-store provenance,
+named authority, source reference, certificate issuer, external revocation
+state or claimed time. No governance key, real authority or operational TSA
+anchor is embedded. Synthetic keys in tests are ephemeral and are not
+operational trust material. The attestation verifier is a separate preflight;
+it does not silently upgrade the RFC 3161 verifier's trust anchor or claim
+that the attestation's governance root has been independently established.
