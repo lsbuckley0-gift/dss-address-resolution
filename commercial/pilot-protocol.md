@@ -204,7 +204,7 @@ the baseline decision and columns classify the ∂ss decision as correct automat
 resolution, false accept, false reject or correct abstention. Every paired case
 appears in exactly one cell. This exposes case-level trade-offs—for example, a
 baseline false accept becoming a ∂ss false reject—rather than hiding them inside
-separate aggregate rates. The report format is `paired-pilot-metrics/1.7`; version 1.4 introduced sample-sufficiency screening, version 1.5 added fail-closed unclassified-case handling, version 1.6 reports observed strata omitted from pre-registration, and version 1.7 adds optional operational threshold assessment. The report also groups the
+separate aggregate rates. The report format is `paired-pilot-metrics/1.8`; version 1.4 introduced sample-sufficiency screening, version 1.5 added fail-closed unclassified-case handling, version 1.6 reports observed strata omitted from pre-registration, version 1.7 adds operational threshold assessment, and version 1.8 combines the configured gates into a pilot-readiness status. The report also groups the
 same measures by case stratum. Accepted labels are `EXACT`, `FORMATTING_ONLY`,
 `TYPO`, `DUPLICATE`, `CONFLICTING`, `INCOMPLETE` and `STALE`. The input
 field is optional for compatibility; omitted labels are explicitly reported as
@@ -312,3 +312,21 @@ independence, statistical power, causal superiority, legal compliance or
 field performance. The sample-sufficiency screen and study-design review
 remain separate gates. Thresholds must be frozen before held-out labels or
 results are examined.
+
+## Combined pilot-readiness status
+
+The report-level `pilot_readiness` combines the optional sample-sufficiency
+and operational-threshold assessments without conflating their meanings:
+
+- `PASS`: both gates are configured and pass.
+- `FAIL`: either configured gate fails.
+- `INDETERMINATE`: no configured gate fails, but at least one is missing or
+  indeterminate.
+- `NOT_CONFIGURED`: neither gate was supplied.
+
+This prevents a passing operational-threshold assessment from being mistaken
+for a complete readiness result when sample requirements were never set. It
+also prevents a sufficient sample count from concealing a breached operational
+limit. The combined status covers only these two configured gates; it is not
+full pilot approval and cannot establish representativeness, statistical
+power, legal compliance or real-world performance.
