@@ -296,6 +296,8 @@ False-accept and false-reject limits are tested against the **upper endpoint**
 of their 95% Wilson intervals, not the point estimate. Thus a small sample
 cannot pass an error ceiling merely because its observed error rate is low.
 
+The review-routing rate is routed cases divided by all paired cases; median review time is calculated from supplied review-duration observations, and measurement coverage is timed routed cases divided by all routed cases. A known low measurement-coverage fraction is a `FAIL` against a higher minimum; an absent median when reviews were routed is `INDETERMINATE`.
+
 If there are no automatic acceptances or no uniquely labelled cases, the
 corresponding error criterion is `INDETERMINATE` because its denominator is
 absent. If review is routed but review-time measurements are absent, the
