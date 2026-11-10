@@ -392,3 +392,31 @@ false-reject conditional rates used by the operational decision gate. Those
 existing gates continue to use their separately specified upper Wilson bounds.
 The interval is emitted for every outcome class and comparison group; it is
 descriptive and does not automatically pass or fail pilot readiness.
+
+
+## Pre-registered primary endpoint (report version 2.1)
+
+The optional `primary_endpoint` input declares exactly one primary outcome
+class, the expected direction of change, the analysis population, two-sided
+alpha, a registration reference, and a submitter attestation that the endpoint
+was frozen before outcomes review. The supported population in this version is
+`ALL_PAIRED_CASES`; the marginal prevalence difference is always ∂ss minus
+baseline on that complete paired denominator. This prevents a post hoc choice
+of a favourable subset or denominator within this report contract.
+
+The report's `primary_endpoint_assessment` gives the pre-declared endpoint's
+prevalence difference, a conservative confidence interval with at least
+1-alpha coverage (two-sided exact Clopper-Pearson component intervals combined
+using Bonferroni), and the two-sided exact McNemar p-value. The direction status
+is based on whether the confidence interval excludes zero in the declared
+direction: `SUPPORTS_DIRECTION`, `OPPOSITE_DIRECTION`, or
+`INDETERMINATE`. The p-value and its comparison with alpha are reported
+separately; neither is silently substituted for the other.
+
+This assessment is deliberately not folded into `pilot_readiness` and does
+not override the existing sample or operational gates. A missing declaration
+is reported as `NOT_CONFIGURED`. The registration reference and
+`frozen_before_outcomes_review` value are submitter attestations only: this
+tool does not independently verify the timestamp, registration record,
+analysis-population lock, or whether anyone had access to held-out outcomes.
+A reference string is an audit pointer, not proof of pre-registration.
