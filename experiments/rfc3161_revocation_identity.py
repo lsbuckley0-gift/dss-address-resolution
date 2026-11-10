@@ -134,4 +134,12 @@ def check_tsa_issuer_identity(
         raise ValueError("issuer certificate has no BasicConstraints extension.") from exc
     if not basic_constraints.ca:
         raise ValueError("issuer certificate is not a CA certificate.")
+    try:
+        issuer_key_usage = issuer_certificate.extensions.get_extension_for_class(
+            x509.KeyUsage
+        ).value
+    except x509.ExtensionNotFound as exc:
+        raise ValueError("issuer certificate has no KeyUsage extension.") from exc
+    if not issuer_key_usage.key_cert_sign:
+        raise ValueError("issuer certificate is not authorized for certificate signing.")
     return target_time
