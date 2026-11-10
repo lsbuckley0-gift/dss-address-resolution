@@ -89,6 +89,7 @@ def _extract_signer_certificate_identity(
     openssl_binary: str,
     timeout_seconds: int,
     issuer_certificates_pem: bytes,
+    signer_candidate_certificates_pem: bytes | None = None,
 ) -> dict:
     """Extract the CMS signer and its issuer identity after timestamp verification succeeds.
 
@@ -99,12 +100,17 @@ def _extract_signer_certificate_identity(
     """
     signer_path = directory / "tsa-signer.pem"
     content_path = directory / "tsa-tst-info.der"
+    command = [
+        openssl_binary, "cms", "-verify", "-binary", "-inform", "DER",
+        "-in", str(token_path), "-noverify",
+        "-signer", str(signer_path), "-out", str(content_path),
+    ]
+    if signer_candidate_certificates_pem is not None:
+        candidate_path = directory / "tsa-signer-candidates.pem"
+        candidate_path.write_bytes(signer_candidate_certificates_pem)
+        command.extend(["-certfile", str(candidate_path)])
     completed = subprocess.run(
-        [
-            openssl_binary, "cms", "-verify", "-binary", "-inform", "DER",
-            "-in", str(token_path), "-noverify",
-            "-signer", str(signer_path), "-out", str(content_path),
-        ],
+        command,
         capture_output=True,
         text=True,
         timeout=timeout_seconds,
@@ -290,6 +296,7 @@ def verify_rfc3161_timestamp(
                     signer_identity = _extract_signer_certificate_identity(
                         token_path, root, openssl_binary, timeout_seconds,
                         trust_anchor_pem + (intermediates_pem or b""),
+                        intermediates_pem,
                     )
                 except FileNotFoundError:
                     signer_identity_error = "OpenSSL executable was not found for CMS signer extraction."
