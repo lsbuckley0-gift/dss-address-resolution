@@ -823,6 +823,24 @@ independently; it must never be reset from the attestation being checked.
 An optional trust-store digest pin detects policy drift but does not
 authenticate its own source.
 
+The attestation validity interval is half-open: `issued_at_utc <= at_utc <
+expires_at_utc`. The exact issue instant is accepted; the exact expiry instant
+and any earlier instant are rejected. The `at_utc` value is a caller-supplied
+clock assertion, not a trusted timestamp. A deployment must define and
+independently protect its clock source and record the time basis used for each
+verification; this verifier does not attest to wall-clock accuracy.
+
+The anti-rollback floor is also caller-supplied state, not durable state managed
+by this library. An operator deployment must retain the highest accepted
+sequence per governance authority/policy scope in storage protected against
+rollback, update it atomically with its acceptance record, and recover it from
+an independently protected backup after loss. The floor must never be
+reconstructed from an untrusted attestation file. If that state is missing,
+stale or cannot be authenticated, verification must not silently initialise
+the floor from the presented sequence; the operator must restore trusted state
+or explicitly re-provision the trust relationship. These operational controls
+are not implemented by this repository's verifier.
+
 **Critical boundary:** `VALID_RELATIVE_TO_CALLER_GOVERNANCE_STORE` means only
 that the attestation signature verifies under the eligible public key in the
 supplied trust store and that the signed fields bind the supplied anchor.
