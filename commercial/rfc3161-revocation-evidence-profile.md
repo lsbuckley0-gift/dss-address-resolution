@@ -1,9 +1,9 @@
 # RFC 3161 TSA revocation-evidence profile (design boundary)
 
-**Status:** design-only; not an implemented verifier feature  
+**Status:** narrow experimental CRL/OCSP evaluators implemented; not integrated into the primary timestamp-verification API  
 **Profile identifier:** `rfc3161-tsa-revocation-evidence/v1-draft`
 
-This document defines the minimum questions a future CRL/OCSP implementation must answer before it may change the current result fields. It does not accept, parse, authenticate or evaluate revocation evidence. The RFC 3161 verifier must continue to report:
+This profile documents the deliberately narrow CRL and OCSP evidence evaluators in `experiments/rfc3161_crl_status.py` and `experiments/rfc3161_ocsp_status.py`. Those functions accept and evaluate evidence relative to the exact issuer certificate identity extracted by a prior successful timestamp verification. They are experimental, caller-invoked slices: the primary RFC 3161 timestamp verifier does not call them and must continue to report:
 
 - `tsa_certificate_revocation: NOT_CHECKED`
 - `historical_revocation_assurance: NOT_ESTABLISHED`
