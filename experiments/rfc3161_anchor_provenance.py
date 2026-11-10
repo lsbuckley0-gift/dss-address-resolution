@@ -24,7 +24,7 @@ _FIELDS = {
     "expires_at_utc", "source_reference",
 }
 _SIGNATURE_FIELDS = {"record_version", "key_id", "signature_base64"}
-_TIME = re.compile(r"^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$")
+_TIME = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$")
 
 
 def _time(value: object, field: str) -> datetime:
@@ -162,6 +162,15 @@ def verify_timestamp_anchor_provenance(
     if eligible["key_eligibility"] != "ELIGIBLE_FOR_SIGNATURE_CHECK":
         return {
             "provenance_verification": "GOVERNANCE_KEY_NOT_ELIGIBLE",
+            "attestation_signature": "NOT_PERFORMED",
+            "key_eligibility": eligible["key_eligibility"],
+            "anchor_binding": "MATCH",
+            "authority_authentication": "NOT_ESTABLISHED",
+            "governance_trust_store_pin": pin_result,
+        }
+    if eligible["authority_name"] != attestation["authority_name"]:
+        return {
+            "provenance_verification": "GOVERNANCE_AUTHORITY_NAME_MISMATCH",
             "attestation_signature": "NOT_PERFORMED",
             "key_eligibility": eligible["key_eligibility"],
             "anchor_binding": "MATCH",
