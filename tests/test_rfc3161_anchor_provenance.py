@@ -122,6 +122,17 @@ class TimestampAnchorProvenanceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "minimum_sequence"):
             self.verify(minimum_sequence=True)
 
+    def test_governance_key_authority_name_must_match_attestation(self):
+        changed = dict(self.attestation, authority_name="Claimed but unbound authority")
+        signature = self.private.sign(canonical_provenance_payload(changed))
+        envelope = dict(self.envelope, signature_base64=base64.b64encode(signature).decode())
+        result = verify_timestamp_anchor_provenance(
+            self.anchor, changed, envelope, self.store,
+            at_utc="2026-11-10T13:00:00Z", minimum_sequence=4,
+        )
+        self.assertEqual(result["provenance_verification"], "GOVERNANCE_AUTHORITY_NAME_MISMATCH")
+        self.assertEqual(result["attestation_signature"], "NOT_PERFORMED")
+
     def test_unsupported_attestation_fields_rejected(self):
         changed = dict(self.attestation, trusted=True)
         with self.assertRaisesRegex(ValueError, "unsupported field"):
