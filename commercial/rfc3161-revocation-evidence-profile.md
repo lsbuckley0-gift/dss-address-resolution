@@ -160,7 +160,12 @@ The `-noverify` option disables CMS signer's certificate-chain validation; it
 does not mean the CMS signature/content check is skipped. The extraction
 operation must therefore remain separate from the existing
 `openssl ts -verify` path and must never replace its timestamp imprint,
-timestamping-purpose or certificate-path checks. It does not check revocation.
+timestamping-purpose or certificate-path checks. OpenSSL's timestamp
+verification implementation requires exactly one CMS signer and checks the
+signer's chain against the RFC 3161 `SigningCertificate` / RFC 5816
+`SigningCertificateV2` identifier before accepting the token. The follow-on
+CMS extraction therefore reads identity from the same token only after that
+stricter timestamp verification has passed. It does not check revocation.
 The runtime now performs this extraction only after
 `openssl ts -verify` succeeds. It exposes the signer certificate's DER
 SHA-256, issuer-name DER SHA-256, issuer SubjectPublicKeyInfo SHA-256 and
@@ -172,8 +177,11 @@ remains `VALID` when the original RFC 3161 verification passed, while
 remains `NOT_CHECKED` / `NOT_ESTABLISHED`. A focused test covers this
 failure boundary.
 
-The test uses ephemeral synthetic material only. See the
-[OpenSSL CMS command documentation](https://docs.openssl.org/3.0/man1/openssl-cms/).
+The test uses ephemeral synthetic material only. Standards and
+implementation references: [RFC 3161](https://www.rfc-editor.org/rfc/rfc3161),
+[RFC 5816](https://www.rfc-editor.org/rfc/rfc5816),
+[OpenSSL timestamp command](https://docs.openssl.org/3.0/man1/openssl-ts/),
+and [OpenSSL CMS command](https://docs.openssl.org/3.0/man1/openssl-cms/).
 
 ## 9. Implementation gates
 
