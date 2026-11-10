@@ -245,5 +245,5 @@ def verify_tsa_ocsp_evidence(
         "good_status_limitation": (
             "OCSP_GOOD_AT_THIS_UPDATE_DOES_NOT_ESTABLISH_HISTORICAL_NON_REVOCATION"
         ),
-        "issuer_trust": "BOUND_TO_PRIOR_TIMESTAMP_RESULT_NOT_REAUTHENTICATED_HERE",
+        "issuer_trust": "REVERIFIED_RELATIVE_TO_CALLER_SUPPLIED_PINNED_TIMESTAMP_ANCHOR",
     }
