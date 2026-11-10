@@ -19,7 +19,7 @@ from experiments.rfc3161_timestamp import trust_anchor_sha256, verify_rfc3161_ti
 
 
 def _certificate(subject, issuer, public_key, signer_key, serial, *, is_ca, timestamp_signer=False):
-    now = datetime(2026, 1, 1)
+    now = datetime(2020, 1, 1)
     builder = (
         x509.CertificateBuilder()
         .subject_name(subject)
@@ -27,7 +27,7 @@ def _certificate(subject, issuer, public_key, signer_key, serial, *, is_ca, time
         .public_key(public_key)
         .serial_number(serial)
         .not_valid_before(now)
-        .not_valid_after(datetime(2036, 1, 1))
+        .not_valid_after(datetime(2040, 1, 1))
         .add_extension(x509.BasicConstraints(ca=is_ca, path_length=1 if is_ca else None), critical=True)
         .add_extension(
             x509.KeyUsage(
