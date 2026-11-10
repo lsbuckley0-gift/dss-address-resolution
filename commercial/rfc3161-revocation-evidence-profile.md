@@ -268,8 +268,10 @@ fields remain `NOT_CHECKED` / `NOT_ESTABLISHED` until a deliberate integration
 contract is added. It binds the issuer certificate to the prior timestamp
 result but does not independently re-authenticate the trust root. Synthetic
 tests cover issuer-signed good/revoked/unknown responses, exact CertID binding,
-signature verification, nonce match/mismatch, delegated-responder rejection
-and the temporary-hold boundary.
+RSA signature verification, by-name and by-key responder identity, nonce
+match/mismatch/omission, SHA-1 CertID rejection, unsuccessful responses,
+delegated-responder rejection, stale/future intervals, revocation after the
+target, unsupported extensions and the temporary-hold boundary.
 
 ## 9. Remaining integration gates
 
@@ -287,10 +289,12 @@ that integration or any top-level positive revocation claim:
 4. Do not infer historical non-revocation from one CRL/OCSP good snapshot.
    A future historical-good claim requires authenticated history or a
    separately specified authoritative issuer assertion.
-5. Add remaining adversarial vectors for future/stale OCSP times, revocation
-   after target, malformed/unsupported critical extensions, incomplete CRL
-   reason scope, indirect CRLs, delta/base mismatch, and responder
-   authorization failures.
+5. Add remaining adversarial vectors for TSA certificates carrying
+   CRLDistributionPoints, malformed DER and critical-extension edge cases,
+   missing CRL nextUpdate, multiple/ambiguous OCSP SingleResponses, and
+   response/request extension combinations not yet represented in fixtures.
+   Delta CRLs and delegated OCSP responders remain rejected rather than
+   partially supported.
 6. Keep synthetic fixtures self-contained; no production authority, private
    key or live endpoint is required.
 7. Keep unsupported and ambiguous outcomes explicitly
