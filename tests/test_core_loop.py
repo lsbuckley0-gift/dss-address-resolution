@@ -100,5 +100,22 @@ class CoreLoopTests(unittest.TestCase):
         self.assertIsNone(trace.check)
 
 
+    def test_valid_candidate_for_different_identity_remains_unresolved(self):
+        # A valid address match is not enough: it must match the intended ID.
+        trace = self.loop.land("A001", "33 REDRIFFE ROAD E14 8BX")
+
+        self.assertEqual(trace.observed, "A002")
+        self.assertEqual(trace.check, "FAIL")
+        self.assertEqual(trace.terminal, "UNRESOLVED")
+
+    def test_single_postcode_edit_is_recorded_as_correction(self):
+        trace = self.loop.land("A001", "35 PATRICK PLACE ST8 7RG")
+
+        self.assertEqual(trace.observed, "A001")
+        self.assertEqual(trace.check, "PASS")
+        self.assertEqual(trace.terminal, "CORRECTED")
+        self.assertIn("postcode=CORRECTED", " ".join(trace.resolution.evidence))
+
+
 if __name__ == "__main__":
     unittest.main()
