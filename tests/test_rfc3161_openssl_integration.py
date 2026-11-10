@@ -116,10 +116,12 @@ class RFC3161OpenSSLIntegrationTests(unittest.TestCase):
     def test_revocation_result_schema_rejects_cross_evidence_claims(self):
         timestamp_result = self._verified_timestamp_result()
         crl_result = verify_tsa_crl_evidence(
-            timestamp_result, self.tsa_pem, self.ca_pem, self._build_tsa_crl()
+            timestamp_result,
+            timestamp_verification_inputs=self._timestamp_verification_inputs(), self.tsa_pem, self.ca_pem, self._build_tsa_crl()
         )
         ocsp_result = verify_tsa_ocsp_evidence(
-            timestamp_result, self.tsa_pem, self.ca_pem,
+            timestamp_result,
+            timestamp_verification_inputs=self._timestamp_verification_inputs(), self.tsa_pem, self.ca_pem,
             self._build_tsa_ocsp_response(),
         )
         self.assertTrue(self.revocation_result_validator.is_valid(crl_result))
@@ -257,6 +259,16 @@ ess_cert_id_chain = no
             expected.fingerprint(hashes.SHA256()),
         )
         self.assertTrue(content_path.read_bytes())
+
+    def _timestamp_verification_inputs(self):
+        return {
+            "token_der": self.token_der,
+            "data": self.data,
+            "trust_anchor_pem": self.ca_pem,
+            "trust_anchor_pin": self.pin,
+            "intermediates_pem": self.tsa_pem,
+            "openssl_binary": self.openssl,
+        }
 
     def _verified_timestamp_result(self):
         return verify_rfc3161_timestamp(
