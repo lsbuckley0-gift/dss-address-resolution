@@ -559,3 +559,17 @@ does not validate a signature, trusted timestamp token, authority identity or
 independent storage. A checkpoint only protects the prefix up to its sequence;
 later truncation requires a later independently retained checkpoint. This is
 the comparison interface for external anchoring, not an anchoring service.
+
+For multiple independently retained checkpoints, supply an ordered array
+conforming to `experiments/schemas/audit-chain-checkpoint-series-v1.schema.json`:
+
+```bash
+python -m experiments.audit_event_chain events.json --checkpoints checkpoints.json
+```
+
+The series verifier requires strictly increasing event sequence numbers,
+strictly increasing claimed anchor times and distinct anchor references.
+Every checkpoint must bind to the same registration event and to the digest
+at its declared sequence. This can expose a retained chain that has been cut
+back before a previously anchored point. It still cannot prove that the
+checkpoint list is complete or authenticate the authority behind any entry.
