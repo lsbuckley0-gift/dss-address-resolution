@@ -274,6 +274,42 @@ class CheckpointSignatureTests(unittest.TestCase):
                 ])
             self.assertEqual(code, 1)
 
+    def test_cli_passes_complete_timestamp_evidence_to_verifier(self):
+        timestamp = {
+            "timestamp_verification": "VALID",
+            "tsa_asserted_gen_time_utc": "2026-11-10T10:00:30Z",
+        }
+        anchor = b"-----BEGIN CERTIFICATE-----\\nsynthetic-root\\n-----END CERTIFICATE-----\\n"
+        pin = {"sha256": "a" * 64, "source_reference": "synthetic://tsa-root-pin"}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name, value in (
+                ("events.json", self.events),
+                ("checkpoint.json", self.checkpoint),
+                ("signature.json", self.envelope),
+                ("trust.json", self.store),
+                ("timestamp-pin.json", pin),
+            ):
+                (root / name).write_text(json.dumps(value), encoding="utf-8")
+            (root / "token.der").write_bytes(b"synthetic-token")
+            (root / "anchor.pem").write_bytes(anchor)
+            output = io.StringIO()
+            with patch("experiments.rfc3161_timestamp.verify_rfc3161_timestamp", return_value=timestamp):
+                with contextlib.redirect_stdout(output):
+                    code = audit_chain_main([
+                        str(root / "events.json"),
+                        "--signed-checkpoint", str(root / "checkpoint.json"),
+                        "--signature", str(root / "signature.json"),
+                        "--trust-store", str(root / "trust.json"),
+                        "--at-utc", "2026-11-10T10:04:00Z",
+                        "--timestamp-token", str(root / "token.der"),
+                        "--timestamp-trust-anchor", str(root / "anchor.pem"),
+                        "--timestamp-trust-anchor-pin", str(root / "timestamp-pin.json"),
+                    ])
+        report = json.loads(output.getvalue())
+        self.assertEqual(code, 0)
+        self.assertEqual(report["signed_external_checkpoint"]["registration_timestamp_binding"], "MATCH")
+
     def test_cli_requires_complete_timestamp_verification_inputs(self):
         with contextlib.redirect_stderr(io.StringIO()):
             with self.assertRaises(SystemExit) as raised:
