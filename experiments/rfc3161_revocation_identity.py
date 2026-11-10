@@ -52,7 +52,45 @@ def check_tsa_issuer_identity(
     timestamp_result: dict,
     tsa_certificate: x509.Certificate,
     issuer_certificate: x509.Certificate,
+    timestamp_verification_inputs: dict,
 ) -> datetime:
+    """Re-verify original token inputs; never trust a caller-authored result dict."""
+    if not isinstance(timestamp_verification_inputs, dict):
+        raise ValueError("timestamp_verification_inputs must be an object.")
+    required = {"token_der", "data", "trust_anchor_pem", "trust_anchor_pin"}
+    optional = {"intermediates_pem", "openssl_binary", "timeout_seconds"}
+    missing = required - set(timestamp_verification_inputs)
+    extra = set(timestamp_verification_inputs) - required - optional
+    if missing or extra:
+        raise ValueError(
+            "timestamp_verification_inputs has missing or unsupported fields."
+        )
+    from experiments.rfc3161_timestamp import verify_rfc3161_timestamp
+    authenticated_result = verify_rfc3161_timestamp(
+        timestamp_verification_inputs["token_der"],
+        timestamp_verification_inputs["data"],
+        timestamp_verification_inputs["trust_anchor_pem"],
+        timestamp_verification_inputs["trust_anchor_pin"],
+        intermediates_pem=timestamp_verification_inputs.get("intermediates_pem"),
+        openssl_binary=timestamp_verification_inputs.get("openssl_binary", "openssl"),
+        timeout_seconds=timestamp_verification_inputs.get("timeout_seconds", 10),
+    )
+    if (
+        authenticated_result.get("timestamp_verification") != "VALID"
+        or authenticated_result.get("tsa_signer_certificate_identity") != "EXTRACTED"
+    ):
+        raise ValueError("original timestamp inputs did not re-verify with extracted signer identity.")
+    if not isinstance(timestamp_result, dict) or any(
+        timestamp_result.get(key) != authenticated_result.get(key)
+        for key in (
+            "timestamp_verification",
+            "tsa_asserted_gen_time_utc",
+            "tsa_signer_certificate_identity",
+            "tsa_signer_certificate",
+        )
+    ):
+        raise ValueError("timestamp_result does not match independently re-verified token inputs.")
+    timestamp_result = authenticated_result
     if not isinstance(timestamp_result, dict):
         raise ValueError("timestamp_result must be an object.")
     if timestamp_result.get("timestamp_verification") != "VALID":
