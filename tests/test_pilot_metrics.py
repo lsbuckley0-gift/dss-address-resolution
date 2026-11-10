@@ -886,7 +886,7 @@ class RegistrationEvidenceTests(unittest.TestCase):
         self.assertEqual(result["claimed_analysis_order"], "ANALYSIS_NOT_STRICTLY_AFTER_OUTCOME_ACCESS")
 
     def test_non_utc_or_malformed_timestamp_is_rejected(self):
-        for value in ("2026-10-01T09:00:00+00:00", "2026-02-30T09:00:00Z", "yesterday"):
+        for value in ("2026-10-01T09:00:00+00:00", "2026-02-30T09:00:00Z", "2026-10-01T09:00:00.1234567Z", "yesterday"):
             with self.subTest(value=value):
                 record = dict(self.record, registered_at_utc=value)
                 with self.assertRaisesRegex(ValueError, "ISO 8601 UTC|valid UTC"):
@@ -911,6 +911,8 @@ class RegistrationEvidenceTests(unittest.TestCase):
         pattern = schema["properties"]["registered_at_utc"]["pattern"]
         self.assertIsNotNone(re.fullmatch(pattern, "2026-10-01T09:00:00Z"))
         self.assertIsNotNone(re.fullmatch(pattern, "2026-10-01T09:00:00.123Z"))
+        self.assertIsNotNone(re.fullmatch(pattern, "2026-10-01T09:00:00.123456Z"))
+        self.assertIsNone(re.fullmatch(pattern, "2026-10-01T09:00:00.1234567Z"))
         self.assertIsNone(re.fullmatch(pattern, "2026-10-01T09:00:00+00:00"))
 
 
