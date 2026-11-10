@@ -48,7 +48,9 @@ def _validate(data):
         if case_id in seen:
             raise ValueError(f"Duplicate case_id: {case_id}")
         seen.add(case_id)
-        gold = case.get("gold_candidate_id")
+        if "gold_candidate_id" not in case:
+            raise ValueError(f"{prefix}.gold_candidate_id is required; use null only when no unique answer exists.")
+        gold = case["gold_candidate_id"]
         if gold is not None and (not isinstance(gold, str) or not gold.strip()):
             raise ValueError(f"{prefix}.gold_candidate_id must be a non-empty string or null.")
         for system in SYSTEMS:
