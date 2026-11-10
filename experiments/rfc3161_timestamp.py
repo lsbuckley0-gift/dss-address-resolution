@@ -93,7 +93,9 @@ def verify_rfc3161_timestamp(
 
     token_der must be a DER-encoded TimeStampToken (ContentInfo), not a
     TimeStampResp wrapper. The token's signed genTime is used as the X.509
-    certificate-path validation time. No system CA directories are consulted.
+    certificate-path validation time. Fractional-second genTime display values
+    are rejected because OpenSSL's -attime interface accepts integer seconds.
+    No system CA directories are consulted.
     """
     if not isinstance(token_der, bytes) or not token_der or len(token_der) > _MAX_TOKEN_BYTES:
         raise ValueError("token_der must be non-empty bytes no larger than 8 MiB.")
