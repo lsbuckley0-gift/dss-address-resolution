@@ -187,12 +187,12 @@ class PilotMetricsTests(unittest.TestCase):
             (
                 "case",
                 lambda data: data["cases"][0].update({"address": "fictional value"}),
-                r"cases\\[0\\] contains unsupported field",
+                r"cases\[0\] contains unsupported field",
             ),
             (
                 "decision",
                 lambda data: data["cases"][0]["dss"].update({"postcode": "ZZ1 1ZZ"}),
-                r"cases\\[0\\]\\.dss contains unsupported field",
+                r"cases\[0\]\.dss contains unsupported field",
             ),
         )
         for level, mutate, message in mutations:
