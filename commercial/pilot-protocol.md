@@ -737,7 +737,11 @@ The caller must provide a separate pin object with exactly `sha256` and
 including line endings and whitespace. A pin mismatch prevents all OpenSSL
 verification. The optional intermediate bundle is untrusted chain-building
 material; it is not promoted to a trust anchor. The accepted input is a DER
-TimeStampToken, not a TimeStampResp wrapper.
+TimeStampToken, not a TimeStampResp wrapper. The current parser accepts only
+whole-second GMT generation-time display values. If OpenSSL reports fractional
+seconds, verification fails closed rather than rounding the claimed time for
+certificate-validity evaluation; fractional-time support requires a verifier
+that can preserve sub-second precision end to end.
 
 A successful result reports `timestamp_verification: VALID` and
 `message_imprint: MATCH`. This means only that OpenSSL accepted the token
