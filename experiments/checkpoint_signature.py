@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import binascii
 import json
+from datetime import datetime
 
 from experiments.audit_event_chain import verify_external_checkpoint
 from experiments.trust_store import PURPOSE, resolve_eligible_key
@@ -35,8 +36,24 @@ def verify_signed_checkpoint(
     *,
     at_utc: str,
     trust_store_pin: dict | None = None,
+    timestamp_token_der: bytes | None = None,
+    timestamp_trust_anchor_pem: bytes | None = None,
+    timestamp_trust_anchor_pin: dict | None = None,
+    timestamp_intermediates_pem: bytes | None = None,
 ) -> dict:
-    """Verify checkpoint binding and detached signature against caller policy."""
+    """Verify checkpoint signature and optional RFC 3161 pre-outcome timestamp."""
+    timestamp_inputs = (
+        timestamp_token_der is not None,
+        timestamp_trust_anchor_pem is not None,
+        timestamp_trust_anchor_pin is not None,
+    )
+    if any(timestamp_inputs) and not all(timestamp_inputs):
+        raise ValueError(
+            "timestamp_token_der, timestamp_trust_anchor_pem and "
+            "timestamp_trust_anchor_pin must be supplied together."
+        )
+    if timestamp_intermediates_pem is not None and not all(timestamp_inputs):
+        raise ValueError("timestamp_intermediates_pem requires complete timestamp inputs.")
     checkpoint_result = verify_external_checkpoint(events, checkpoint)
     pin_result = (
         verify_trust_store_pin(trust_store, trust_store_pin)
@@ -107,10 +124,51 @@ def verify_signed_checkpoint(
         checkpoint_result["checkpoint_binding"] == "MATCH"
         and checkpoint_result["checkpoint_time_order"] == "NOT_BEFORE_EVENT"
     )
+    timestamp_result = None
+    timestamp_binding = "NOT_SUPPLIED"
+    if all(timestamp_inputs):
+        from experiments.rfc3161_timestamp import verify_rfc3161_timestamp
+
+        timestamp_result = verify_rfc3161_timestamp(
+            timestamp_token_der,
+            canonical_checkpoint_payload(checkpoint),
+            timestamp_trust_anchor_pem,
+            timestamp_trust_anchor_pin,
+            intermediates_pem=timestamp_intermediates_pem,
+        )
+        if timestamp_result["timestamp_verification"] == "VALID":
+            first_access = next(
+                (event for event in events if event["event_type"] == "OUTCOME_ACCESS"),
+                None,
+            )
+            if checkpoint.get("checkpoint_sequence") == 0 and first_access is not None:
+                gen_time = datetime.fromisoformat(
+                    timestamp_result["tsa_asserted_gen_time_utc"].replace("Z", "+00:00")
+                )
+                registration_time = datetime.fromisoformat(
+                    events[0]["occurred_at_utc"].replace("Z", "+00:00")
+                )
+                access_time = datetime.fromisoformat(
+                    first_access["occurred_at_utc"].replace("Z", "+00:00")
+                )
+                timestamp_binding = (
+                    "MATCH" if registration_time <= gen_time < access_time else "MISMATCH"
+                )
+            else:
+                timestamp_binding = "MISMATCH"
+        else:
+            timestamp_binding = "NOT_VERIFIED"
+    timestamp_ok = timestamp_binding in {"NOT_SUPPLIED", "MATCH"}
     overall = (
         "MATCH"
-        if signature_status == "VALID" and checkpoint_matches
+        if signature_status == "VALID" and checkpoint_matches and timestamp_ok
         else "MISMATCH"
+    )
+    timestamp_authentication = (
+        "CRYPTOGRAPHICALLY_VALID_RELATIVE_TO_CALLER_ANCHOR"
+        if timestamp_result is not None
+        and timestamp_result["timestamp_verification"] == "VALID"
+        else "NOT_ESTABLISHED"
     )
     return {
         "signed_checkpoint_verification": overall,
@@ -118,8 +176,10 @@ def verify_signed_checkpoint(
         "key_eligibility": eligible["key_eligibility"],
         "key_id": key_id,
         "checkpoint": checkpoint_result,
+        "registration_timestamp_binding": timestamp_binding,
+        "timestamp_evidence": timestamp_result if timestamp_result is not None else {"timestamp_verification": "NOT_SUPPLIED"},
         "authority_authentication": "NOT_ESTABLISHED",
-        "timestamp_authentication": "NOT_ESTABLISHED",
+        "timestamp_authentication": timestamp_authentication,
         "trust_policy_pin": pin_result if pin_result is not None else {"trust_policy_pin": "NOT_CHECKED"},
         "interpretation": (
             "A VALID signature proves only that the private key corresponding to "
