@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/dss/timestamp-trust-anchor-pin-v1.schema.json",
+  "title": "RFC 3161 Timestamp Trust Anchor Pin",
+  "description": "Caller-supplied digest pin for the exact PEM bytes used as the timestamp verification trust anchor. The pin does not authenticate its own source.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sha256", "source_reference"],
+  "properties": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "source_reference": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": ".*\\S.*"
+    }
+  }
+}
