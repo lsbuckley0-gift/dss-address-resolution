@@ -23,6 +23,7 @@ from experiments.rfc3161_timestamp import (
     trust_anchor_sha256,
     verify_rfc3161_timestamp,
 )
+from experiments.rfc3161_crl_status import verify_tsa_crl_evidence
 from experiments.rfc3161_anchor_provenance import (
     canonical_provenance_payload,
     verify_rfc3161_timestamp_with_provenance,
@@ -180,6 +181,144 @@ ess_cert_id_chain = no
             expected.fingerprint(hashes.SHA256()),
         )
         self.assertTrue(content_path.read_bytes())
+
+    def _verified_timestamp_result(self):
+        return verify_rfc3161_timestamp(
+            self.token_der, self.data, self.ca_pem, self.pin,
+            intermediates_pem=self.tsa_pem,
+            openssl_binary=self.openssl,
+        )
+
+    def _build_tsa_crl(
+        self, *, revoked_at=None, signer_key=None, include_number=True,
+        include_aki=True, delta=False, this_update=None, next_update=None,
+    ):
+        issuer = x509.load_pem_x509_certificate(self.ca_pem)
+        now = datetime.now(timezone.utc).replace(microsecond=0, tzinfo=None)
+        this_update = this_update or (now - timedelta(days=1))
+        next_update = next_update or (now + timedelta(days=1))
+        builder = (
+            x509.CertificateRevocationListBuilder()
+            .issuer_name(issuer.subject)
+            .last_update(this_update)
+            .next_update(next_update)
+        )
+        if include_number:
+            builder = builder.add_extension(x509.CRLNumber(7), critical=False)
+        if include_aki:
+            builder = builder.add_extension(
+                x509.AuthorityKeyIdentifier.from_issuer_public_key(
+                    self.ca_key.public_key()
+                ),
+                critical=False,
+            )
+        if delta:
+            builder = builder.add_extension(
+                x509.DeltaCRLIndicator(6), critical=True
+            )
+        if revoked_at is not None:
+            tsa = x509.load_pem_x509_certificate(self.tsa_pem)
+            revoked = (
+                x509.RevokedCertificateBuilder()
+                .serial_number(tsa.serial_number)
+                .revocation_date(revoked_at.replace(tzinfo=None))
+                .build()
+            )
+            builder = builder.add_revoked_certificate(revoked)
+        crl = builder.sign(
+            private_key=signer_key or self.ca_key,
+            algorithm=hashes.SHA256(),
+        )
+        return crl.public_bytes(serialization.Encoding.DER)
+
+    def test_complete_direct_crl_authenticates_but_absence_does_not_prove_non_revocation(self):
+        timestamp_result = self._verified_timestamp_result()
+        crl_der = self._build_tsa_crl()
+        result = verify_tsa_crl_evidence(
+            timestamp_result, self.tsa_pem, self.ca_pem, crl_der
+        )
+        self.assertEqual(
+            result["crl_evidence_verification"],
+            "VALID_RELATIVE_TO_BOUND_ISSUER_CERTIFICATE",
+        )
+        self.assertEqual(result["crl_signature"], "VALID")
+        self.assertEqual(result["crl_scope"], "DIRECT_COMPLETE_ALL_REASONS_ONLY")
+        self.assertEqual(result["status_at_target_time"], "NOT_LISTED_AT_CRL_THIS_UPDATE")
+        self.assertEqual(result["historical_revocation_assurance"], "NOT_ESTABLISHED")
+        self.assertIn("NOT_PROOF_OF_HISTORICAL_NON_REVOCATION", result["absence_interpretation"])
+
+    def test_signed_revocation_time_at_or_before_token_time_is_reported(self):
+        timestamp_result = self._verified_timestamp_result()
+        target = datetime.fromisoformat(
+            timestamp_result["tsa_asserted_gen_time_utc"].replace("Z", "+00:00")
+        )
+        crl_der = self._build_tsa_crl(revoked_at=target - timedelta(hours=1))
+        result = verify_tsa_crl_evidence(
+            timestamp_result, self.tsa_pem, self.ca_pem, crl_der
+        )
+        self.assertEqual(result["status_at_target_time"], "REVOKED_AT_OR_BEFORE_TARGET")
+        self.assertEqual(
+            result["historical_revocation_assurance"],
+            "REVOKED_BY_TARGET_TIME_UNDER_SIGNED_CRL_ASSERTION",
+        )
+
+    def test_crl_rejects_wrong_issuer_certificate_binding(self):
+        timestamp_result = self._verified_timestamp_result()
+        unrelated_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        unrelated_cert = _certificate(
+            self.ca_name, self.ca_name, unrelated_key.public_key(),
+            unrelated_key, 9001, is_ca=True,
+        )
+        with self.assertRaisesRegex(ValueError, "do not match the prior timestamp identity"):
+            verify_tsa_crl_evidence(
+                timestamp_result,
+                self.tsa_pem,
+                unrelated_cert.public_bytes(serialization.Encoding.PEM),
+                self._build_tsa_crl(),
+            )
+
+    def test_crl_rejects_invalid_signature_even_when_issuer_name_matches(self):
+        timestamp_result = self._verified_timestamp_result()
+        wrong_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        with self.assertRaisesRegex(ValueError, "signature does not verify"):
+            verify_tsa_crl_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem,
+                self._build_tsa_crl(signer_key=wrong_key),
+            )
+
+    def test_crl_requires_number_and_authority_key_identifier(self):
+        timestamp_result = self._verified_timestamp_result()
+        with self.assertRaisesRegex(ValueError, "CRLNumber"):
+            verify_tsa_crl_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem,
+                self._build_tsa_crl(include_number=False),
+            )
+        with self.assertRaisesRegex(ValueError, "Authority Key Identifier"):
+            verify_tsa_crl_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem,
+                self._build_tsa_crl(include_aki=False),
+            )
+
+    def test_delta_crl_is_rejected_by_narrow_complete_crl_profile(self):
+        timestamp_result = self._verified_timestamp_result()
+        with self.assertRaisesRegex(ValueError, "delta or freshest-CRL"):
+            verify_tsa_crl_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem,
+                self._build_tsa_crl(delta=True),
+            )
+
+    def test_unlisted_certificate_outside_crl_interval_is_not_assessed(self):
+        timestamp_result = self._verified_timestamp_result()
+        now = datetime.now(timezone.utc).replace(microsecond=0, tzinfo=None)
+        crl_der = self._build_tsa_crl(
+            this_update=now + timedelta(days=1),
+            next_update=now + timedelta(days=2),
+        )
+        result = verify_tsa_crl_evidence(
+            timestamp_result, self.tsa_pem, self.ca_pem, crl_der
+        )
+        self.assertEqual(result["status_at_target_time"], "NOT_ESTABLISHED")
+        self.assertEqual(result["historical_revocation_assurance"], "NOT_ESTABLISHED")
 
     def test_real_token_signature_imprint_purpose_and_chain_verify(self):
         result = verify_rfc3161_timestamp(
