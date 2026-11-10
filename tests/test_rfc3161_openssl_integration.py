@@ -3,7 +3,9 @@
 The generated CA and TSA keys/certificates exist only in a temporary directory.
 This is cryptographic plumbing coverage, not evidence of an operational authority.
 """
-from datetime import datetime
+import base64
+import hashlib
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import shutil
 import subprocess
@@ -12,10 +14,14 @@ import unittest
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.asymmetric import Ed25519PrivateKey, rsa
 from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
 from experiments.rfc3161_timestamp import trust_anchor_sha256, verify_rfc3161_timestamp
+from experiments.rfc3161_anchor_provenance import (
+    canonical_provenance_payload,
+    verify_rfc3161_timestamp_with_provenance,
+)
 
 
 def _certificate(subject, issuer, public_key, signer_key, serial, *, is_ca, timestamp_signer=False):
@@ -140,6 +146,69 @@ ess_cert_id_chain = no
         self.assertEqual(result["message_imprint"], "MATCH")
         self.assertEqual(result["timestamp_authentication"], "CRYPTOGRAPHICALLY_VALID_RELATIVE_TO_CALLER_ANCHOR")
         self.assertEqual(result["anchor_provenance"], "NOT_ESTABLISHED")
+
+    def test_real_token_verifies_after_ephemeral_anchor_provenance(self):
+        governance_private = Ed25519PrivateKey.generate()
+        governance_public = governance_private.public_key().public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        )
+        governance_store = {
+            "record_version": "audit-trust-store/v1",
+            "keys": [{
+                "key_id": "synthetic-integration-governance",
+                "authority_name": "Synthetic integration authority",
+                "algorithm": "Ed25519",
+                "public_key_base64": base64.b64encode(governance_public).decode("ascii"),
+                "purposes": ["RFC3161_TRUST_ANCHOR_PROVENANCE"],
+                "valid_from_utc": "2020-01-01T00:00:00Z",
+                "valid_until_utc": "2040-01-01T00:00:00Z",
+                "status": "ACTIVE",
+                "trust_basis_reference": "ephemeral integration fixture",
+            }],
+        }
+        now = datetime.now(timezone.utc).replace(microsecond=0)
+        at_utc = now.isoformat().replace("+00:00", "Z")
+        attestation = {
+            "record_version": "rfc3161-tsa-anchor-provenance/v1",
+            "attestation_id": "ephemeral-openssl-integration",
+            "authority_name": "Synthetic integration authority",
+            "anchor_sha256": hashlib.sha256(self.ca_pem).hexdigest(),
+            "intended_usage": "RFC3161_TSA_TRUST_ANCHOR",
+            "policy_version": "rfc3161-tsa-anchor-policy/v1",
+            "sequence": 1,
+            "issued_at_utc": (now - timedelta(days=1)).isoformat().replace("+00:00", "Z"),
+            "expires_at_utc": (now + timedelta(days=30)).isoformat().replace("+00:00", "Z"),
+            "source_reference": "ephemeral integration fixture only",
+        }
+        signature = governance_private.sign(canonical_provenance_payload(attestation))
+        envelope = {
+            "record_version": "rfc3161-tsa-anchor-provenance-signature/v1",
+            "key_id": "synthetic-integration-governance",
+            "signature_base64": base64.b64encode(signature).decode("ascii"),
+        }
+        result = verify_rfc3161_timestamp_with_provenance(
+            self.token_der,
+            self.data,
+            self.ca_pem,
+            self.pin,
+            attestation,
+            envelope,
+            governance_store,
+            at_utc=at_utc,
+            minimum_sequence=1,
+            intermediates_pem=(self.root / "tsa.pem").read_bytes(),
+            openssl_binary=self.openssl,
+        )
+        self.assertEqual(result["combined_verification"], "VALID_RELATIVE_TO_CALLER_GOVERNANCE_STORE", result)
+        self.assertEqual(
+            result["anchor_provenance"]["provenance_verification"],
+            "VALID_RELATIVE_TO_CALLER_GOVERNANCE_STORE",
+        )
+        self.assertEqual(result["timestamp_evidence"]["timestamp_verification"], "VALID")
+        self.assertEqual(result["timestamp_evidence"]["message_imprint"], "MATCH")
+        self.assertEqual(result["governance_authentication"], "NOT_ESTABLISHED")
+        self.assertEqual(result["event_truth"], "NOT_ESTABLISHED")
 
     def test_real_token_rejects_changed_payload(self):
         result = verify_rfc3161_timestamp(
