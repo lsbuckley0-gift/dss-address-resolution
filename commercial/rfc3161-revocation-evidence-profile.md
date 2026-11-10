@@ -200,6 +200,7 @@ certificates to the exact certificate and issuer digests in that result. It
 checks that the issuer is a CA authorized for CRL signing, matches the TSA
 certificate's issuer name and Authority Key Identifier, and verifies the CRL
 signature under that issuer key.
+ The issuer certificate must carry BasicConstraints CA=true and KeyUsage cRLSign=true.
 
 The first supported CRL subset is intentionally narrow: a direct complete
 CRL with CRLNumber and Authority Key Identifier, no Issuing Distribution Point,
@@ -207,7 +208,8 @@ no delta/freshest-CRL extension, and no CRLDistributionPoints extension on
 the TSA certificate (distribution-point scope matching is not implemented).
 Unsupported extensions, duplicate target serial entries, indirect entries,
 missing required time fields, wrong issuer identity and invalid signatures
-fail closed.
+fail closed. Tests also cover duplicate target serials, `removeFromCRL`, and
+`certificateHold` remaining explicitly indeterminate.
 
 A signed entry whose `revocationDate` is at or before the token's asserted
 `genTime` is reported as
