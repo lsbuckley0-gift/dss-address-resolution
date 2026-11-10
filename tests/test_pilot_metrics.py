@@ -71,11 +71,11 @@ class PilotMetricsTests(unittest.TestCase):
             evaluate({"dataset_id": "dataset", "cases": self.data["cases"]})
 
     def test_missing_gold_label_is_rejected_instead_of_treated_as_ambiguous(self):
-        data = {"cases": [
+        data = pilot_data([
             {"case_id": "c1",
              "baseline": decision("UNRESOLVED"),
              "dss": decision("UNRESOLVED")}
-        ]}
+        ])
         with self.assertRaisesRegex(ValueError, "gold_candidate_id is required"):
             evaluate(data)
 
@@ -85,29 +85,29 @@ class PilotMetricsTests(unittest.TestCase):
             evaluate(pilot_data([]))
 
     def test_non_boolean_trace_completeness_is_rejected(self):
-        data = {"cases": [
+        data = pilot_data([
             {"case_id": "c1", "gold_candidate_id": "A",
              "baseline": decision("VERIFIED", "A"),
              "dss": decision("VERIFIED", "A", complete=1)}
-        ]}
+        ])
         with self.assertRaisesRegex(ValueError, "trace_complete must be boolean"):
             evaluate(data)
 
     def test_review_time_requires_explicit_review_routing(self):
-        data = {"cases": [
+        data = pilot_data([
             {"case_id": "c1", "gold_candidate_id": "A",
              "baseline": dict(decision("UNRESOLVED", review=12), review_routed=False),
              "dss": decision("UNRESOLVED")}
-        ]}
+        ])
         with self.assertRaisesRegex(ValueError, "review_seconds requires review_routed=true"):
             evaluate(data)
 
     def test_only_unresolved_cases_can_be_routed_to_review(self):
-        data = {"cases": [
+        data = pilot_data([
             {"case_id": "c1", "gold_candidate_id": "A",
              "baseline": decision("VERIFIED", "A"),
              "dss": dict(decision("VERIFIED", "A"), review_routed=True)}
-        ]}
+        ])
         with self.assertRaisesRegex(ValueError, "only unresolved cases"):
             evaluate(data)
 
@@ -118,20 +118,20 @@ class PilotMetricsTests(unittest.TestCase):
             evaluate(pilot_data([case, duplicate]))
 
     def test_unresolved_cannot_claim_selected_candidate(self):
-        data = {"cases": [
+        data = pilot_data([
             {"case_id": "c1", "gold_candidate_id": "A",
              "baseline": decision("UNRESOLVED", "A"),
              "dss": decision("UNRESOLVED")}
-        ]}
+        ])
         with self.assertRaisesRegex(ValueError, "UNRESOLVED must not select"):
             evaluate(data)
 
     def test_accepted_case_requires_candidate_and_boolean_trace_flag(self):
-        data = {"cases": [
+        data = pilot_data([
             {"case_id": "c1", "gold_candidate_id": "A",
              "baseline": decision("VERIFIED"),
              "dss": decision("VERIFIED", "A")}
-        ]}
+        ])
         with self.assertRaisesRegex(ValueError, "require a selected candidate"):
             evaluate(data)
 
