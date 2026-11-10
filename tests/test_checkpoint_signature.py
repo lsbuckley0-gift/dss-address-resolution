@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -116,6 +117,67 @@ class CheckpointSignatureTests(unittest.TestCase):
         )
         self.assertEqual(result["signed_checkpoint_verification"], "MATCH")
         self.assertEqual(result["trust_policy_pin"]["trust_policy_pin"], "MATCH")
+
+    def test_valid_timestamp_binds_registration_checkpoint_before_outcome_access(self):
+        timestamp = {
+            "timestamp_verification": "VALID",
+            "tsa_asserted_gen_time_utc": "2026-11-10T10:00:30Z",
+        }
+        anchor = b"-----BEGIN CERTIFICATE-----\\nsynthetic-root\\n-----END CERTIFICATE-----\\n"
+        pin = {"sha256": "a" * 64, "source_reference": "synthetic://tsa-root-pin"}
+        with patch("experiments.rfc3161_timestamp.verify_rfc3161_timestamp", return_value=timestamp) as verify:
+            result = verify_signed_checkpoint(
+                self.events, self.checkpoint, self.envelope, self.store,
+                at_utc="2026-11-10T10:04:00Z",
+                timestamp_token_der=b"synthetic-token",
+                timestamp_trust_anchor_pem=anchor,
+                timestamp_trust_anchor_pin=pin,
+            )
+        self.assertEqual(result["signed_checkpoint_verification"], "MATCH")
+        self.assertEqual(result["registration_timestamp_binding"], "MATCH")
+        self.assertEqual(result["timestamp_authentication"], "CRYPTOGRAPHICALLY_VALID_RELATIVE_TO_CALLER_ANCHOR")
+        self.assertEqual(verify.call_args.args[1], canonical_checkpoint_payload(self.checkpoint))
+
+    def test_timestamp_at_or_after_outcome_access_fails_registration_binding(self):
+        timestamp = {
+            "timestamp_verification": "VALID",
+            "tsa_asserted_gen_time_utc": "2026-11-10T10:01:00Z",
+        }
+        anchor = b"-----BEGIN CERTIFICATE-----\\nsynthetic-root\\n-----END CERTIFICATE-----\\n"
+        pin = {"sha256": "a" * 64, "source_reference": "synthetic://tsa-root-pin"}
+        with patch("experiments.rfc3161_timestamp.verify_rfc3161_timestamp", return_value=timestamp):
+            result = verify_signed_checkpoint(
+                self.events, self.checkpoint, self.envelope, self.store,
+                at_utc="2026-11-10T10:04:00Z",
+                timestamp_token_der=b"synthetic-token",
+                timestamp_trust_anchor_pem=anchor,
+                timestamp_trust_anchor_pin=pin,
+            )
+        self.assertEqual(result["registration_timestamp_binding"], "MISMATCH")
+        self.assertEqual(result["signed_checkpoint_verification"], "MISMATCH")
+
+    def test_invalid_timestamp_does_not_establish_registration_binding(self):
+        timestamp = {"timestamp_verification": "INVALID"}
+        anchor = b"-----BEGIN CERTIFICATE-----\\nsynthetic-root\\n-----END CERTIFICATE-----\\n"
+        pin = {"sha256": "a" * 64, "source_reference": "synthetic://tsa-root-pin"}
+        with patch("experiments.rfc3161_timestamp.verify_rfc3161_timestamp", return_value=timestamp):
+            result = verify_signed_checkpoint(
+                self.events, self.checkpoint, self.envelope, self.store,
+                at_utc="2026-11-10T10:04:00Z",
+                timestamp_token_der=b"synthetic-token",
+                timestamp_trust_anchor_pem=anchor,
+                timestamp_trust_anchor_pin=pin,
+            )
+        self.assertEqual(result["registration_timestamp_binding"], "NOT_VERIFIED")
+        self.assertEqual(result["signed_checkpoint_verification"], "MISMATCH")
+
+    def test_partial_timestamp_inputs_rejected(self):
+        with self.assertRaisesRegex(ValueError, "must be supplied together"):
+            verify_signed_checkpoint(
+                self.events, self.checkpoint, self.envelope, self.store,
+                at_utc="2026-11-10T10:04:00Z",
+                timestamp_token_der=b"synthetic-token",
+            )
 
     def test_tampered_checkpoint_invalidates_signature(self):
         changed = dict(self.checkpoint)
