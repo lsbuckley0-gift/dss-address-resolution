@@ -10,6 +10,7 @@ import re
 
 Terminal = Literal["VERIFIED", "CORRECTED", "UNRESOLVED"]
 CheckResult = Literal["PASS", "FAIL", "INCONCLUSIVE"]
+FieldMatchResult = Literal["PASS", "CORRECTED", "FAIL"]
 
 @dataclass
 class Resolution:
@@ -92,7 +93,7 @@ def levenshtein(a: str, b: str) -> int:
         previous_row = current_row
     return previous_row[-1]
 
-def field_match(a: str, b: str) -> CheckResult:
+def field_match(a: str, b: str) -> FieldMatchResult:
     a, b = normalise(a), normalise(b)
     if a == b:
         return "PASS"
