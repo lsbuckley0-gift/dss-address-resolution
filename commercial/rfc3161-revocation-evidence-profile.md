@@ -48,7 +48,7 @@ A CRL path, if implemented, must validate all of the following before its conten
 2. The CRL issuer is authorized for the target certificate's issuer and the CRL distribution-point scope matches the certificate and the requested status check.
 3. Authority Key Identifier / issuer-key binding is checked where present and required by the applicable profile.
 4. `thisUpdate`, `nextUpdate`, CRL number and applicable critical extensions are parsed and policy-checked. Missing or malformed required time/scope data is not a clean status.
-5. The target certificate issuer and serial are matched exactly. Indirect CRL certificateIssuer processing must be correct before such CRLs are accepted.
+5. The target certificate issuer and serial are matched exactly. This v1 slice rejects indirect CRLs by scanning every revoked entry for `certificateIssuer`; the guard is list-wide because an unrelated entry can change the interpretation of subsequent entries. Indirect CRL support remains out of scope.
 6. Reason coverage is complete for the claim. A CRL limited by `onlySomeReasons` cannot establish absence of revocation for reasons outside its scope.
 7. Delta CRLs are rejected unless the implementation can authenticate and correctly combine the delta with its exact compatible base CRL, including scope, base number, ordering and `removeFromCRL` semantics.
 
@@ -234,7 +234,8 @@ the prior timestamp result but does not independently re-authenticate the
 trust root. The OCSP evaluator is limited to the issuer-signed RSA/SHA-256 subset described above. Synthetic integration tests cover
 valid direct CRLs, revoked and unlisted serials, issuer mismatch, bad
 signatures, missing CRLNumber/AKI, delta and indirect CRL rejection,
-partial-reason scope, TSA CRLDistributionPoints, duplicate target serials,
+partial-reason scope, TSA CRLDistributionPoints, list-wide indirect-CRL
+`certificateIssuer` rejection (including an unrelated entry), duplicate target serials,
 `removeFromCRL`, temporary `certificateHold` and incompatible evidence
 intervals.
 
