@@ -122,21 +122,35 @@ def classify_checkpoint_recovery(
                 if checkpoint["checkpoint_sequence"] >= minimum_sequence
                 else "BELOW_FLOOR"
             )
+        binding_valid = (
+            checkpoint_result["checkpoint_binding"] == "MATCH"
+            and checkpoint_result["checkpoint_time_order"] == "NOT_BEFORE_EVENT"
+        )
+        recovery_status = (
+            "PREPARED_NOT_ACCEPTED" if binding_valid else "CONFLICT"
+        )
         return {
-            "recovery_status": "PREPARED_NOT_ACCEPTED",
+            "recovery_status": recovery_status,
             "checkpoint_binding": checkpoint_result["checkpoint_binding"],
+            "checkpoint_time_order": checkpoint_result["checkpoint_time_order"],
             "checkpoint_sequence": checkpoint["checkpoint_sequence"],
             "rollback_floor": floor_status,
             "acceptance_authentication": "NOT_VERIFIED",
             "storage_atomicity": "NOT_VERIFIED",
             "interpretation": (
-                "A checkpoint payload is present without its acceptance receipt. "
-                "Treat it as prepared evidence, not as an accepted state. "
-                + (
-                    "Its sequence is below the independently supplied rollback floor."
-                    if floor_status == "BELOW_FLOOR"
-                    else "The supplied rollback floor is met or was not supplied."
+                (
+                    "A checkpoint payload is present without its acceptance receipt. "
+                    "Treat it as prepared evidence, not as an accepted state. "
                 )
+                if binding_valid
+                else (
+                    "The checkpoint payload does not bind to the supplied event chain "
+                    "or claims an anchor time before its event. Fail closed."
+                )
+            ) + (
+                " Its sequence is below the independently supplied rollback floor."
+                if floor_status == "BELOW_FLOOR"
+                else " The supplied rollback floor is met or was not supplied."
             ),
         }
 
