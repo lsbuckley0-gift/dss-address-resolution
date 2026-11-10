@@ -5,7 +5,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from experiments.pilot_metrics import (evaluate, _exact_mcnemar_p_value, _clopper_pearson, _paired_prevalence_difference_interval)
+from experiments.pilot_metrics import (evaluate, _exact_mcnemar_p_value, _clopper_pearson, _paired_prevalence_difference_interval, _primary_endpoint_spec_sha256)
 
 
 def decision(state, selected=None, complete=True, latency=None, review=None):
@@ -374,6 +374,19 @@ class PilotMetricsTests(unittest.TestCase):
             "registration_reference": "protocol-v1", "frozen_before_outcomes_review": True,
         }
         self.assertEqual(evaluate(data)["primary_endpoint_assessment"]["status"], "OPPOSITE_DIRECTION")
+
+    def test_primary_endpoint_fingerprint_is_stable_and_covers_scientific_spec(self):
+        endpoint = {
+            "outcome_class": "FALSE_ACCEPT", "expected_direction": "LOWER",
+            "analysis_population": "ALL_PAIRED_CASES", "alpha": 0.05,
+            "registration_reference": "protocol-v1", "frozen_before_outcomes_review": True,
+        }
+        original = _primary_endpoint_spec_sha256(endpoint)
+        reordered = dict(reversed(list(endpoint.items())))
+        self.assertEqual(original, _primary_endpoint_spec_sha256(reordered))
+        changed = dict(endpoint, alpha=0.01)
+        self.assertNotEqual(original, _primary_endpoint_spec_sha256(changed))
+        self.assertEqual(len(original), 64)
 
     def test_primary_endpoint_is_not_configured_by_default(self):
         assessment = evaluate(self.data)["primary_endpoint_assessment"]
