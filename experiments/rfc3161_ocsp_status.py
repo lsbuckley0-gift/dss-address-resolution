@@ -182,6 +182,8 @@ def verify_tsa_ocsp_evidence(
             raise ValueError("REVOKED OCSP status requires revocationTime.")
         if revocation_time > this_update:
             raise ValueError("OCSP revocationTime is later than thisUpdate.")
+        if reason == x509.ReasonFlags.remove_from_crl:
+            raise ValueError("removeFromCRL is unsupported as an OCSP revocation reason.")
     elif revocation_time is not None:
         raise ValueError("non-REVOKED OCSP status must not carry revocationTime.")
 
