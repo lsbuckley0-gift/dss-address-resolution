@@ -69,7 +69,7 @@ class PilotMetricsTests(unittest.TestCase):
     def test_review_time_requires_explicit_review_routing(self):
         data = {"cases": [
             {"case_id": "c1", "gold_candidate_id": "A",
-             "baseline": decision("UNRESOLVED", review=12),
+             "baseline": dict(decision("UNRESOLVED", review=12), review_routed=False),
              "dss": decision("UNRESOLVED")}
         ]}
         with self.assertRaisesRegex(ValueError, "review_seconds requires review_routed=true"):
