@@ -185,7 +185,7 @@ class PilotMetricsTests(unittest.TestCase):
             report = json.loads(completed.stdout)
             self.assertEqual(json.loads(output_path.read_text(encoding="utf-8")), report)
         self.assertEqual(report["dataset_id"], "paired-pilot-synthetic")
-        self.assertEqual(report["report_version"], "paired-pilot-metrics/1.7")
+        self.assertEqual(report["report_version"], "paired-pilot-metrics/1.8")
         self.assertEqual(report["case_count"], 4)
         self.assertEqual(set(report["stratum_metrics"]), {"EXACT", "TYPO", "FORMATTING_ONLY", "CONFLICTING"})
         self.assertEqual(report["stratum_metrics"]["TYPO"]["case_count"], 1)
@@ -565,6 +565,61 @@ class PilotMetricsTests(unittest.TestCase):
         self.assertEqual(assessment["criteria"]["review_routed_rate"]["observed"], 0.5)
         self.assertEqual(assessment["criteria"]["review_routed_rate"]["status"], "FAIL")
         self.assertEqual(assessment["status"], "FAIL")
+
+    def test_pilot_readiness_passes_only_when_both_configured_gates_pass(self):
+        data = pilot_data([
+            {"case_id": "a", "gold_candidate_id": "A", "stratum": "TYPO",
+             "baseline": decision("VERIFIED", "A"), "dss": decision("VERIFIED", "A")},
+            {"case_id": "b", "gold_candidate_id": "B", "stratum": "TYPO",
+             "baseline": decision("VERIFIED", "B"), "dss": decision("VERIFIED", "B")},
+        ])
+        data["sample_requirements"] = {
+            "required_strata": ["TYPO"], "minimum_case_count": 2,
+            "minimum_unique_gold_case_count": 2,
+        }
+        data["decision_requirements"] = {
+            "system": "dss", "max_false_accept_rate_upper_95pct": 1.0,
+            "max_false_reject_rate_upper_95pct": 1.0, "minimum_coverage": 1.0,
+            "maximum_review_routed_rate": 0.0, "maximum_median_review_seconds": 0,
+            "minimum_review_time_measurement_coverage": 1.0,
+        }
+        report = evaluate(data)
+        self.assertEqual(report["sample_sufficiency"]["status"], "SUFFICIENT")
+        self.assertEqual(report["decision_assessment"]["status"], "PASS")
+        self.assertEqual(report["pilot_readiness"]["status"], "PASS")
+
+    def test_pilot_readiness_fails_if_either_configured_gate_fails(self):
+        data = pilot_data([
+            {"case_id": "a", "gold_candidate_id": "A", "stratum": "TYPO",
+             "baseline": decision("VERIFIED", "A"), "dss": decision("VERIFIED", "A")},
+        ])
+        data["sample_requirements"] = {
+            "required_strata": ["TYPO"], "minimum_case_count": 2,
+            "minimum_unique_gold_case_count": 1,
+        }
+        report = evaluate(data)
+        self.assertEqual(report["sample_sufficiency"]["status"], "INSUFFICIENT")
+        self.assertEqual(report["pilot_readiness"]["status"], "FAIL")
+
+    def test_pilot_readiness_is_indeterminate_when_one_gate_is_not_configured(self):
+        data = pilot_data([
+            {"case_id": "a", "gold_candidate_id": "A",
+             "baseline": decision("VERIFIED", "A"), "dss": decision("VERIFIED", "A")},
+        ])
+        data["decision_requirements"] = {
+            "system": "dss", "max_false_accept_rate_upper_95pct": 1.0,
+            "max_false_reject_rate_upper_95pct": 1.0, "minimum_coverage": 1.0,
+            "maximum_review_routed_rate": 0.0, "maximum_median_review_seconds": 0,
+            "minimum_review_time_measurement_coverage": 1.0,
+        }
+        report = evaluate(data)
+        self.assertEqual(report["decision_assessment"]["status"], "PASS")
+        self.assertEqual(report["sample_sufficiency"]["status"], "NOT_CONFIGURED")
+        self.assertEqual(report["pilot_readiness"]["status"], "INDETERMINATE")
+
+    def test_pilot_readiness_is_not_configured_when_both_gates_are_absent(self):
+        readiness = evaluate(self.data)["pilot_readiness"]
+        self.assertEqual(readiness["status"], "NOT_CONFIGURED")
 
 if __name__ == "__main__":
     unittest.main()
