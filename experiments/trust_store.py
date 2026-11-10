@@ -65,8 +65,10 @@ def validate_trust_store(store: dict) -> dict:
         if key["key_id"] in seen:
             raise ValueError(f"duplicate key_id: {key['key_id']}")
         seen.add(key["key_id"])
-        if key["algorithm"] != "Ed25519":
+        if not isinstance(key["algorithm"], str) or key["algorithm"] != "Ed25519":
             raise ValueError(f"keys[{index}].algorithm must be Ed25519.")
+        if not isinstance(key["public_key_base64"], str):
+            raise ValueError(f"keys[{index}].public_key_base64 must be a string.")
         try:
             public_key = base64.b64decode(key["public_key_base64"], validate=True)
         except (binascii.Error, ValueError, TypeError) as exc:
@@ -85,7 +87,7 @@ def validate_trust_store(store: dict) -> dict:
         end = _utc(key["valid_until_utc"], f"keys[{index}].valid_until_utc")
         if end <= start:
             raise ValueError(f"keys[{index}] validity interval must be increasing.")
-        if key["status"] not in {"ACTIVE", "REVOKED", "DISABLED"}:
+        if not isinstance(key["status"], str) or key["status"] not in {"ACTIVE", "REVOKED", "DISABLED"}:
             raise ValueError(f"keys[{index}].status must be ACTIVE, REVOKED or DISABLED.")
         if key["status"] == "ACTIVE":
             active += 1
