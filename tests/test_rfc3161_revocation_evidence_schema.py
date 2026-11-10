@@ -39,7 +39,9 @@ class RFC3161RevocationEvidenceSchemaTests(unittest.TestCase):
             "acquisition_reference": "synthetic-fixture://revocation-evidence",
             "target_certificate": {
                 "certificate_der_sha256": "b" * 64,
+                "subject_spki_sha256": "e" * 64,
                 "issuer_name_der_sha256": "c" * 64,
+                "issuer_certificate_der_sha256": "f" * 64,
                 "issuer_spki_sha256": "d" * 64,
                 "serial_hex": "2a",
             },
