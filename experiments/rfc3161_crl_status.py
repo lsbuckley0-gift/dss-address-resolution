@@ -171,6 +171,8 @@ def verify_tsa_crl_evidence(
         status_at_target = "NOT_LISTED_AT_CRL_THIS_UPDATE"
 
     return {
+        "result_version": "rfc3161-tsa-revocation-verification-result/v1-draft",
+        "evidence_type": "CRL",
         "crl_evidence_verification": "VALID_RELATIVE_TO_BOUND_ISSUER_CERTIFICATE",
         "tsa_certificate_identity_binding": "MATCH",
         "crl_signature": "VALID",
