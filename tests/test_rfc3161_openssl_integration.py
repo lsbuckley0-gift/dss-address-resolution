@@ -5,6 +5,7 @@ This is cryptographic plumbing coverage, not evidence of an operational authorit
 """
 import base64
 import hashlib
+import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -22,6 +23,7 @@ from cryptography.x509 import ocsp
 from cryptography.x509.oid import ObjectIdentifier
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
+from jsonschema import Draft202012Validator, FormatChecker
 
 from experiments.rfc3161_timestamp import (
     _extract_signer_certificate_identity,
@@ -96,6 +98,20 @@ def _certificate(subject, issuer, public_key, signer_key, serial, *, is_ca, time
 
 @unittest.skipUnless(shutil.which("openssl"), "OpenSSL executable is required")
 class RFC3161OpenSSLIntegrationTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        schema_path = (
+            Path(__file__).resolve().parents[1]
+            / "experiments"
+            / "schemas"
+            / "rfc3161-tsa-revocation-verification-result-v1-draft.schema.json"
+        )
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        Draft202012Validator.check_schema(schema)
+        cls.revocation_result_validator = Draft202012Validator(
+            schema, format_checker=FormatChecker()
+        )
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="dss-rfc3161-integration-")
         self.root = Path(self.temp.name)
@@ -289,6 +305,7 @@ ess_cert_id_chain = no
         result = verify_tsa_crl_evidence(
             timestamp_result, self.tsa_pem, self.ca_pem, crl_der
         )
+        self.revocation_result_validator.validate(result)
         self.assertEqual(
             result["crl_evidence_verification"],
             "VALID_RELATIVE_TO_BOUND_ISSUER_CERTIFICATE",
@@ -682,6 +699,7 @@ ess_cert_id_chain = no
         result = verify_tsa_ocsp_evidence(
             timestamp_result, self.tsa_pem, self.ca_pem, response_der
         )
+        self.revocation_result_validator.validate(result)
         self.assertEqual(result["ocsp_evidence_verification"], "VALID_RELATIVE_TO_BOUND_ISSUER_CERTIFICATE")
         self.assertEqual(result["ocsp_signature"], "VALID")
         self.assertEqual(result["responder_authorization"], "ISSUING_CA_DIRECTLY_SIGNED")
