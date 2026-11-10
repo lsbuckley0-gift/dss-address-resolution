@@ -672,6 +672,29 @@ class CheckpointSeriesContinuityTests(unittest.TestCase):
         self.assertEqual(result["checkpoint_series_integrity"], "MISMATCH")
         self.assertEqual(result["checkpoints"][1]["checkpoint_binding"], "MISMATCH")
 
+    def test_operator_retained_floor_accepts_equal_or_newer_checkpoint(self):
+        result = verify_checkpoint_series(
+            self.events, [self.first, self.second], minimum_sequence=2
+        )
+        self.assertEqual(result["checkpoint_series_integrity"], "MATCH")
+        self.assertEqual(result["rollback_floor"], "MEETS_FLOOR")
+        self.assertEqual(result["minimum_sequence"], 2)
+
+    def test_operator_retained_floor_rejects_stale_checkpoint_series(self):
+        result = verify_checkpoint_series(
+            self.events, [self.first], minimum_sequence=1
+        )
+        self.assertEqual(result["checkpoint_series_integrity"], "MISMATCH")
+        self.assertEqual(result["rollback_floor"], "BELOW_FLOOR")
+
+    def test_operator_retained_floor_must_be_non_negative_integer(self):
+        for invalid in (-1, True, 1.5, "2"):
+            with self.subTest(invalid=invalid):
+                with self.assertRaisesRegex(ValueError, "non-negative integer"):
+                    verify_checkpoint_series(
+                        self.events, [self.first], minimum_sequence=invalid
+                    )
+
 
 if __name__ == "__main__":
     unittest.main()
