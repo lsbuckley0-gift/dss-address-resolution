@@ -58,6 +58,17 @@ class PilotMetricsTests(unittest.TestCase):
         self.assertIsNone(metrics["false_accept_rate"])
         self.assertIsNone(metrics["false_accept_rate_95pct_wilson"])
 
+
+    def test_missing_gold_label_is_rejected_instead_of_treated_as_ambiguous(self):
+        data = {"cases": [
+            {"case_id": "c1",
+             "baseline": decision("UNRESOLVED"),
+             "dss": decision("UNRESOLVED")}
+        ]}
+        with self.assertRaisesRegex(ValueError, "gold_candidate_id is required"):
+            evaluate(data)
+
+
     def test_empty_evaluation_set_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "at least one paired case"):
             evaluate({"cases": []})
