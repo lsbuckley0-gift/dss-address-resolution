@@ -118,8 +118,12 @@ measurement coverage. Do not include raw addresses or customer identifiers.
 
 The evaluator rejects duplicate case IDs, invalid states, accepted decisions
 without a candidate, unresolved decisions with a selected candidate, malformed
-trace flags and invalid measurements. Both systems are scored over the same
-paired cases. A wrong candidate or any acceptance where the gold label is null
+trace flags and invalid measurements. Runtime validation also rejects undeclared
+fields at the dataset, case and decision levels, matching the schema's
+`additionalProperties: false` boundary; whitespace-only provenance identifiers
+are rejected as well. This prevents unrecognised address/customer fields from
+being silently accepted as part of the metadata-only input contract. Both systems
+are scored over the same paired cases. A wrong candidate or any acceptance where the gold label is null
 counts as a false accept.
 
 The JSON report gives raw counts and explicit denominators for false-accept
