@@ -205,7 +205,61 @@
           "crl_time_window_covers_target",
           "evidence_time_basis",
           "absence_interpretation"
-        ]
+        ],
+        "properties": {
+          "evidence_time_basis": {
+            "const": "ISSUER_ASSERTED_CRL_THIS_UPDATE_NEXT_UPDATE"
+          },
+          "status_at_target_time": {
+            "enum": [
+              "REVOKED_AT_OR_BEFORE_TARGET",
+              "REVOCATION_AFTER_TARGET_REPORTED",
+              "NOT_LISTED_AT_CRL_THIS_UPDATE",
+              "CERTIFICATE_HOLD_REPORTED_TARGET_STATUS_NOT_ESTABLISHED",
+              "NOT_ESTABLISHED"
+            ]
+          },
+          "historical_revocation_assurance": {
+            "enum": [
+              "NOT_ESTABLISHED",
+              "REVOKED_BY_TARGET_TIME_UNDER_SIGNED_CRL_ASSERTION"
+            ]
+          }
+        },
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "ocsp_evidence_verification"
+              ]
+            },
+            {
+              "required": [
+                "ocsp_signature"
+              ]
+            },
+            {
+              "required": [
+                "responder_authorization"
+              ]
+            },
+            {
+              "required": [
+                "ocsp_cert_id_binding"
+              ]
+            },
+            {
+              "required": [
+                "ocsp_response_der_sha256"
+              ]
+            },
+            {
+              "required": [
+                "good_status_limitation"
+              ]
+            }
+          ]
+        }
       }
     },
     {
@@ -239,7 +293,63 @@
           "evidence_time_basis",
           "status_at_evidence_time",
           "good_status_limitation"
-        ]
+        ],
+        "properties": {
+          "evidence_time_basis": {
+            "const": "RESPONDER_ASSERTED_PRODUCED_AT_THIS_UPDATE_NEXT_UPDATE"
+          },
+          "status_at_target_time": {
+            "enum": [
+              "REVOKED_AT_OR_BEFORE_TARGET",
+              "REVOCATION_AFTER_TARGET_REPORTED",
+              "GOOD_AT_OCSP_THIS_UPDATE_ONLY",
+              "UNKNOWN",
+              "CERTIFICATE_HOLD_REPORTED_TARGET_STATUS_NOT_ESTABLISHED",
+              "EVIDENCE_TIME_INCOMPATIBLE",
+              "NOT_ESTABLISHED"
+            ]
+          },
+          "historical_revocation_assurance": {
+            "enum": [
+              "NOT_ESTABLISHED",
+              "REVOKED_BY_TARGET_TIME_UNDER_SIGNED_OCSP_ASSERTION"
+            ]
+          }
+        },
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "crl_evidence_verification"
+              ]
+            },
+            {
+              "required": [
+                "crl_signature"
+              ]
+            },
+            {
+              "required": [
+                "crl_scope"
+              ]
+            },
+            {
+              "required": [
+                "crl_der_sha256"
+              ]
+            },
+            {
+              "required": [
+                "crl_number"
+              ]
+            },
+            {
+              "required": [
+                "absence_interpretation"
+              ]
+            }
+          ]
+        }
       }
     }
   ]
