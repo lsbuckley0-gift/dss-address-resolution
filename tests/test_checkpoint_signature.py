@@ -1,11 +1,17 @@
 """Tests for detached Ed25519 checkpoint signature verification."""
 import base64
+import contextlib
+import io
+import json
+from pathlib import Path
+import tempfile
 import unittest
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from experiments.audit_event_chain import append_audit_event
+from experiments.audit_event_chain import main as audit_chain_main
 from experiments.checkpoint_signature import (
     canonical_checkpoint_payload,
     verify_signed_checkpoint,
@@ -131,6 +137,58 @@ class CheckpointSignatureTests(unittest.TestCase):
         envelope = dict(self.envelope, is_verified=True)
         with self.assertRaisesRegex(ValueError, "unsupported field"):
             self.verify(envelope=envelope)
+
+    def test_cli_accepts_valid_signed_checkpoint(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name, value in (
+                ("events.json", self.events),
+                ("checkpoint.json", self.checkpoint),
+                ("signature.json", self.envelope),
+                ("trust.json", self.store),
+            ):
+                (root / name).write_text(json.dumps(value), encoding="utf-8")
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                code = audit_chain_main([
+                    str(root / "events.json"),
+                    "--signed-checkpoint", str(root / "checkpoint.json"),
+                    "--signature", str(root / "signature.json"),
+                    "--trust-store", str(root / "trust.json"),
+                    "--at-utc", "2026-11-10T10:04:00Z",
+                ])
+            self.assertEqual(code, 0)
+            self.assertIn('"signed_checkpoint_verification": "MATCH"', output.getvalue())
+
+    def test_cli_returns_one_for_invalid_signature(self):
+        invalid = dict(self.envelope)
+        signature = bytearray(base64.b64decode(invalid["signature_base64"]))
+        signature[0] ^= 1
+        invalid["signature_base64"] = base64.b64encode(signature).decode("ascii")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name, value in (
+                ("events.json", self.events),
+                ("checkpoint.json", self.checkpoint),
+                ("signature.json", invalid),
+                ("trust.json", self.store),
+            ):
+                (root / name).write_text(json.dumps(value), encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()):
+                code = audit_chain_main([
+                    str(root / "events.json"),
+                    "--signed-checkpoint", str(root / "checkpoint.json"),
+                    "--signature", str(root / "signature.json"),
+                    "--trust-store", str(root / "trust.json"),
+                    "--at-utc", "2026-11-10T10:04:00Z",
+                ])
+            self.assertEqual(code, 1)
+
+    def test_cli_requires_all_signed_checkpoint_inputs(self):
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as raised:
+                audit_chain_main(["events.json", "--signed-checkpoint", "checkpoint.json"])
+        self.assertEqual(raised.exception.code, 2)
 
 
 if __name__ == "__main__":
