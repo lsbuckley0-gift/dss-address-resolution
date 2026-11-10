@@ -92,6 +92,22 @@ class CheckpointRecoveryTests(unittest.TestCase):
                         minimum_sequence=invalid,
                     )
 
+
+    def test_checkpoint_event_chain_mismatch_fails_closed(self):
+        changed = dict(self.checkpoint, checkpoint_event_sha256="0" * 64)
+        result = classify_checkpoint_recovery(
+            self.events, changed, self.receipt
+        )
+        self.assertEqual(result["recovery_status"], "CONFLICT")
+        self.assertEqual(result["checkpoint_binding"], "MISMATCH")
+
+    def test_invalid_receipt_timestamp_is_rejected(self):
+        changed = dict(self.receipt, accepted_at_utc="not-a-timestamp")
+        with self.assertRaisesRegex(ValueError, "ISO 8601 UTC timestamp"):
+            classify_checkpoint_recovery(
+                self.events, self.checkpoint, changed
+            )
+
     def test_receipt_schema_is_strict(self):
         changed = dict(self.receipt, unexpected="value")
         with self.assertRaisesRegex(ValueError, "unsupported field"):
