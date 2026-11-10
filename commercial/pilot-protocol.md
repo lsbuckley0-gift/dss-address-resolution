@@ -976,3 +976,43 @@ conservative interoperability limitation, not evidence that fractional
 RFC 3161 timestamps are invalid under the standard. Supporting them requires
 a separately reviewed method that preserves the signed instant while
 performing certificate validity checks at the correct applicable precision.
+
+## Checkpoint crash-recovery classification (v1)
+
+`experiments/checkpoint_recovery.py` classifies the retained state after an
+interruption between checkpoint-payload creation and recording its acceptance.
+The acceptance receipt schema is
+`experiments/schemas/audit-chain-checkpoint-acceptance-v1.schema.json`.
+
+`classify_checkpoint_recovery(events, checkpoint, acceptance_receipt,
+minimum_sequence=...)` recognises these states:
+
+- `NO_RETAINED_STATE`: neither payload nor receipt was supplied. This cannot
+  distinguish first use from loss of both copies.
+- `PREPARED_NOT_ACCEPTED`: payload exists without its receipt. It is not
+  promoted to an accepted state.
+- `RECEIPT_WITHOUT_PAYLOAD`: receipt exists without its payload. The payload
+  is not reconstructed from the receipt.
+- `CONFLICT`: the pair disagrees on sequence or canonical payload digest,
+  the receipt time precedes the checkpoint time, or the checkpoint does not
+  bind to the supplied event chain.
+- `BELOW_FLOOR`: the checkpoint sequence is below the operator-supplied
+  minimum sequence.
+- `CONSISTENT_UNAUTHENTICATED`: payload, receipt and supplied event chain
+  agree, and any supplied floor is met.
+
+The receipt binds the checkpoint's complete canonical JSON representation
+(sorted keys, compact separators, UTF-8) by SHA-256, along with its sequence.
+Its timestamp must not precede the checkpoint's claimed anchor time. The
+receipt schema rejects additional fields and malformed digests.
+
+**Recovery boundary:** `CONSISTENT_UNAUTHENTICATED` is deliberately not named
+`ACCEPTED`. The classifier does not authenticate the receipt issuer, verify
+that the receipt came from an independent system, establish either storage
+location's durability, or prove that two writes were atomic. It is a pure
+consistency classifier, not a storage transaction manager. A deployment must
+implement payload and receipt persistence using a storage-specific atomic
+transaction or a documented write-ahead protocol, retain the rollback floor
+independently, and test actual crash behaviour at each persistence boundary.
+If the storage layer cannot establish which state committed, recovery must
+fail closed rather than infer acceptance.
