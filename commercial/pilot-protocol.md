@@ -591,3 +591,29 @@ Every checkpoint must bind to the same registration event and to the digest
 at its declared sequence. This can expose a retained chain that has been cut
 back before a previously anchored point. It still cannot prove that the
 checkpoint list is complete or authenticate the authority behind any entry.
+
+
+## Explicit audit trust-store preflight (v1)
+
+`experiments/trust_store.py` validates a caller-supplied allowlist of Ed25519
+public keys before a future signature-verification stage. The strict schema is
+`experiments/schemas/audit-trust-store-v1.schema.json`. Each key entry requires
+a unique key ID, a named authority, a 32-byte base64 public key, explicit
+permitted purposes, a half-open UTC validity interval, an ACTIVE/REVOKED/DISABLED
+status and a reference describing the asserted trust basis.
+
+The API `validate_trust_store(store)` rejects undeclared fields, duplicate
+IDs, unsupported algorithms, malformed keys and invalid validity intervals.
+`resolve_eligible_key(store, key_id=..., purpose=..., at_utc=...)` fails closed
+for unknown, inactive, out-of-purpose or out-of-validity keys. An empty
+allowlist is valid configuration but makes no key eligible.
+
+**Trust boundary:** these functions do not verify a signature, authenticate an
+authority, validate the trust-basis reference, or prove the supplied time.
+The allowlist is caller-supplied policy; putting a public key in it does not
+make that key independently trustworthy. The synthetic test key is not an
+operational key and no real authority is configured. Outputs deliberately say
+`NOT_PERFORMED` and `NOT_ESTABLISHED`; they must not be represented as
+authenticated evidence. A subsequent stage must verify a detached signature
+over a canonical checkpoint payload and separately establish the provenance
+and governance of the trust-store source.
