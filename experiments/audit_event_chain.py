@@ -298,14 +298,20 @@ def verify_registration_chain_binding(endpoint: dict, registration_record: dict,
     event_id_matches = bool(events) and (
         events[0]["event_id"] == registration_record["registration_event_id"]
     )
+    event_timestamp_matches = bool(events) and (
+        _timestamp(events[0]["occurred_at_utc"], "registration event timestamp")
+        == _timestamp(registration_record["registered_at_utc"], "registered_at_utc")
+    )
     binding = (
         "MATCH"
-        if registration["specification_integrity"] == "MATCH" and event_id_matches
+        if registration["specification_integrity"] == "MATCH"
+        and event_id_matches and event_timestamp_matches
         else "MISMATCH"
     )
     return {
         "registration_chain_binding": binding,
         "registration_event_id_matches": event_id_matches,
+        "registration_event_timestamp_matches": event_timestamp_matches,
         "registration_evidence": registration,
         "event_chain": chain,
         "timestamp_verification": "NOT_INDEPENDENTLY_VERIFIED",
