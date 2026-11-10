@@ -1,6 +1,5 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.invalid/dss/schemas/rfc3161-tsa-revocation-evidence-v1-draft.schema.json",
   "title": "RFC 3161 TSA revocation evidence envelope (draft)",
   "description": "Untrusted evidence capture envelope only. Schema validity does not authenticate evidence, validate its signature, establish signer authorization, or establish certificate status.",
   "type": "object",
@@ -95,7 +94,8 @@
       "properties": {
         "issuer_name_der_sha256": {
           "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "For CRL issuer-name binding. OCSP uses the CertID issuer-name hash fields below."
         },
         "issuer_spki_sha256": {
           "type": "string",
@@ -209,7 +209,6 @@
         "properties": {
           "claimed_binding": {
             "required": [
-              "issuer_name_der_sha256",
               "serial_hex",
               "cert_id_hash_algorithm",
               "cert_id_issuer_name_hash",
