@@ -67,6 +67,8 @@ def verify_signed_checkpoint(
             "checkpoint": checkpoint_result,
             "authority_authentication": "NOT_ESTABLISHED",
             "timestamp_authentication": "NOT_ESTABLISHED",
+            "registration_timestamp_binding": "NOT_VERIFIED",
+            "timestamp_evidence": {"timestamp_verification": "NOT_PERFORMED"},
         }
     if not isinstance(signature_envelope, dict):
         raise ValueError("signature envelope must be an object.")
@@ -101,6 +103,8 @@ def verify_signed_checkpoint(
             "checkpoint": checkpoint_result,
             "authority_authentication": "NOT_ESTABLISHED",
             "timestamp_authentication": "NOT_ESTABLISHED",
+            "registration_timestamp_binding": "NOT_VERIFIED",
+            "timestamp_evidence": {"timestamp_verification": "NOT_PERFORMED"},
             "trust_policy_pin": pin_result if pin_result is not None else {"trust_policy_pin": "NOT_CHECKED"},
         }
 
