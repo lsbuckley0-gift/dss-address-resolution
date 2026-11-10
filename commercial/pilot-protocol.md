@@ -352,13 +352,16 @@ visible regardless of the p-value.
 The four outcome classes are mutually exclusive, so their one-versus-rest
 tests are dependent. Reported p-values are unadjusted and exploratory; they
 must not be read as four independent confirmations or as an automatic
-superiority decision. A confirmatory study must pre-register one primary
-endpoint (or a defensible multiplicity procedure), its direction, analysis
-population and handling of strata before held-out outcomes are examined.
-Stratum-level comparisons are also reported separately so an aggregate change
-does not conceal a subgroup trade-off. Small strata can produce highly
-discrete p-values and weak evidence; no inference should be made from a
-synthetic fixture.
+superiority decision. The exact McNemar calculation also assumes independent
+case pairs. If multiple rows belong to the same address, household, route,
+customer or other shared unit, the independence assumption may fail; a
+cluster-aware paired method is needed, and this report does not implement one.
+A confirmatory study must pre-register one primary endpoint (or a defensible
+multiplicity procedure), its direction, analysis population and handling of
+strata before held-out outcomes are examined. Stratum-level comparisons are
+also reported separately so an aggregate change does not conceal a subgroup
+trade-off. Small strata can produce highly discrete p-values and weak evidence;
+no inference should be made from a synthetic fixture.
 
 This analysis describes paired outcome changes in the evaluated cases. It
 does not establish causation, representativeness, operational utility, or
