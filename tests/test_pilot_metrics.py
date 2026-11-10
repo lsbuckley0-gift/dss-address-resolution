@@ -349,7 +349,7 @@ class PilotMetricsTests(unittest.TestCase):
 
     def test_primary_endpoint_is_indeterminate_when_interval_crosses_zero(self):
         data = pilot_data([{
-            "case_id": "single",
+            "case_id": "case-0",
             "gold_candidate_id": None,
             "baseline": decision("VERIFIED", "wrong"),
             "dss": decision("UNRESOLVED"),
@@ -363,11 +363,11 @@ class PilotMetricsTests(unittest.TestCase):
 
     def test_primary_endpoint_reports_opposite_direction_without_rewriting_hypothesis(self):
         data = pilot_data([{
-            "case_id": "single",
+            "case_id": "case-" + str(index),
             "gold_candidate_id": None,
             "baseline": decision("UNRESOLVED"),
-            "dss": decision("VERIFIED", "wrong"),
-        }])
+            "dss": decision("VERIFIED", "wrong-" + str(index)),
+        } for index in range(20)])
         data["primary_endpoint"] = {
             "outcome_class": "FALSE_ACCEPT", "expected_direction": "LOWER",
             "analysis_population": "ALL_PAIRED_CASES", "alpha": 0.05,
