@@ -88,7 +88,6 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "issuer_name_der_sha256",
         "serial_hex"
       ],
       "properties": {
