@@ -236,6 +236,52 @@ def verify_external_checkpoint(events: list, checkpoint: dict) -> dict:
         ),
     }
 
+
+def verify_checkpoint_series(events: list, checkpoints: list) -> dict:
+    """Verify multiple checkpoints bind one chain in strictly increasing order."""
+    if not isinstance(checkpoints, list) or not checkpoints:
+        raise ValueError("checkpoints must be a non-empty list.")
+    results = []
+    previous_sequence = -1
+    previous_time = None
+    seen_references = set()
+    for index, checkpoint in enumerate(checkpoints):
+        result = verify_external_checkpoint(events, checkpoint)
+        sequence = checkpoint["checkpoint_sequence"]
+        anchored_at = _timestamp(checkpoint["anchored_at_utc"], f"checkpoints[{index}].anchored_at_utc")
+        reference = checkpoint["anchor_reference"]
+        if sequence <= previous_sequence:
+            result["series_order"] = "NON_INCREASING_SEQUENCE"
+        elif previous_time is not None and anchored_at <= previous_time:
+            result["series_order"] = "NON_INCREASING_ANCHOR_TIME"
+        elif reference in seen_references:
+            result["series_order"] = "DUPLICATE_ANCHOR_REFERENCE"
+        else:
+            result["series_order"] = "INCREASING"
+        results.append(result)
+        previous_sequence = sequence
+        previous_time = anchored_at
+        seen_references.add(reference)
+
+    series_matches = all(
+        result["checkpoint_binding"] == "MATCH"
+        and result["checkpoint_time_order"] == "NOT_BEFORE_EVENT"
+        and result.get("series_order") == "INCREASING"
+        for result in results
+    )
+    return {
+        "checkpoint_series_integrity": "MATCH" if series_matches else "MISMATCH",
+        "checkpoint_count": len(results),
+        "checkpoints": results,
+        "anchor_authentication": "NOT_VERIFIED",
+        "interpretation": (
+            "Every supplied checkpoint is compared with the retained chain and the "
+            "series is checked for increasing sequence, anchor time and distinct "
+            "references. This does not authenticate any checkpoint authority or "
+            "prove that unprovided checkpoints never existed."
+        ),
+    }
+
 def main(argv=None) -> int:
     """Verify an event-chain JSON file without modifying it."""
     import argparse
