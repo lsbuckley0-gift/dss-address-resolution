@@ -47,9 +47,11 @@ A separate [synthetic vehicle-event collision benchmark](experiments/README.md) 
 The original `dss_loop.py` resolver treats a normalised UK postcode as its
 outward and inward code together. The final two whitespace-separated tokens
 are parsed as the postcode; preceding tokens are the premise and street.
-Direct unit tests cover exact verification, one-edit correction, compressed
-postcode normalisation, identity conflicts, failed and inconclusive return
-checks, and the rule that a missing candidate skips operation and return check.
+Direct unit tests cover exact verification, one-edit street and postcode
+correction, compressed postcode normalisation, rejection when a valid candidate
+belongs to a different intended identity, conflicting postcodes, failed and
+inconclusive return checks, and the rule that a missing candidate skips
+operation and return check.
 Run them with the same dependency-free command above:
 `python -m unittest discover -s tests -v`.
 
