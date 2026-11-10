@@ -241,6 +241,9 @@ def _sample_sufficiency(data, cases):
             "strata": {},
             "interpretation": "No sample-count gate was pre-registered in the input.",
         }
+    unclassified_case_count = sum(
+        case.get("stratum", "UNSPECIFIED") == "UNSPECIFIED" for case in cases
+    )
     results = {}
     for label in requirements["required_strata"]:
         group = [case for case in cases if case.get("stratum", "UNSPECIFIED") == label]
@@ -259,9 +262,14 @@ def _sample_sufficiency(data, cases):
             "minimum_case_count": requirements["minimum_case_count"],
             "minimum_unique_gold_case_count": requirements["minimum_unique_gold_case_count"],
         }
-    overall = "SUFFICIENT" if all(item["status"] == "SUFFICIENT" for item in results.values()) else "INSUFFICIENT"
+    overall = (
+        "SUFFICIENT"
+        if unclassified_case_count == 0 and all(item["status"] == "SUFFICIENT" for item in results.values())
+        else "INSUFFICIENT"
+    )
     return {
         "status": overall,
+        "unclassified_case_count": unclassified_case_count,
         "requirements": {
             "required_strata": list(requirements["required_strata"]),
             "minimum_case_count": requirements["minimum_case_count"],
@@ -279,7 +287,7 @@ def evaluate(data):
     _validate(data)
     cases = data["cases"]
     return {
-        "report_version": "paired-pilot-metrics/1.4",
+        "report_version": "paired-pilot-metrics/1.5",
         "dataset_id": data.get("dataset_id"),
         "dataset_version": data.get("dataset_version"),
         "case_count": len(cases),
@@ -297,7 +305,7 @@ def evaluate(data):
             "The paired outcome matrix places each case once at the intersection of its baseline and dss outcome classes, exposing case-level trade-offs without treating the systems as independent samples.",
             "Stratum metrics repeat the same paired measures within each declared case stratum; omitted stratum labels are grouped explicitly as UNSPECIFIED, never silently assigned to a fault class.",
             "Stratum rates are descriptive and retain their raw denominators; small or synthetic strata do not establish statistical significance or field performance.",
-            "The optional sample_sufficiency gate checks only pre-registered raw-case and unique-gold counts for required strata; passing it does not establish representative sampling, statistical power, precision or field performance.",
+            "The optional sample_sufficiency gate checks pre-registered raw-case and unique-gold counts for required strata and fails closed when any case is UNSPECIFIED; passing it does not establish representative sampling, statistical power, precision or field performance.",
             "The 95% interval is the Wilson score interval; no interval is emitted when there are no automatic acceptances.",
             "Latency percentiles use nearest-rank; missing measurements are excluded and counted.",
             "Review time is summarised only for unresolved cases with a supplied review_seconds value.",
