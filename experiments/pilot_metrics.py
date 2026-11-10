@@ -118,6 +118,13 @@ def _system_metrics(cases, system):
                      c[system]["selected_candidate_id"] != c["gold_candidate_id"]]
     correct = len(accepted) - len(false_accepts)
     unresolved = total - len(accepted)
+    unique_gold_cases = [c for c in cases if c["gold_candidate_id"] is not None]
+    false_rejects = [c for c in unique_gold_cases
+                     if c[system]["terminal_state"] == "UNRESOLVED"]
+    correct_abstentions = sum(
+        c["gold_candidate_id"] is None and c[system]["terminal_state"] == "UNRESOLVED"
+        for c in cases
+    )
     corrected_false = [c for c in corrected if c["gold_candidate_id"] is None or
                        c[system]["selected_candidate_id"] != c["gold_candidate_id"]]
     latencies = [c[system]["latency_ms"] for c in cases if c[system].get("latency_ms") is not None]
@@ -131,6 +138,12 @@ def _system_metrics(cases, system):
         "false_accept_rate": len(false_accepts) / len(accepted) if accepted else None,
         "false_accept_rate_95pct_wilson": _wilson(len(false_accepts), len(accepted)),
         "false_accept_prevalence": len(false_accepts) / total if total else None,
+        "unique_gold_cases": len(unique_gold_cases),
+        "false_rejects": len(false_rejects),
+        "false_reject_rate": (len(false_rejects) / len(unique_gold_cases)) if unique_gold_cases else None,
+        "false_reject_rate_95pct_wilson": _wilson(len(false_rejects), len(unique_gold_cases)),
+        "false_reject_prevalence": len(false_rejects) / total if total else None,
+        "correct_abstentions": correct_abstentions,
         "correct_auto_resolution_rate": correct / total if total else None,
         "coverage": len(accepted) / total if total else None,
         "unresolved": unresolved,
@@ -154,7 +167,7 @@ def evaluate(data):
     _validate(data)
     cases = data["cases"]
     return {
-        "report_version": "paired-pilot-metrics/1.0",
+        "report_version": "paired-pilot-metrics/1.1",
         "dataset_id": data.get("dataset_id"),
         "dataset_version": data.get("dataset_version"),
         "case_count": len(cases),
@@ -164,6 +177,8 @@ def evaluate(data):
             "A decision is automatically accepted when terminal_state is VERIFIED or CORRECTED.",
             "A false accept is any automatic acceptance whose selected candidate differs from the gold candidate, including cases labelled with no unique answer.",
             "False-accept rate denominator is all automatic acceptances; prevalence denominator is all cases.",
+            "A false reject is an unresolved decision on a case with a non-null unique gold candidate; its rate denominator is all cases with a unique gold label.",
+            "A correct abstention is an unresolved decision on a case whose gold candidate is null; false-reject prevalence uses all cases as its denominator.",
             "The 95% interval is the Wilson score interval; no interval is emitted when there are no automatic acceptances.",
             "Latency percentiles use nearest-rank; missing measurements are excluded and counted.",
             "Review time is summarised only for unresolved cases with a supplied review_seconds value.",
