@@ -1,6 +1,7 @@
 """Tests for detached Ed25519 checkpoint signature verification."""
 import base64
 import contextlib
+import hashlib
 import io
 import json
 from pathlib import Path
@@ -14,6 +15,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from experiments.audit_event_chain import append_audit_event
 from experiments.audit_event_chain import main as audit_chain_main
 from experiments.trust_policy_pin import trust_store_sha256
+from experiments.rfc3161_anchor_provenance import canonical_provenance_payload
 from experiments.checkpoint_signature import (
     canonical_checkpoint_payload,
     verify_signed_checkpoint,
@@ -86,6 +88,117 @@ class CheckpointSignatureTests(unittest.TestCase):
             self.events, checkpoint or self.checkpoint,
             envelope or self.envelope, store or self.store, at_utc=at_utc,
         )
+
+    def provenance_inputs(self):
+        anchor = b"-----BEGIN CERTIFICATE-----\\nsynthetic-root\\n-----END CERTIFICATE-----\\n"
+        private = Ed25519PrivateKey.generate()
+        public = private.public_key().public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        )
+        governance_store = {
+            "record_version": "audit-trust-store/v1",
+            "keys": [{
+                "key_id": "synthetic-governance",
+                "authority_name": "Synthetic timestamp authority",
+                "algorithm": "Ed25519",
+                "public_key_base64": base64.b64encode(public).decode("ascii"),
+                "purposes": ["RFC3161_TRUST_ANCHOR_PROVENANCE"],
+                "valid_from_utc": "2026-01-01T00:00:00Z",
+                "valid_until_utc": "2027-01-01T00:00:00Z",
+                "status": "ACTIVE",
+                "trust_basis_reference": "synthetic fixture only",
+            }],
+        }
+        attestation = {
+            "record_version": "rfc3161-tsa-anchor-provenance/v1",
+            "attestation_id": "checkpoint-integration-test",
+            "authority_name": "Synthetic timestamp authority",
+            "anchor_sha256": hashlib.sha256(anchor).hexdigest(),
+            "intended_usage": "RFC3161_TSA_TRUST_ANCHOR",
+            "policy_version": "rfc3161-tsa-anchor-policy/v1",
+            "sequence": 4,
+            "issued_at_utc": "2026-11-01T00:00:00Z",
+            "expires_at_utc": "2026-12-01T00:00:00Z",
+            "source_reference": "synthetic://checkpoint-integration",
+        }
+        signature = private.sign(canonical_provenance_payload(attestation))
+        envelope = {
+            "record_version": "rfc3161-tsa-anchor-provenance-signature/v1",
+            "key_id": "synthetic-governance",
+            "signature_base64": base64.b64encode(signature).decode("ascii"),
+        }
+        anchor_pin = {
+            "sha256": hashlib.sha256(anchor).hexdigest(),
+            "source_reference": "synthetic://independent-anchor-pin",
+        }
+        return anchor, anchor_pin, attestation, envelope, governance_store
+
+    def test_checkpoint_timestamp_can_opt_in_to_provenance_first_verification(self):
+        timestamp = {
+            "timestamp_verification": "VALID",
+            "tsa_asserted_gen_time_utc": "2026-11-10T10:00:30Z",
+        }
+        anchor, anchor_pin, attestation, envelope, governance_store = self.provenance_inputs()
+        with patch("experiments.rfc3161_timestamp.verify_rfc3161_timestamp", return_value=timestamp) as verify:
+            result = verify_signed_checkpoint(
+                self.events, self.checkpoint, self.envelope, self.store,
+                at_utc="2026-11-10T10:04:00Z",
+                timestamp_token_der=b"synthetic-token",
+                timestamp_trust_anchor_pem=anchor,
+                timestamp_trust_anchor_pin=anchor_pin,
+                timestamp_anchor_attestation=attestation,
+                timestamp_anchor_signature_envelope=envelope,
+                timestamp_governance_trust_store=governance_store,
+                timestamp_governance_minimum_sequence=4,
+            )
+        self.assertEqual(result["signed_checkpoint_verification"], "MATCH")
+        self.assertEqual(result["registration_timestamp_binding"], "MATCH")
+        self.assertEqual(
+            result["timestamp_anchor_provenance"]["provenance_verification"],
+            "VALID_RELATIVE_TO_CALLER_GOVERNANCE_STORE",
+        )
+        self.assertEqual(result["governance_authentication"], "NOT_ESTABLISHED")
+        verify.assert_called_once()
+        self.assertEqual(verify.call_args.args[1], canonical_checkpoint_payload(self.checkpoint))
+
+    def test_checkpoint_provenance_failure_prevents_timestamp_verification(self):
+        anchor, anchor_pin, attestation, envelope, governance_store = self.provenance_inputs()
+        changed_signature = bytearray(base64.b64decode(envelope["signature_base64"]))
+        changed_signature[0] ^= 1
+        envelope["signature_base64"] = base64.b64encode(changed_signature).decode("ascii")
+        with patch("experiments.rfc3161_timestamp.verify_rfc3161_timestamp") as verify:
+            result = verify_signed_checkpoint(
+                self.events, self.checkpoint, self.envelope, self.store,
+                at_utc="2026-11-10T10:04:00Z",
+                timestamp_token_der=b"synthetic-token",
+                timestamp_trust_anchor_pem=anchor,
+                timestamp_trust_anchor_pin=anchor_pin,
+                timestamp_anchor_attestation=attestation,
+                timestamp_anchor_signature_envelope=envelope,
+                timestamp_governance_trust_store=governance_store,
+                timestamp_governance_minimum_sequence=4,
+            )
+        self.assertEqual(result["signed_checkpoint_verification"], "MISMATCH")
+        self.assertEqual(result["registration_timestamp_binding"], "NOT_VERIFIED")
+        self.assertEqual(
+            result["timestamp_anchor_provenance"]["provenance_verification"],
+            "INVALID_SIGNATURE",
+        )
+        self.assertEqual(result["timestamp_evidence"]["timestamp_verification"], "NOT_PERFORMED")
+        verify.assert_not_called()
+
+    def test_partial_timestamp_provenance_bundle_rejected(self):
+        anchor, anchor_pin, attestation, envelope, governance_store = self.provenance_inputs()
+        with self.assertRaisesRegex(ValueError, "must be supplied together"):
+            verify_signed_checkpoint(
+                self.events, self.checkpoint, self.envelope, self.store,
+                at_utc="2026-11-10T10:04:00Z",
+                timestamp_token_der=b"synthetic-token",
+                timestamp_trust_anchor_pem=anchor,
+                timestamp_trust_anchor_pin=anchor_pin,
+                timestamp_anchor_attestation=attestation,
+            )
 
     def test_valid_signature_and_checkpoint_binding(self):
         result = self.verify()
