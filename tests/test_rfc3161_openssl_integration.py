@@ -486,8 +486,11 @@ ess_cert_id_chain = no
             "tsa_asserted_gen_time_utc": "2026-11-10T13:00:00Z",
             "tsa_signer_certificate": identity,
         }
-        with self.assertRaisesRegex(ValueError, "not authorized for certificate signing"):
-            check_tsa_issuer_identity(timestamp_result, tsa, issuer_without_cert_sign)
+        with self.assertRaisesRegex(ValueError, "original timestamp inputs did not re-verify"):
+            check_tsa_issuer_identity(
+                timestamp_result, tsa, issuer_without_cert_sign,
+                self._timestamp_verification_inputs(),
+            )
 
     def test_crl_rejects_wrong_issuer_certificate_binding(self):
         timestamp_result = self._verified_timestamp_result()
@@ -673,12 +676,18 @@ ess_cert_id_chain = no
             intermediates_pem=tsa_pem, openssl_binary=self.openssl,
         )
         crl_der = self._build_tsa_crl()
+        verification_inputs = {
+            "token_der": token.read_bytes(),
+            "data": self.data,
+            "trust_anchor_pem": self.ca_pem,
+            "trust_anchor_pin": self.pin,
+            "intermediates_pem": tsa_pem,
+            "openssl_binary": self.openssl,
+        }
         with self.assertRaisesRegex(ValueError, "CRL distribution-point scope matching is unsupported"):
             verify_tsa_crl_evidence(
-                timestamp_result, tsa_pem, self.ca_pem, crl_der
-            ,
-                timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                timestamp_result, tsa_pem, self.ca_pem, crl_der,
+                timestamp_verification_inputs=verification_inputs,
             )
 
     def test_malformed_crl_der_is_rejected(self):
