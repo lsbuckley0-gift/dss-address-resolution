@@ -292,13 +292,14 @@ that integration or any top-level positive revocation claim:
 4. Do not infer historical non-revocation from one CRL/OCSP good snapshot.
    A future historical-good claim requires authenticated history or a
    separately specified authoritative issuer assertion.
-5. Add remaining adversarial vectors for malformed DER and
-   critical-extension edge cases, missing CRL nextUpdate, multiple/ambiguous
-   OCSP SingleResponses, and response/request extension combinations not yet
-   represented in fixtures. TSA CRLDistributionPoints rejection is now
-   covered by a synthetic timestamp-token integration test.
-   Delta CRLs and delegated OCSP responders remain rejected rather than
-   partially supported.
+5. Continue the adversarial pass for CRL FreshestCRL and duplicate-extension
+   encodings, OCSP SingleResponse extensions, and remaining request/response
+   extension combinations. Malformed DER, missing CRL nextUpdate, multiple
+   OCSP SingleResponses, CRL scope limits and TSA CRLDistributionPoints now
+   have explicit rejection tests (the multi-response and absent-nextUpdate
+   branches use focused parser-boundary mocks where the fixture builder does
+   not emit those forms). Delta CRLs and delegated OCSP responders remain
+   rejected rather than partially supported.
 6. Keep synthetic fixtures self-contained; no production authority, private
    key or live endpoint is required.
 7. Keep unsupported and ambiguous outcomes explicitly
