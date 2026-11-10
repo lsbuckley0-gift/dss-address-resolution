@@ -33,6 +33,8 @@ def verify_tsa_crl_evidence(
     tsa_certificate_pem: bytes,
     issuer_certificate_pem: bytes,
     crl_der: bytes,
+    *,
+    timestamp_verification_inputs: dict,
 ) -> dict:
     """Authenticate a narrow direct-CRL evidence item for a verified TSA token.
 
@@ -49,7 +51,8 @@ def verify_tsa_crl_evidence(
         issuer_certificate_pem, "issuer_certificate_pem"
     )
     target_time = check_tsa_issuer_identity(
-        timestamp_result, tsa_certificate, issuer_certificate
+        timestamp_result, tsa_certificate, issuer_certificate,
+        timestamp_verification_inputs,
     )
     try:
         tsa_certificate.extensions.get_extension_for_class(
