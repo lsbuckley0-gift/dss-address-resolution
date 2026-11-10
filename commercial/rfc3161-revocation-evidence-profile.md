@@ -287,7 +287,8 @@ temporary-hold boundary.
 The result schema also enforces evidence-type separation: CRL results cannot
 carry OCSP-only fields or OCSP revocation-assurance labels, and vice versa.
 Each evidence type has its own permitted time-basis and target-status
-vocabulary. Synthetic integration tests validate both real evaluator outputs
+vocabulary. Both require explicit revocation-time/reason fields; timestamps
+must be UTC `Z` instants and the reason vocabulary excludes `remove_from_crl`. Synthetic integration tests validate both real evaluator outputs
 and reject deliberately cross-labelled or mixed-evidence result objects.
 
 
