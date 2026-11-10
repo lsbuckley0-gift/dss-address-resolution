@@ -491,11 +491,13 @@ the event chain. The Python API
 `verify_registration_chain_binding(endpoint, registration_record, events)`
 combines the endpoint fingerprint check with the hash-chain check and confirms
 that the record names the chain's first registration event, carries the same
-claimed timestamp, and names the same event evidence reference. A mismatch in
-any of these bindings fails. A matching join does not authenticate the
-timestamp or the event source; it establishes only that the supplied records
-refer to the same declared registration event and agree on its claimed time
-and evidence pointer.
+claimed timestamp, and names the same event evidence reference. It also cross-checks the
+registration record's claimed first outcome-access and analysis-start times
+against the first `OUTCOME_ACCESS` and sole `ANALYSIS_STARTED` events in
+the chain. A mismatch in any of these bindings fails. A matching join does not
+authenticate the timestamps or event sources; it establishes only that the
+supplied records agree on the recorded event identities, claimed times and
+registration evidence pointer.
 
 ## Hash-linked audit event chain (v1)
 
