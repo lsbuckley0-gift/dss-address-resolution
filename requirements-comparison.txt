@@ -1,0 +1,2 @@
+# Dependency for the legacy fuzzy-comparison harness only.
+rapidfuzz==3.14.3
