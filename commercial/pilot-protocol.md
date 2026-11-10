@@ -989,13 +989,16 @@ minimum_sequence=...)` recognises these states:
 
 - `NO_RETAINED_STATE`: neither payload nor receipt was supplied. This cannot
   distinguish first use from loss of both copies.
-- `PREPARED_NOT_ACCEPTED`: payload exists without its receipt. It is not
-  promoted to an accepted state.
+- `PREPARED_NOT_ACCEPTED`: a payload exists without its receipt and
+  its event-chain binding and anchor-time order are valid. It is not promoted
+  to an accepted state.
 - `RECEIPT_WITHOUT_PAYLOAD`: receipt exists without its payload. The payload
   is not reconstructed from the receipt.
 - `CONFLICT`: the pair disagrees on sequence or canonical payload digest,
   the receipt time precedes the checkpoint time, or the checkpoint does not
-  bind to the supplied event chain.
+  bind to the supplied event chain / claims an anchor time before its event.
+  These checkpoint-binding and time-order checks also apply when the receipt
+  is absent; missing acceptance evidence does not excuse an invalid payload.
 - `BELOW_FLOOR`: the checkpoint sequence is below the operator-supplied
   minimum sequence.
 - `CONSISTENT_UNAUTHENTICATED`: payload, receipt and supplied event chain
