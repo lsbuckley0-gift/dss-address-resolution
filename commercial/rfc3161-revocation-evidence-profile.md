@@ -161,6 +161,17 @@ does not mean the CMS signature/content check is skipped. The extraction
 operation must therefore remain separate from the existing
 `openssl ts -verify` path and must never replace its timestamp imprint,
 timestamping-purpose or certificate-path checks. It does not check revocation.
+The runtime now performs this extraction only after
+`openssl ts -verify` succeeds. It exposes the signer certificate's DER
+SHA-256, issuer-name DER SHA-256, issuer SubjectPublicKeyInfo SHA-256 and
+lowercase hexadecimal serial under `tsa_signer_certificate`. These fields
+supply exact identity inputs for a future revocation check; they do not assert
+that the certificate is unrevoked. If extraction fails, the timestamp result
+remains `VALID` when the original RFC 3161 verification passed, while
+`tsa_signer_certificate_identity` becomes `NOT_EXTRACTED` and revocation
+remains `NOT_CHECKED` / `NOT_ESTABLISHED`. A focused test covers this
+failure boundary.
+
 The test uses ephemeral synthetic material only. See the
 [OpenSSL CMS command documentation](https://docs.openssl.org/3.0/man1/openssl-cms/).
 
