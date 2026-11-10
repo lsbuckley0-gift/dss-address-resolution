@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:dss:rfc3161-tsa-anchor-provenance-v1",
+  "title": "RFC 3161 TSA Trust Anchor Provenance Attestation",
+  "description": "Detached governance attestation. Signature validity is relative to a caller-supplied governance trust store and does not authenticate that trust root.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["record_version", "attestation_id", "authority_name", "anchor_sha256", "intended_usage", "policy_version", "sequence", "issued_at_utc", "expires_at_utc", "source_reference"],
+  "properties": {
+    "record_version": {"const": "rfc3161-tsa-anchor-provenance/v1"},
+    "attestation_id": {"type": "string", "minLength": 1},
+    "authority_name": {"type": "string", "minLength": 1},
+    "anchor_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "intended_usage": {"const": "RFC3161_TSA_TRUST_ANCHOR"},
+    "policy_version": {"const": "rfc3161-tsa-anchor-policy/v1"},
+    "sequence": {"type": "integer", "minimum": 1},
+    "issued_at_utc": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$"},
+    "expires_at_utc": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$"},
+    "source_reference": {"type": "string", "minLength": 1}
+  }
+}
