@@ -282,6 +282,43 @@ def verify_checkpoint_series(events: list, checkpoints: list) -> dict:
         ),
     }
 
+
+def verify_registration_chain_binding(endpoint: dict, registration_record: dict, events: list) -> dict:
+    """Bind the frozen endpoint record to its registration event in a retained chain.
+
+    The registration event ID is an explicit join key. This verifies that the
+    supplied event chain begins with the event named by the registration record
+    and that the record's endpoint fingerprint matches the endpoint supplied.
+    It does not authenticate timestamps, actors, archives, or external anchors.
+    """
+    from experiments.registration_evidence import verify_registration_evidence
+
+    registration = verify_registration_evidence(endpoint, registration_record)
+    chain = verify_event_chain(events)
+    event_id_matches = bool(events) and (
+        events[0]["event_id"] == registration_record["registration_event_id"]
+    )
+    binding = (
+        "MATCH"
+        if registration["specification_integrity"] == "MATCH" and event_id_matches
+        else "MISMATCH"
+    )
+    return {
+        "registration_chain_binding": binding,
+        "registration_event_id_matches": event_id_matches,
+        "registration_evidence": registration,
+        "event_chain": chain,
+        "timestamp_verification": "NOT_INDEPENDENTLY_VERIFIED",
+        "interpretation": (
+            "The endpoint fingerprint and registration reference are checked by "
+            "the registration verifier, and the registration record's event ID is "
+            "joined to the first event in the hash-linked chain. This does not "
+            "authenticate the timestamp evidence, actor, archive, chain storage, "
+            "or external checkpoint."
+        ),
+    }
+
+
 def main(argv=None) -> int:
     """Verify an event-chain JSON file without modifying it."""
     import argparse
