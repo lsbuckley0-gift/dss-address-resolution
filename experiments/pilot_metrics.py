@@ -230,13 +230,25 @@ def _paired_class_comparisons(matrix):
                 baseline_only, dss_only
             ),
         }
+    ordered = sorted(
+        ((name, item["exact_mcnemar_p_value_two_sided"]) for name, item in comparisons.items()),
+        key=lambda pair: pair[1],
+    )
+    previous_adjusted = 0.0
+    family_size = len(ordered)
+    for rank, (name, p_value) in enumerate(ordered):
+        adjusted = min(1.0, (family_size - rank) * p_value)
+        previous_adjusted = max(previous_adjusted, adjusted)
+        comparisons[name]["holm_adjusted_p_value_within_four_outcome_family"] = previous_adjusted
     return {
         "outcomes": comparisons,
         "interpretation": (
             "Each outcome is compared one-versus-rest on the same paired cases. "
-            "Exact two-sided McNemar p-values are unadjusted and exploratory; "
-            "the four outcome tests are dependent. They are not a pilot gate or "
-            "proof of causal superiority."
+            "Exact two-sided McNemar p-values are shown unadjusted and with Holm "
+            "family-wise adjustment across the four outcome classes in this group. "
+            "The four outcome tests are dependent. Adjustments are not combined "
+            "across strata. Results are exploratory, not a pilot gate or proof "
+            "of causal superiority."
         ),
     }
 
@@ -497,7 +509,7 @@ def evaluate(data):
             "A false reject is an unresolved decision on a case with a non-null unique gold candidate; its rate denominator is all cases with a unique gold label.",
             "A correct abstention is an unresolved decision on a case whose gold candidate is null; false-reject prevalence uses all cases as its denominator.",
             "The paired outcome matrix places each case once at the intersection of its baseline and dss outcome classes, exposing case-level trade-offs without treating the systems as independent samples.",
-            "paired_class_comparisons reports one-versus-rest paired discordances, prevalence differences and exact two-sided McNemar p-values for each outcome; these correlated, unadjusted tests are exploratory, assume independent case pairs, and are not a pilot gate or proof of causal superiority. Clustered or repeated entities require a cluster-aware method not implemented here.",
+            "paired_class_comparisons reports one-versus-rest paired discordances, prevalence differences and exact two-sided McNemar p-values with Holm adjustment across the four outcomes within each comparison group; the tests are exploratory, assume independent case pairs, and are not a pilot gate or proof of causal superiority. Clustered or repeated entities require a cluster-aware method not implemented here.",
             "Stratum metrics repeat the same paired measures within each declared case stratum; omitted stratum labels are grouped explicitly as UNSPECIFIED, never silently assigned to a fault class.",
             "Stratum rates are descriptive and retain their raw denominators; small or synthetic strata do not establish statistical significance or field performance.",
             "The optional sample_sufficiency gate checks pre-registered raw-case and unique-gold counts for required strata, fails closed for UNSPECIFIED cases or observed strata omitted from the requirements, and does not establish representative sampling, statistical power, precision or field performance.",
