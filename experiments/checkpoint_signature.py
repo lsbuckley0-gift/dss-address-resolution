@@ -12,6 +12,7 @@ import json
 
 from experiments.audit_event_chain import verify_external_checkpoint
 from experiments.trust_store import PURPOSE, resolve_eligible_key
+from experiments.trust_policy_pin import verify_trust_store_pin
 
 _DOMAIN = b"\xce\xb4ss-audit-checkpoint-signature/v1\n"
 _ENVELOPE_FIELDS = {"record_version", "key_id", "signature_base64"}
@@ -33,9 +34,23 @@ def verify_signed_checkpoint(
     trust_store: dict,
     *,
     at_utc: str,
+    trust_store_pin: dict | None = None,
 ) -> dict:
     """Verify checkpoint binding and detached signature against caller policy."""
     checkpoint_result = verify_external_checkpoint(events, checkpoint)
+    pin_result = (
+        verify_trust_store_pin(trust_store, trust_store_pin)
+        if trust_store_pin is not None else None
+    )
+    if pin_result is not None and pin_result["trust_policy_pin"] != "MATCH":
+        return {
+            "signed_checkpoint_verification": "POLICY_PIN_MISMATCH",
+            "signature_verification": "NOT_PERFORMED",
+            "trust_policy_pin": pin_result,
+            "checkpoint": checkpoint_result,
+            "authority_authentication": "NOT_ESTABLISHED",
+            "timestamp_authentication": "NOT_ESTABLISHED",
+        }
     if not isinstance(signature_envelope, dict):
         raise ValueError("signature envelope must be an object.")
     missing = _ENVELOPE_FIELDS - set(signature_envelope)
@@ -69,6 +84,7 @@ def verify_signed_checkpoint(
             "checkpoint": checkpoint_result,
             "authority_authentication": "NOT_ESTABLISHED",
             "timestamp_authentication": "NOT_ESTABLISHED",
+            "trust_policy_pin": pin_result if pin_result is not None else {"trust_policy_pin": "NOT_CHECKED"},
         }
 
     try:
@@ -104,6 +120,7 @@ def verify_signed_checkpoint(
         "checkpoint": checkpoint_result,
         "authority_authentication": "NOT_ESTABLISHED",
         "timestamp_authentication": "NOT_ESTABLISHED",
+        "trust_policy_pin": pin_result if pin_result is not None else {"trust_policy_pin": "NOT_CHECKED"},
         "interpretation": (
             "A VALID signature proves only that the private key corresponding to "
             "the configured public key signed these canonical checkpoint bytes. "
