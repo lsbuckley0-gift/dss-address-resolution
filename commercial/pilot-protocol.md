@@ -204,7 +204,7 @@ the baseline decision and columns classify the ∂ss decision as correct automat
 resolution, false accept, false reject or correct abstention. Every paired case
 appears in exactly one cell. This exposes case-level trade-offs—for example, a
 baseline false accept becoming a ∂ss false reject—rather than hiding them inside
-separate aggregate rates. The report format is `paired-pilot-metrics/1.6`; version 1.4 introduced the optional pre-registered sample-sufficiency result, version 1.5 added a fail-closed count of unclassified cases, and version 1.6 reports observed strata omitted from the pre-registration. The report also groups the
+separate aggregate rates. The report format is `paired-pilot-metrics/1.7`; version 1.4 introduced sample-sufficiency screening, version 1.5 added fail-closed unclassified-case handling, version 1.6 reports observed strata omitted from pre-registration, and version 1.7 adds optional operational threshold assessment. The report also groups the
 same measures by case stratum. Accepted labels are `EXACT`, `FORMATTING_ONLY`,
 `TYPO`, `DUPLICATE`, `CONFLICTING`, `INCOMPLETE` and `STALE`. The input
 field is optional for compatibility; omitted labels are explicitly reported as
@@ -278,3 +278,35 @@ that appears in the scored data. Include every intended stratum in the
 pre-registered list, or revise the study design before opening held-out
 results. This is an accounting safeguard, not a claim that all strata have
 been sampled representatively.
+## Pre-registered operational threshold assessment
+
+The optional `decision_requirements` input records the system under assessment
+(`baseline` or `dss`) and the operational limits agreed before held-out
+evaluation: maximum upper 95% Wilson bound for false-accept rate, maximum
+upper 95% Wilson bound for false-reject rate, minimum coverage, maximum
+human-review routing rate, maximum median measured review time, and minimum
+review-time measurement coverage. All six limits are explicit numeric inputs;
+the evaluator does not supply universal defaults.
+
+The report emits one criterion per limit with its observed value, comparator,
+threshold and `PASS`, `FAIL` or `INDETERMINATE` status. The aggregate status is
+`FAIL` if any criterion fails; otherwise it is `INDETERMINATE` if any required
+measurement is unavailable; it is `PASS` only when every criterion passes.
+False-accept and false-reject limits are tested against the **upper endpoint**
+of their 95% Wilson intervals, not the point estimate. Thus a small sample
+cannot pass an error ceiling merely because its observed error rate is low.
+
+If there are no automatic acceptances or no uniquely labelled cases, the
+corresponding error criterion is `INDETERMINATE` because its denominator is
+absent. If review is routed but review-time measurements are absent, the
+review-time criteria are `INDETERMINATE`. When no cases are routed to review,
+median review time and measurement coverage are marked not applicable and do
+not block the other criteria; the review-routing rate remains measurable.
+
+This is an auditable threshold comparison, not a complete pilot pass
+certificate. `PASS` means only that the supplied pre-registered numerical
+limits were met on the evaluated cases. It does not prove representativeness,
+independence, statistical power, causal superiority, legal compliance or
+field performance. The sample-sufficiency screen and study-design review
+remain separate gates. Thresholds must be frozen before held-out labels or
+results are examined.
