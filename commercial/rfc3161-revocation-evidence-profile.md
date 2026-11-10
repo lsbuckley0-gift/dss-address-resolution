@@ -128,7 +128,23 @@ The envelope must identify:
 
 Acquisition URLs and transport success are provenance metadata, not proof of authenticity. The verifier must not fetch arbitrary distribution URLs implicitly as a side effect of checking a timestamp.
 
-## 8. Implementation gates
+## 8. Draft evidence-envelope schema
+
+`experiments/schemas/rfc3161-tsa-revocation-evidence-v1-draft.schema.json`
+defines a draft capture envelope for the original CRL or OCSP DER bytes,
+their SHA-256 digest, acquisition metadata, target-certificate identity and
+unverified identifiers claimed by the evidence. CRL and OCSP binding fields
+are distinct: CRLs bind issuer name and serial in their entries; OCSP CertID
+binds issuer-name hash, issuer-key hash, hash algorithm and serial.
+
+The schema deliberately labels parser observations as untrusted. JSON Schema
+validation checks structure only; it does not decode DER, verify the evidence
+digest against the bytes, authenticate signatures, authorize responders,
+establish CRL scope or decide certificate status. The CI workflow checks the
+schema's JSON syntax, not its cryptographic semantics. This draft is not
+consumed by the RFC 3161 runtime API.
+
+## 9. Implementation gates
 
 No runtime support should be added until the following gates are satisfied:
 
