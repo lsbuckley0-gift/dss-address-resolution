@@ -128,6 +128,21 @@ nearest-rank definition. Missing latency/review measurements are counted
 separately rather than imputed. An empty acceptance denominator yields null,
 not a misleading zero rate.
 
+A fully synthetic paired fixture exercises the command-line path, including
+writing a report file:
+
+```bash
+python experiments/pilot_metrics.py experiments/fixtures/paired-pilot-synthetic-v1.json --json-out pilot-report.json
+```
+
+The fixture contains four pseudonymous cases: a correct verification, a
+baseline false acceptance against a known label, a correct ∂ss correction,
+and an ambiguous case with no unique gold candidate. It also includes two
+explicit human-review routes with measured review time. The fixture is a
+plumbing and metric-definition check only; its deliberately small outcomes
+are not evidence of comparative real-world performance. The unit suite runs
+this CLI fixture and checks that stdout and the written JSON report agree.
+
 The evaluator does not decide whether a pilot passes. Risk thresholds, minimum
 coverage, acceptable review burden, dataset strata, label adjudication and
 confidence requirements must be agreed before opening the held-out set.
