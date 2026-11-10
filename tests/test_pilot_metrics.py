@@ -64,6 +64,17 @@ class PilotMetricsTests(unittest.TestCase):
 
 
 
+    def test_input_schema_declares_required_provenance_and_pair(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        schema_path = repo_root / "experiments" / "schemas" / "paired-pilot-input-v1.schema.json"
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        self.assertEqual(schema["$schema"], "https://json-schema.org/draft/2020-12/schema")
+        self.assertEqual(schema["required"], ["dataset_id", "dataset_version", "cases"])
+        self.assertEqual(
+            schema["$defs"]["case"]["required"],
+            ["case_id", "gold_candidate_id", "baseline", "dss"],
+        )
+
     def test_dataset_provenance_is_required(self):
         with self.assertRaisesRegex(ValueError, "dataset_id must be a non-empty string"):
             evaluate({"cases": self.data["cases"]})
