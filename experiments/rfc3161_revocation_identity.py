@@ -48,6 +48,28 @@ def subject_key_identifier(certificate: x509.Certificate) -> bytes:
         ).digest
 
 
+def require_issuer_certificate_signing_authority(
+    issuer_certificate: x509.Certificate,
+) -> None:
+    """Require CA BasicConstraints and explicit keyCertSign authority."""
+    try:
+        basic_constraints = issuer_certificate.extensions.get_extension_for_class(
+            x509.BasicConstraints
+        ).value
+    except x509.ExtensionNotFound as exc:
+        raise ValueError("issuer certificate has no BasicConstraints extension.") from exc
+    if not basic_constraints.ca:
+        raise ValueError("issuer certificate is not a CA certificate.")
+    try:
+        issuer_key_usage = issuer_certificate.extensions.get_extension_for_class(
+            x509.KeyUsage
+        ).value
+    except x509.ExtensionNotFound as exc:
+        raise ValueError("issuer certificate has no KeyUsage extension.") from exc
+    if not issuer_key_usage.key_cert_sign:
+        raise ValueError("issuer certificate is not authorized for certificate signing.")
+
+
 def check_tsa_issuer_identity(
     timestamp_result: dict,
     tsa_certificate: x509.Certificate,
@@ -164,20 +186,5 @@ def check_tsa_issuer_identity(
                 raise ValueError(
                     "TSA certificate Authority Key Identifier issuer/serial does not match supplied issuer."
                 )
-    try:
-        basic_constraints = issuer_certificate.extensions.get_extension_for_class(
-            x509.BasicConstraints
-        ).value
-    except x509.ExtensionNotFound as exc:
-        raise ValueError("issuer certificate has no BasicConstraints extension.") from exc
-    if not basic_constraints.ca:
-        raise ValueError("issuer certificate is not a CA certificate.")
-    try:
-        issuer_key_usage = issuer_certificate.extensions.get_extension_for_class(
-            x509.KeyUsage
-        ).value
-    except x509.ExtensionNotFound as exc:
-        raise ValueError("issuer certificate has no KeyUsage extension.") from exc
-    if not issuer_key_usage.key_cert_sign:
-        raise ValueError("issuer certificate is not authorized for certificate signing.")
+    require_issuer_certificate_signing_authority(issuer_certificate)
     return target_time
