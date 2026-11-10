@@ -197,7 +197,7 @@ ess_cert_id_chain = no
         self, *, revoked_at=None, signer_key=None, include_number=True,
         include_aki=True, delta=False, this_update=None, next_update=None,
         revocation_reason=None, duplicate_target_entry=False,
-        crl_aki_issuer_serial=None,
+        crl_aki_issuer_serial=None, issuing_distribution_point=None,
     ):
         issuer = x509.load_pem_x509_certificate(self.ca_pem)
         now = datetime.now(timezone.utc).replace(microsecond=0, tzinfo=None)
@@ -228,6 +228,10 @@ ess_cert_id_chain = no
         if delta:
             builder = builder.add_extension(
                 x509.DeltaCRLIndicator(6), critical=True
+            )
+        if issuing_distribution_point is not None:
+            builder = builder.add_extension(
+                issuing_distribution_point, critical=True
             )
         if revoked_at is not None:
             tsa = x509.load_pem_x509_certificate(self.tsa_pem)
@@ -385,6 +389,40 @@ ess_cert_id_chain = no
         with self.assertRaisesRegex(ValueError, "issuer/serial does not match"):
             verify_tsa_crl_evidence(
                 timestamp_result, self.tsa_pem, self.ca_pem, crl_der
+            )
+
+    def test_crl_with_partial_reason_scope_is_rejected(self):
+        timestamp_result = self._verified_timestamp_result()
+        idp = x509.IssuingDistributionPoint(
+            full_name=None,
+            relative_name=None,
+            only_contains_user_certs=False,
+            only_contains_ca_certs=False,
+            only_some_reasons=frozenset({x509.ReasonFlags.key_compromise}),
+            indirect_crl=False,
+            only_contains_attribute_certs=False,
+        )
+        with self.assertRaisesRegex(ValueError, "scoped, delta or freshest-CRL"):
+            verify_tsa_crl_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem,
+                self._build_tsa_crl(issuing_distribution_point=idp),
+            )
+
+    def test_indirect_crl_is_rejected(self):
+        timestamp_result = self._verified_timestamp_result()
+        idp = x509.IssuingDistributionPoint(
+            full_name=None,
+            relative_name=None,
+            only_contains_user_certs=False,
+            only_contains_ca_certs=False,
+            only_some_reasons=None,
+            indirect_crl=True,
+            only_contains_attribute_certs=False,
+        )
+        with self.assertRaisesRegex(ValueError, "scoped, delta or freshest-CRL"):
+            verify_tsa_crl_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem,
+                self._build_tsa_crl(issuing_distribution_point=idp),
             )
 
     def test_delta_crl_is_rejected_by_narrow_complete_crl_profile(self):
