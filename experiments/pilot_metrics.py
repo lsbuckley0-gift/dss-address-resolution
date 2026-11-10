@@ -53,7 +53,7 @@ def _validate(data):
     if not isinstance(data, dict) or not isinstance(data.get("cases"), list):
         raise ValueError("Input must be an object containing a cases array.")
     _reject_extra_fields(
-        data, {"dataset_id", "dataset_version", "cases", "sample_requirements", "decision_requirements"}, "input"
+        data, {"dataset_id", "dataset_version", "cases", "sample_requirements", "decision_requirements", "primary_endpoint"}, "input"
     )
     for field in ("dataset_id", "dataset_version"):
         value = data.get(field)
@@ -107,6 +107,30 @@ def _validate(data):
         value = decision_requirements.get("maximum_median_review_seconds")
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
             raise ValueError("decision_requirements.maximum_median_review_seconds must be a finite non-negative number.")
+    primary_endpoint = data.get("primary_endpoint")
+    if primary_endpoint is not None:
+        if not isinstance(primary_endpoint, dict):
+            raise ValueError("primary_endpoint must be an object.")
+        _reject_extra_fields(
+            primary_endpoint,
+            {"outcome_class", "expected_direction", "analysis_population", "alpha",
+             "registration_reference", "frozen_before_outcomes_review"},
+            "primary_endpoint",
+        )
+        if primary_endpoint.get("outcome_class") not in OUTCOME_CLASSES:
+            raise ValueError("primary_endpoint.outcome_class must be a declared outcome class.")
+        if primary_endpoint.get("expected_direction") not in {"LOWER", "HIGHER"}:
+            raise ValueError("primary_endpoint.expected_direction must be LOWER or HIGHER.")
+        if primary_endpoint.get("analysis_population") != "ALL_PAIRED_CASES":
+            raise ValueError("primary_endpoint.analysis_population must be ALL_PAIRED_CASES.")
+        alpha = primary_endpoint.get("alpha")
+        if isinstance(alpha, bool) or not isinstance(alpha, (int, float)) or not math.isfinite(alpha) or not 0 < alpha < 1:
+            raise ValueError("primary_endpoint.alpha must be a finite number strictly between 0 and 1.")
+        reference = primary_endpoint.get("registration_reference")
+        if not isinstance(reference, str) or not reference.strip():
+            raise ValueError("primary_endpoint.registration_reference must be a non-empty string.")
+        if primary_endpoint.get("frozen_before_outcomes_review") is not True:
+            raise ValueError("primary_endpoint.frozen_before_outcomes_review must be true.")
     seen = set()
     for index, case in enumerate(data["cases"]):
         prefix = f"cases[{index}]"
@@ -245,13 +269,14 @@ def _clopper_pearson(successes, total, confidence=0.975):
     return [lower, upper]
 
 
-def _paired_prevalence_difference_interval(baseline_only, dss_only, total):
-    """Conservative >=95% paired risk-difference interval via Bonferroni CP."""
+def _paired_prevalence_difference_interval(baseline_only, dss_only, total, alpha=0.05):
+    """Conservative paired risk-difference interval with >=1-alpha coverage via Bonferroni CP."""
     if total == 0:
         return None
     discordant = baseline_only + dss_only
-    discordance_interval = _clopper_pearson(discordant, total, confidence=0.975)
-    direction_interval = _clopper_pearson(dss_only, discordant, confidence=0.975)
+    component_confidence = 1.0 - alpha / 2.0
+    discordance_interval = _clopper_pearson(discordant, total, confidence=component_confidence)
+    direction_interval = _clopper_pearson(dss_only, discordant, confidence=component_confidence)
     direction_bounds = [
         2.0 * direction_interval[0] - 1.0,
         2.0 * direction_interval[1] - 1.0,
@@ -318,6 +343,60 @@ def _paired_class_comparisons(matrix):
             "The four outcome tests are dependent. Adjustments are not combined "
             "across strata. Results are exploratory, not a pilot gate or proof "
             "of causal superiority."
+        ),
+    }
+
+
+def _primary_endpoint_assessment(data, matrix):
+    endpoint = data.get("primary_endpoint")
+    if endpoint is None:
+        return {
+            "status": "NOT_CONFIGURED",
+            "endpoint": None,
+            "interpretation": "No primary endpoint was declared in the evaluation input.",
+        }
+    outcome = endpoint["outcome_class"]
+    comparison = _paired_class_comparisons(matrix)["outcomes"][outcome]
+    alpha = endpoint["alpha"]
+    interval = _paired_prevalence_difference_interval(
+        comparison["baseline_only"], comparison["dss_only"],
+        comparison["case_count"], alpha=alpha,
+    )
+    estimate = comparison["prevalence_difference_dss_minus_baseline"]
+    if interval is None:
+        status = "INDETERMINATE"
+    elif endpoint["expected_direction"] == "LOWER":
+        status = (
+            "SUPPORTS_DIRECTION" if interval[1] < 0 else
+            "OPPOSITE_DIRECTION" if interval[0] > 0 else "INDETERMINATE"
+        )
+    else:
+        status = (
+            "SUPPORTS_DIRECTION" if interval[0] > 0 else
+            "OPPOSITE_DIRECTION" if interval[1] < 0 else "INDETERMINATE"
+        )
+    p_value = comparison["exact_mcnemar_p_value_two_sided"]
+    return {
+        "status": status,
+        "endpoint": {
+            "outcome_class": outcome,
+            "expected_direction": endpoint["expected_direction"],
+            "analysis_population": endpoint["analysis_population"],
+            "alpha": alpha,
+            "registration_reference": endpoint["registration_reference"],
+            "frozen_before_outcomes_review_attested": True,
+            "case_count": comparison["case_count"],
+            "prevalence_difference_dss_minus_baseline": estimate,
+            "prevalence_difference_confidence_interval": interval,
+            "exact_mcnemar_p_value_two_sided": p_value,
+            "two_sided_mcnemar_p_value_at_or_below_alpha": p_value <= alpha,
+        },
+        "interpretation": (
+            "Direction status is based on the pre-specified confidence interval for the "
+            "marginal one-versus-rest prevalence difference (dss minus baseline). "
+            "The McNemar p-value is reported separately and is not substituted for the "
+            "interval decision. The registration reference and frozen-before-review "
+            "flag are submitter attestations; timing and provenance are not independently verified."
         ),
     }
 
@@ -558,8 +637,9 @@ def evaluate(data):
     paired_matrix = _paired_outcome_matrix(cases)
     sample_sufficiency = _sample_sufficiency(data, cases)
     decision_assessment = _decision_assessment(data, system_results)
+    primary_endpoint_assessment = _primary_endpoint_assessment(data, paired_matrix)
     return {
-        "report_version": "paired-pilot-metrics/2.0",
+        "report_version": "paired-pilot-metrics/2.1",
         "dataset_id": data.get("dataset_id"),
         "dataset_version": data.get("dataset_version"),
         "case_count": len(cases),
@@ -570,6 +650,7 @@ def evaluate(data):
         "stratum_metrics": _stratum_metrics(cases),
         "sample_sufficiency": sample_sufficiency,
         "decision_assessment": decision_assessment,
+        "primary_endpoint_assessment": primary_endpoint_assessment,
         "pilot_readiness": _pilot_readiness(sample_sufficiency, decision_assessment),
         "method_notes": [
             "A decision is automatically accepted when terminal_state is VERIFIED or CORRECTED.",
@@ -583,6 +664,7 @@ def evaluate(data):
             "Stratum rates are descriptive and retain their raw denominators; small or synthetic strata do not establish statistical significance or field performance.",
             "The optional sample_sufficiency gate checks pre-registered raw-case and unique-gold counts for required strata, fails closed for UNSPECIFIED cases or observed strata omitted from the requirements, and does not establish representative sampling, statistical power, precision or field performance.",
             "The optional decision_assessment compares pre-registered operational thresholds with observed metrics; false-accept and false-reject criteria use upper 95% Wilson bounds, and missing denominators or review-time evidence are indeterminate rather than passes.",
+            "The optional primary_endpoint_assessment reports the pre-declared one-versus-rest outcome, direction, all-paired-case population, alpha, conservative confidence interval and exact McNemar p-value. It does not alter pilot readiness; registration reference and timing are submitter attestations, not independently verified.",
             "pilot_readiness combines only the configured sample-sufficiency and operational-threshold gates; it is not full pilot approval or evidence of representative field performance.",
             "The 95% interval is the Wilson score interval; no interval is emitted when there are no automatic acceptances.",
             "Latency percentiles use nearest-rank; missing measurements are excluded and counted.",
