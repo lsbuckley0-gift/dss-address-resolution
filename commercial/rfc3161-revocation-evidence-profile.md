@@ -273,7 +273,8 @@ tests cover issuer-signed good/revoked/unknown responses, exact CertID binding,
 RSA signature verification, by-name and by-key responder identity, nonce
 match/mismatch/omission, SHA-1 CertID rejection, unsuccessful responses,
 delegated-responder rejection, stale/future intervals, revocation after the
-target, unsupported extensions and the temporary-hold boundary.
+target, unsupported extensions, `removeFromCRL` rejection and the
+ temporary-hold boundary.
 
 ## 9. Remaining integration gates
 
