@@ -75,7 +75,12 @@ def _claimed_gen_time(token_path: Path, openssl_binary: str, timeout_seconds: in
     match = _TIME_LINE.search(completed.stdout + "\n" + completed.stderr)
     if match is None:
         raise ValueError("RFC 3161 token did not expose a supported GMT generation-time field.")
-    month, day, hour, minute, second, year = match.groups()
+    month, day, hour, minute, second, fraction, year = match.groups()
+    if fraction is not None:
+        raise ValueError(
+            "fractional-second RFC 3161 genTime is not supported: OpenSSL -attime "
+            "accepts whole seconds only, so the verifier refuses to round or truncate it."
+        )
     return datetime(
         int(year), _MONTHS[month], int(day), int(hour), int(minute), int(second),
         tzinfo=timezone.utc,
@@ -221,8 +226,9 @@ def verify_rfc3161_timestamp(
 
     token_der must be a DER-encoded TimeStampToken (ContentInfo), not a
     TimeStampResp wrapper. The token's signed genTime is used as the X.509
-    certificate-path validation time. Fractional-second genTime display values
-    are rejected because OpenSSL's -attime interface accepts integer seconds.
+    certificate-path validation time. Fractional-second genTime values are
+    explicitly rejected: OpenSSL's -attime interface accepts integer seconds,
+    and this verifier will not round or truncate a more precise instant.
     No system CA directories are consulted.
     """
     if not isinstance(token_der, bytes) or not token_der or len(token_der) > _MAX_TOKEN_BYTES:
