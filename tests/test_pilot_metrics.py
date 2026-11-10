@@ -167,7 +167,7 @@ class PilotMetricsTests(unittest.TestCase):
             report = json.loads(completed.stdout)
             self.assertEqual(json.loads(output_path.read_text(encoding="utf-8")), report)
         self.assertEqual(report["dataset_id"], "paired-pilot-synthetic")
-        self.assertEqual(report["report_version"], "paired-pilot-metrics/1.2")
+        self.assertEqual(report["report_version"], "paired-pilot-metrics/1.3")
         self.assertEqual(report["case_count"], 4)
         self.assertEqual(set(report["stratum_metrics"]), {"EXACT", "TYPO", "FORMATTING_ONLY", "CONFLICTING"})
         self.assertEqual(report["stratum_metrics"]["TYPO"]["case_count"], 1)
@@ -274,6 +274,15 @@ class PilotMetricsTests(unittest.TestCase):
         self.assertEqual(
             sum(sum(row.values()) for row in strata["EXACT"]["paired_outcome_matrix"].values()), 1
         )
+
+
+    def test_non_string_stratum_is_rejected(self):
+        data = pilot_data([
+            {"case_id": "bad-stratum", "gold_candidate_id": "A", "stratum": ["TYPO"],
+             "baseline": decision("VERIFIED", "A"), "dss": decision("VERIFIED", "A")}
+        ])
+        with self.assertRaisesRegex(ValueError, "stratum must be one of"):
+            evaluate(data)
 
     def test_missing_stratum_is_explicitly_grouped_as_unspecified(self):
         report = evaluate(pilot_data([
