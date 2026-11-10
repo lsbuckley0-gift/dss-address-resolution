@@ -58,6 +58,8 @@ def verify_tsa_ocsp_evidence(
     issuer_certificate_pem: bytes,
     ocsp_response_der: bytes,
     ocsp_request_der: bytes | None = None,
+    *,
+    timestamp_verification_inputs: dict,
 ) -> dict:
     """Authenticate one issuer-signed OCSP response for the verified TSA cert.
 
@@ -85,7 +87,8 @@ def verify_tsa_ocsp_evidence(
         issuer_certificate_pem, "issuer_certificate_pem"
     )
     target_time = check_tsa_issuer_identity(
-        timestamp_result, tsa_certificate, issuer_certificate
+        timestamp_result, tsa_certificate, issuer_certificate,
+        timestamp_verification_inputs,
     )
     _assert_issuer_can_sign_ocsp(issuer_certificate)
 
