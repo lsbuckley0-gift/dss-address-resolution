@@ -207,6 +207,7 @@ def verify_tsa_crl_evidence(
     historical_assurance = "NOT_ESTABLISHED"
 
     if revoked_entry is not None:
+        reason = None
         for extension in revoked_entry.extensions:
             if extension.oid.dotted_string == _CERTIFICATE_ISSUER_OID:
                 raise ValueError("indirect CRL certificateIssuer entries are unsupported.")
