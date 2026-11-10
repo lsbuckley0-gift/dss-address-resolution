@@ -42,6 +42,18 @@ class CheckpointRecoveryTests(unittest.TestCase):
         self.assertEqual(result["recovery_status"], "PREPARED_NOT_ACCEPTED")
         self.assertEqual(result["rollback_floor"], "NOT_SUPPLIED")
 
+    def test_unreceipted_payload_with_chain_mismatch_is_conflict(self):
+        changed = dict(self.checkpoint, checkpoint_event_sha256="0" * 64)
+        result = classify_checkpoint_recovery(self.events, changed, None)
+        self.assertEqual(result["recovery_status"], "CONFLICT")
+        self.assertEqual(result["checkpoint_binding"], "MISMATCH")
+
+    def test_unreceipted_payload_anchored_before_event_is_conflict(self):
+        changed = dict(self.checkpoint, anchored_at_utc="2026-11-10T10:01:00Z")
+        result = classify_checkpoint_recovery(self.events, changed, None)
+        self.assertEqual(result["recovery_status"], "CONFLICT")
+        self.assertEqual(result["checkpoint_time_order"], "PRECEDES_EVENT")
+
     def test_prepared_payload_below_floor_preserves_rollback_warning(self):
         result = classify_checkpoint_recovery(
             self.events, self.checkpoint, None, minimum_sequence=3
