@@ -8,6 +8,7 @@
     "record_version",
     "registration_reference",
     "registration_event_id",
+    "registration_event_evidence_reference",
     "endpoint_spec_sha256",
     "registered_at_utc",
     "outcomes_accessed_at_utc",
@@ -23,6 +24,10 @@
       "minLength": 1
     },
     "registration_event_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "registration_event_evidence_reference": {
       "type": "string",
       "minLength": 1
     },
