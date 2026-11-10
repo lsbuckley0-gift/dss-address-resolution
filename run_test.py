@@ -26,7 +26,7 @@ def fuzzy_resolve(incoming, threshold=80):
 TEST_SET = [
     ("35 PATRICK PLACE ST8 7RF", "A001", "VERIFIED", "Clean"),
     ("33 REDRIFFE ROAD E14 8BX", "A002", "VERIFIED", "Clean"),
-    ("35 patrick place st87rf",  "A001", "CORRECTED", "Mixed (normalisation)"),
+    ("35 patrick place st87rf",  "A001", "VERIFIED", "Mixed (normalisation)"),
     ("33 REDRIFE ROAD E14 8BX",  "A002", "CORRECTED", "Mixed (typo)"),
     ("35 PATRICK PLACE ST6 6LS", "A001", "UNRESOLVED", "Difficult (conflict)"),
     ("99 UNKNOWN STREET ZZ9 9ZZ", "A006", "UNRESOLVED", "No match"),
@@ -44,7 +44,13 @@ for text, truth, expected, profile in TEST_SET:
     # ∂ss Run
     trace = dss.land(truth, text)
     
-    # Check for FA (Observed doesn't match Ground Truth)
+    # Enforce the declared expected terminal state for every fixture.
+    assert trace.terminal == expected, (
+        f"∂ss expectation mismatch for {text!r}: "
+        f"expected {expected}, got {trace.terminal}"
+    )
+
+    # Check for FA (Observed does not match Ground Truth).
     if trace.observed is not None and trace.observed != truth:
         metrics["dss_fa"] += 1
         dss_display = f"FA! ({trace.observed})"
@@ -72,6 +78,11 @@ for text, truth, expected, profile in TEST_SET:
 print("\n" + "=" * 60)
 print("BENCHMARK SUMMARY")
 print("=" * 60)
+
+# Guard benchmark integrity: every fixture must have exactly one ∂ss outcome.
+assert (metrics["dss_verified"] + metrics["dss_corrected"] +
+        metrics["dss_unresolved"] + metrics["dss_fa"]) == len(TEST_SET)
+assert metrics["dss_fa"] == 0, "∂ss produced a false accept in the comparison fixture set"
 print(f"{'Metric':<25} | {'∂ss':<10} | {'Fuzzy':<10}")
 print("-" * 50)
 print(f"{'Correct Matches (Verified)':<25} | {metrics['dss_verified']:<10} | {metrics['fuzzy_resolved']:<10}")
