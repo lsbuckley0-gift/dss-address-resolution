@@ -451,7 +451,7 @@ class PilotMetricsTests(unittest.TestCase):
         ])
         data["decision_requirements"] = {
             "system": "dss",
-            "max_false_accept_rate_upper_95pct": 0.0,
+            "max_false_accept_rate_upper_95pct": 1.0,
             "max_false_reject_rate_upper_95pct": 1.0,
             "minimum_coverage": 0.0,
             "maximum_review_routed_rate": 1.0,
@@ -526,6 +526,23 @@ class PilotMetricsTests(unittest.TestCase):
         assessment = evaluate(self.data)["decision_assessment"]
         self.assertEqual(assessment["status"], "NOT_CONFIGURED")
         self.assertEqual(assessment["criteria"], {})
+
+    def test_decision_assessment_marks_review_time_not_applicable_when_no_review_is_routed(self):
+        data = pilot_data([
+            {"case_id": "known", "gold_candidate_id": "A",
+             "baseline": decision("VERIFIED", "A"),
+             "dss": decision("VERIFIED", "A")},
+        ])
+        data["decision_requirements"] = {
+            "system": "dss", "max_false_accept_rate_upper_95pct": 1.0,
+            "max_false_reject_rate_upper_95pct": 1.0, "minimum_coverage": 1.0,
+            "maximum_review_routed_rate": 0.0, "maximum_median_review_seconds": 60,
+            "minimum_review_time_measurement_coverage": 1.0,
+        }
+        assessment = evaluate(data)["decision_assessment"]
+        self.assertEqual(assessment["status"], "PASS")
+        self.assertEqual(assessment["criteria"]["median_review_seconds"]["status"], "NOT_APPLICABLE")
+        self.assertEqual(assessment["criteria"]["review_time_measurement_coverage"]["status"], "NOT_APPLICABLE")
 
 if __name__ == "__main__":
     unittest.main()
