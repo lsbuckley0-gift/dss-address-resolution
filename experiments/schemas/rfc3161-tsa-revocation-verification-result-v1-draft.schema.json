@@ -1,0 +1,246 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RFC 3161 TSA revocation verification result (draft)",
+  "description": "Output contract for the standalone CRL and OCSP evaluators. It records evidence verification relative to a prior timestamp result and caller-supplied issuer certificate; it does not re-authenticate the trust root or convert a good snapshot into historical non-revocation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "result_version",
+    "evidence_type",
+    "tsa_certificate_identity_binding",
+    "target_time_utc",
+    "target_time_basis",
+    "status_at_target_time",
+    "historical_revocation_assurance",
+    "issuer_trust"
+  ],
+  "properties": {
+    "result_version": {
+      "const": "rfc3161-tsa-revocation-verification-result/v1-draft"
+    },
+    "evidence_type": {
+      "enum": [
+        "CRL",
+        "OCSP_BASIC_RESPONSE"
+      ]
+    },
+    "tsa_certificate_identity_binding": {
+      "const": "MATCH"
+    },
+    "target_time_utc": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "target_time_basis": {
+      "const": "TSA_ASSERTED_GEN_TIME"
+    },
+    "status_at_target_time": {
+      "enum": [
+        "REVOKED_AT_OR_BEFORE_TARGET",
+        "REVOCATION_AFTER_TARGET_REPORTED",
+        "NOT_LISTED_AT_CRL_THIS_UPDATE",
+        "GOOD_AT_OCSP_THIS_UPDATE_ONLY",
+        "UNKNOWN",
+        "CERTIFICATE_HOLD_REPORTED_TARGET_STATUS_NOT_ESTABLISHED",
+        "EVIDENCE_TIME_INCOMPATIBLE",
+        "NOT_ESTABLISHED"
+      ]
+    },
+    "historical_revocation_assurance": {
+      "enum": [
+        "NOT_ESTABLISHED",
+        "REVOKED_BY_TARGET_TIME_UNDER_SIGNED_CRL_ASSERTION",
+        "REVOKED_BY_TARGET_TIME_UNDER_SIGNED_OCSP_ASSERTION"
+      ]
+    },
+    "issuer_trust": {
+      "const": "BOUND_TO_PRIOR_TIMESTAMP_RESULT_NOT_REAUTHENTICATED_HERE"
+    },
+    "crl_evidence_verification": {
+      "const": "VALID_RELATIVE_TO_BOUND_ISSUER_CERTIFICATE"
+    },
+    "crl_signature": {
+      "const": "VALID"
+    },
+    "crl_scope": {
+      "const": "DIRECT_COMPLETE_ALL_REASONS_ONLY"
+    },
+    "crl_der_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "crl_number": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "crl_this_update_utc": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "crl_next_update_utc": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "crl_time_window_covers_target": {
+      "type": "boolean"
+    },
+    "absence_interpretation": {
+      "const": "NOT_LISTED_AT_CRL_THIS_UPDATE_IS_NOT_PROOF_OF_HISTORICAL_NON_REVOCATION"
+    },
+    "ocsp_evidence_verification": {
+      "const": "VALID_RELATIVE_TO_BOUND_ISSUER_CERTIFICATE"
+    },
+    "ocsp_signature": {
+      "const": "VALID"
+    },
+    "responder_authorization": {
+      "const": "ISSUING_CA_DIRECTLY_SIGNED"
+    },
+    "responder_id_type": {
+      "enum": [
+        "NAME",
+        "KEY_HASH"
+      ]
+    },
+    "ocsp_cert_id_binding": {
+      "const": "MATCH"
+    },
+    "cert_id_hash_algorithm": {
+      "const": "sha256"
+    },
+    "serial_hex": {
+      "type": "string",
+      "pattern": "^(0|[1-9a-f][0-9a-f]*)$"
+    },
+    "issuer_name_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "issuer_key_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "nonce_binding": {
+      "enum": [
+        "MATCH",
+        "NOT_USED"
+      ]
+    },
+    "ocsp_response_der_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "produced_at_utc": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "this_update_utc": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "next_update_utc": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "ocsp_time_window_covers_target": {
+      "type": "boolean"
+    },
+    "evidence_time_basis": {
+      "enum": [
+        "ISSUER_ASSERTED_CRL_THIS_UPDATE_NEXT_UPDATE",
+        "RESPONDER_ASSERTED_PRODUCED_AT_THIS_UPDATE_NEXT_UPDATE"
+      ]
+    },
+    "status_at_evidence_time": {
+      "enum": [
+        "GOOD",
+        "REVOKED",
+        "UNKNOWN"
+      ]
+    },
+    "revocation_time_utc": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "revocation_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "good_status_limitation": {
+      "const": "OCSP_GOOD_AT_THIS_UPDATE_DOES_NOT_ESTABLISH_HISTORICAL_NON_REVOCATION"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "evidence_type": {
+            "const": "CRL"
+          }
+        },
+        "required": [
+          "evidence_type"
+        ]
+      },
+      "then": {
+        "required": [
+          "crl_evidence_verification",
+          "crl_signature",
+          "crl_scope",
+          "crl_der_sha256",
+          "crl_number",
+          "crl_this_update_utc",
+          "crl_next_update_utc",
+          "crl_time_window_covers_target",
+          "evidence_time_basis",
+          "absence_interpretation"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "evidence_type": {
+            "const": "OCSP_BASIC_RESPONSE"
+          }
+        },
+        "required": [
+          "evidence_type"
+        ]
+      },
+      "then": {
+        "required": [
+          "ocsp_evidence_verification",
+          "ocsp_signature",
+          "responder_authorization",
+          "responder_id_type",
+          "ocsp_cert_id_binding",
+          "cert_id_hash_algorithm",
+          "serial_hex",
+          "issuer_name_hash",
+          "issuer_key_hash",
+          "nonce_binding",
+          "ocsp_response_der_sha256",
+          "produced_at_utc",
+          "this_update_utc",
+          "next_update_utc",
+          "ocsp_time_window_covers_target",
+          "evidence_time_basis",
+          "status_at_evidence_time",
+          "good_status_limitation"
+        ]
+      }
+    }
+  ]
+}
