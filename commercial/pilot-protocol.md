@@ -707,3 +707,51 @@ stops processing before public-key eligibility or signature verification and
 returns `POLICY_PIN_MISMATCH`. Without the optional pin, the report explicitly
 returns `trust_policy_pin: NOT_CHECKED`; signature verification remains
 cryptographically meaningful only relative to the caller-supplied trust store.
+
+
+## RFC 3161 trusted timestamp-token verification (v1)
+
+`experiments/rfc3161_timestamp.py` adds a fail-closed verifier for a DER-encoded
+RFC 3161 TimeStampToken (CMS ContentInfo). It is deliberately separate from the
+event-chain timestamps and the Ed25519 checkpoint signature. It verifies a
+timestamp over the exact caller-supplied byte sequence; callers must choose and
+document the byte representation being timestamped (for example, the canonical
+checkpoint payload), and must retain those bytes unchanged.
+
+The verifier uses the OpenSSL `ts` command. It first reads the token's asserted
+GMT `genTime`, then invokes timestamp verification with the exact data bytes,
+an explicit caller-supplied CA PEM bundle, optional untrusted intermediates,
+and `-attime` set to the token's asserted generation time. It explicitly
+requires the `timestampsign` certificate purpose, disables default CA path
+and store lookup, and enables strict X.509 checks. This checks the token
+signature, message imprint, TSA signing-certificate purpose (including the
+critical timeStamping EKU and permitted key usage), and certificate path at the
+asserted token time. The RFC 3161 command's token verification and the
+certificate-purpose and time-validation options are described in the
+[OpenSSL TS documentation](https://docs.openssl.org/3.4/man1/openssl-ts/) and
+[OpenSSL verification options](https://docs.openssl.org/3.0/man1/openssl-verification-options/).
+
+The caller must provide a separate pin object with exactly `sha256` and
+`source_reference`. The digest covers the exact trust-anchor PEM bytes,
+including line endings and whitespace. A pin mismatch prevents all OpenSSL
+verification. The optional intermediate bundle is untrusted chain-building
+material; it is not promoted to a trust anchor. The accepted input is a DER
+TimeStampToken, not a TimeStampResp wrapper.
+
+A successful result reports `timestamp_verification: VALID` and
+`message_imprint: MATCH`. This means only that OpenSSL accepted the token
+signature, imprint, timestamping certificate purpose and certificate path
+relative to the supplied, digest-pinned trust-anchor bytes at the token's
+asserted `genTime`. The pin's source reference is descriptive, not
+self-authenticating. The verifier does not authenticate the anchor's issuer,
+the pin's delivery channel, the TSA's governance or operational controls, the
+accuracy of the TSA's clock, or the truth of the event. The timestamp is a
+cryptographically validated TSA assertion—not independent proof of event
+truth. A pin match is not authority authentication.
+
+The verifier returns non-valid states for a pin mismatch, malformed token,
+failed OpenSSL verification, missing OpenSSL executable or timeout. It never
+falls back to machine time or the host's default CA store. The test suite uses
+synthetic inputs and mocked OpenSSL outcomes for deterministic boundary tests;
+those tests do not establish a real TSA or operational trust anchor. No TSA
+URL, private key, real certificate or authority is embedded in this repository.
