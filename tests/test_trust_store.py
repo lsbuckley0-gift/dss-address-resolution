@@ -63,6 +63,29 @@ class TrustStoreTests(unittest.TestCase):
             purpose=PURPOSE, at_utc="2027-01-01T00:00:00Z")
         self.assertEqual(result["key_eligibility"], "OUTSIDE_KEY_VALIDITY")
 
+    def test_key_validity_includes_exact_start_instant(self):
+        result = resolve_eligible_key(
+            sample_store(), key_id="example-key-01", purpose=PURPOSE,
+            at_utc="2026-01-01T00:00:00Z",
+        )
+        self.assertEqual(result["key_eligibility"], "ELIGIBLE_FOR_SIGNATURE_CHECK")
+
+    def test_key_validity_excludes_instant_before_start(self):
+        result = resolve_eligible_key(
+            sample_store(), key_id="example-key-01", purpose=PURPOSE,
+            at_utc="2025-12-31T23:59:59.999999Z",
+        )
+        self.assertEqual(result["key_eligibility"], "OUTSIDE_KEY_VALIDITY")
+        self.assertIsNone(result["public_key_base64"])
+
+    def test_key_validity_excludes_exact_end_instant(self):
+        result = resolve_eligible_key(
+            sample_store(), key_id="example-key-01", purpose=PURPOSE,
+            at_utc="2027-01-01T00:00:00Z",
+        )
+        self.assertEqual(result["key_eligibility"], "OUTSIDE_KEY_VALIDITY")
+        self.assertIsNone(result["public_key_base64"])
+
     def test_duplicate_key_ids_rejected(self):
         store = sample_store()
         store["keys"].append(dict(store["keys"][0]))
