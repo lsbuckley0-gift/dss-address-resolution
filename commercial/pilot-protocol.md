@@ -124,12 +124,19 @@ fields at the dataset, case and decision levels, matching the schema's
 are rejected as well. This prevents unrecognised address/customer fields from
 being silently accepted as part of the metadata-only input contract. Both systems
 are scored over the same paired cases. A wrong candidate or any acceptance where the gold label is null
-counts as a false accept.
+counts as a false accept. An unresolved decision against a non-null gold
+candidate is a false reject; an unresolved decision where the gold candidate
+is null is a correct abstention. The evaluator reports these separately so
+abstention cannot conceal a refusal of a case with a known unique answer.
 
 The JSON report gives raw counts and explicit denominators for false-accept
-rate, false-accept prevalence, correct auto-resolution, coverage, unresolved
-rate, correction precision, trace completeness, review time and latency.
-False-accept rate includes a 95% Wilson score interval; latency p95 uses the
+rate and prevalence, false-reject rate and prevalence, correct abstentions,
+correct auto-resolution, coverage, unresolved rate, correction precision,
+trace completeness, review time and latency. False-accept and false-reject
+rates each include a 95% Wilson score interval. False-reject rate uses only
+cases with a non-null unique gold label as its denominator; false-reject
+prevalence uses all paired cases. When there are no uniquely labelled cases,
+the false-reject rate and interval are null. Latency p95 uses the
 nearest-rank definition. Missing latency/review measurements are counted
 separately rather than imputed. An empty acceptance denominator yields null,
 not a misleading zero rate.
