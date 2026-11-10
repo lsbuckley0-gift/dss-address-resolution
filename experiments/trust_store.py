@@ -11,6 +11,7 @@ from datetime import datetime
 import re
 
 RECORD_VERSION = "audit-trust-store/v1"
+PURPOSE = "AUDIT_CHAIN_CHECKPOINT"
 _REQUIRED_STORE_FIELDS = {"record_version", "keys"}
 _REQUIRED_KEY_FIELDS = {
     "key_id", "authority_name", "algorithm", "public_key_base64",
