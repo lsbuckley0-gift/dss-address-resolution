@@ -231,7 +231,7 @@ ess_cert_id_chain = no
         self, *, revoked_at=None, signer_key=None, include_number=True,
         include_aki=True, delta=False, this_update=None, next_update=None,
         revocation_reason=None, duplicate_target_entry=False,
-        certificate_issuer_entry=False,
+        certificate_issuer_entry=False, unrelated_certificate_issuer_entry=False,
         crl_aki_issuer_serial=None, issuing_distribution_point=None,
         unsupported_crl_extension=None,
     ):
@@ -293,6 +293,18 @@ ess_cert_id_chain = no
             builder = builder.add_revoked_certificate(revoked)
             if duplicate_target_entry:
                 builder = builder.add_revoked_certificate(revoked)
+        if unrelated_certificate_issuer_entry:
+            unrelated = (
+                x509.RevokedCertificateBuilder()
+                .serial_number(999999)
+                .revocation_date(now - timedelta(hours=2))
+                .add_extension(
+                    x509.CertificateIssuer([x509.DirectoryName(issuer.subject)]),
+                    critical=False,
+                )
+                .build()
+            )
+            builder = builder.add_revoked_certificate(unrelated)
         crl = builder.sign(
             private_key=signer_key or self.ca_key,
             algorithm=hashes.SHA256(),
@@ -510,6 +522,16 @@ ess_cert_id_chain = no
             revoked_at=target - timedelta(hours=1),
             this_update=(target - timedelta(minutes=30)).replace(tzinfo=None),
             certificate_issuer_entry=True,
+        )
+        with self.assertRaisesRegex(ValueError, "indirect CRL certificateIssuer"):
+            verify_tsa_crl_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem, crl_der
+            )
+
+    def test_indirect_crl_certificate_issuer_on_unrelated_entry_is_rejected(self):
+        timestamp_result = self._verified_timestamp_result()
+        crl_der = self._build_tsa_crl(
+            unrelated_certificate_issuer_entry=True
         )
         with self.assertRaisesRegex(ValueError, "indirect CRL certificateIssuer"):
             verify_tsa_crl_evidence(
