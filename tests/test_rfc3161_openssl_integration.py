@@ -34,7 +34,7 @@ from experiments.rfc3161_anchor_provenance import (
 )
 
 
-def _certificate(subject, issuer, public_key, signer_key, serial, *, is_ca, timestamp_signer=False):
+def _certificate(subject, issuer, public_key, signer_key, serial, *, is_ca, timestamp_signer=False, crl_distribution_points=False):
     now = datetime(2020, 1, 1)
     builder = (
         x509.CertificateBuilder()
@@ -61,6 +61,20 @@ def _certificate(subject, issuer, public_key, signer_key, serial, *, is_ca, time
         )
         .add_extension(x509.SubjectKeyIdentifier.from_public_key(public_key), critical=False)
     )
+    if crl_distribution_points:
+        builder = builder.add_extension(
+            x509.CRLDistributionPoints([
+                x509.DistributionPoint(
+                    full_name=[x509.UniformResourceIdentifier(
+                        "http://crl.example.invalid/tsa.crl"
+                    )],
+                    relative_name=None,
+                    reasons=None,
+                    crl_issuer=None,
+                )
+            ]),
+            critical=False,
+        )
     if timestamp_signer:
         builder = builder.add_extension(
             x509.ExtendedKeyUsage([ExtendedKeyUsageOID.TIME_STAMPING]), critical=True
@@ -91,9 +105,11 @@ class RFC3161OpenSSLIntegrationTests(unittest.TestCase):
         ca_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
         self.ca_key = ca_key
         tsa_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        self.tsa_key = tsa_key
         ca_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Synthetic DSS Test Root")])
         self.ca_name = ca_name
         tsa_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Synthetic DSS Test TSA")])
+        self.tsa_name = tsa_name
         ca_cert = _certificate(ca_name, ca_name, ca_key.public_key(), ca_key, 1001, is_ca=True)
         tsa_cert = _certificate(
             tsa_name, ca_name, tsa_key.public_key(), ca_key, 1002,
@@ -391,6 +407,58 @@ ess_cert_id_chain = no
                 timestamp_result, self.tsa_pem, self.ca_pem, crl_der
             )
 
+    def test_tsa_certificate_crl_distribution_point_scope_is_rejected(self):
+        tsa_with_crldp = _certificate(
+            self.tsa_name,
+            self.ca_name,
+            self.tsa_key.public_key(),
+            self.ca_key,
+            9201,
+            is_ca=False,
+            timestamp_signer=True,
+            crl_distribution_points=True,
+        )
+        tsa_pem = tsa_with_crldp.public_bytes(serialization.Encoding.PEM)
+        tsa_key_pem = self.tsa_key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.TraditionalOpenSSL,
+            serialization.NoEncryption(),
+        )
+        tsa_dp_cert_path = self.root / "tsa-dp.pem"
+        tsa_dp_key_path = self.root / "tsa-dp.key"
+        tsa_dp_cert_path.write_bytes(tsa_pem)
+        tsa_dp_key_path.write_bytes(tsa_key_pem)
+        config = (self.root / "tsa.cnf").read_text(encoding="utf-8")
+        config = config.replace("tsa.pem", "tsa-dp.pem").replace(
+            "tsa.key", "tsa-dp.key"
+        ).replace("serial", "serial-dp")
+        (self.root / "tsa-dp.cnf").write_text(config, encoding="utf-8")
+        (self.root / "serial-dp").write_text("01\n", encoding="ascii")
+        request = self.root / "request-dp.tsq"
+        response = self.root / "response-dp.tsr"
+        token = self.root / "token-dp.der"
+        self._run([
+            self.openssl, "ts", "-query", "-data", str(self.data_path),
+            "-sha256", "-cert", "-out", str(request),
+        ])
+        self._run([
+            self.openssl, "ts", "-reply", "-config", str(self.root / "tsa-dp.cnf"),
+            "-queryfile", str(request), "-out", str(response),
+        ])
+        self._run([
+            self.openssl, "ts", "-reply", "-in", str(response),
+            "-token_out", "-out", str(token),
+        ])
+        timestamp_result = verify_rfc3161_timestamp(
+            token.read_bytes(), self.data, self.ca_pem, self.pin,
+            intermediates_pem=tsa_pem, openssl_binary=self.openssl,
+        )
+        crl_der = self._build_tsa_crl()
+        with self.assertRaisesRegex(ValueError, "CRL distribution-point scope matching is unsupported"):
+            verify_tsa_crl_evidence(
+                timestamp_result, tsa_pem, self.ca_pem, crl_der
+            )
+
     def test_crl_with_partial_reason_scope_is_rejected(self):
         timestamp_result = self._verified_timestamp_result()
         idp = x509.IssuingDistributionPoint(
@@ -492,7 +560,7 @@ ess_cert_id_chain = no
         responder_cert=None, responder_encoding=ocsp.OCSPResponderEncoding.NAME,
         included_certificates=None, this_update=None, next_update=None,
         omit_next_update=False, extra_response_extension=None,
-        certid_hash_algorithm=hashes.SHA256(),
+        certid_hash_algorithm=hashes.SHA256(), additional_response_cert=None,
     ):
         issuer = x509.load_pem_x509_certificate(self.ca_pem)
         tsa = cert or x509.load_pem_x509_certificate(self.tsa_pem)
@@ -521,6 +589,17 @@ ess_cert_id_chain = no
             builder = builder.add_extension(x509.OCSPNonce(nonce), critical=False)
         if extra_response_extension is not None:
             builder = builder.add_extension(extra_response_extension, critical=False)
+        if additional_response_cert is not None:
+            builder = builder.add_response(
+                cert=additional_response_cert,
+                issuer=issuer,
+                algorithm=certid_hash_algorithm,
+                cert_status=ocsp.OCSPCertStatus.GOOD,
+                this_update=this_update,
+                next_update=next_update,
+                revocation_time=None,
+                revocation_reason=None,
+            )
         if included_certificates is not None:
             builder = builder.certificates(included_certificates)
         response = builder.sign(
@@ -586,6 +665,21 @@ ess_cert_id_chain = no
             "CERTIFICATE_HOLD_REPORTED_TARGET_STATUS_NOT_ESTABLISHED",
         )
         self.assertEqual(result["historical_revocation_assurance"], "NOT_ESTABLISHED")
+
+    def test_multiple_ocsp_single_responses_are_rejected(self):
+        timestamp_result = self._verified_timestamp_result()
+        other_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        other_tsa = _certificate(
+            self.ca_name, self.ca_name, other_key.public_key(),
+            self.ca_key, 9202, is_ca=False,
+        )
+        response_der = self._build_tsa_ocsp_response(
+            additional_response_cert=other_tsa
+        )
+        with self.assertRaisesRegex(ValueError, "exactly one OCSP SingleResponse"):
+            verify_tsa_ocsp_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem, response_der
+            )
 
     def test_ocsp_unknown_status_is_not_promoted_to_good(self):
         timestamp_result = self._verified_timestamp_result()
