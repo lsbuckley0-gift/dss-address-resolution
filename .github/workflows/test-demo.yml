@@ -30,6 +30,7 @@ jobs:
           python -m json.tool experiments/schemas/registration-evidence-v1.schema.json > /dev/null
           python -m json.tool experiments/schemas/audit-event-chain-v1.schema.json > /dev/null
           python -m json.tool experiments/schemas/audit-chain-checkpoint-v1.schema.json > /dev/null
+          python -m json.tool experiments/schemas/audit-chain-checkpoint-series-v1.schema.json > /dev/null
       - name: Run paired pilot metrics fixture
         run: python experiments/pilot_metrics.py experiments/fixtures/paired-pilot-synthetic-v1.json --json-out /tmp/paired-pilot-report.json
       - name: Run legacy fuzzy comparison harness
