@@ -36,6 +36,8 @@ The binding record must include, at minimum:
 - certificate validity interval;
 - the token signer-certificate selection result and the chain context used to reach the caller's trust anchor.
 
+The bound issuer must also be a CA with an explicit `keyCertSign` KeyUsage bit. A matching subject, AKI, certificate digest or CA BasicConstraints value is not a substitute for certificate-signing authority. CRL signing (`cRLSign`) and direct OCSP response signing (`digitalSignature`) remain separate, evidence-specific authorizations.
+
 A serial number alone is insufficient: serial numbers are unique only within an issuer context. An evidence item for a different certificate, issuer key, chain or token signer must be rejected, not treated as a near match.
 
 The evidence must not be allowed to nominate a different TSA certificate from the one actually used to verify the token.
