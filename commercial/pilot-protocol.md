@@ -109,8 +109,10 @@ Each case has a unique pseudonymous case_id, gold_candidate_id (a candidate ID
 or null when no unique answer exists), and baseline/dss decision objects.
 Each decision contains terminal_state (VERIFIED, CORRECTED or UNRESOLVED),
 selected_candidate_id (null only when unresolved), trace_complete (boolean),
-and optional non-negative latency_ms and review_seconds. Review time is only
-valid for unresolved cases. Do not include raw addresses or customer identifiers.
+and a required review_routed boolean, plus optional non-negative latency_ms and
+review_seconds. Only unresolved cases may be routed to review, and a review time
+requires review_routed=true. The report separates routed-case count from review-time
+measurement coverage. Do not include raw addresses or customer identifiers.
 
 The evaluator rejects duplicate case IDs, invalid states, accepted decisions
 without a candidate, unresolved decisions with a selected candidate, malformed
