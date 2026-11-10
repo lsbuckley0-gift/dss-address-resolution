@@ -258,6 +258,12 @@ ess_cert_id_chain = no
         )
         self.assertEqual(result["crl_signature"], "VALID")
         self.assertEqual(result["crl_scope"], "DIRECT_COMPLETE_ALL_REASONS_ONLY")
+        self.assertEqual(result["crl_der_sha256"], hashlib.sha256(crl_der).hexdigest())
+        self.assertTrue(result["crl_time_window_covers_target"])
+        self.assertEqual(
+            result["evidence_time_basis"],
+            "ISSUER_ASSERTED_CRL_THIS_UPDATE_NEXT_UPDATE",
+        )
         self.assertEqual(result["status_at_target_time"], "NOT_LISTED_AT_CRL_THIS_UPDATE")
         self.assertEqual(result["historical_revocation_assurance"], "NOT_ESTABLISHED")
         self.assertIn("NOT_PROOF_OF_HISTORICAL_NON_REVOCATION", result["absence_interpretation"])
