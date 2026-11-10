@@ -171,13 +171,29 @@ ess_cert_id_chain = no
         self.assertEqual(result["tsa_certificate_revocation"], "NOT_CHECKED")
         self.assertEqual(result["historical_revocation_assurance"], "NOT_ESTABLISHED")
         self.assertEqual(result["tsa_signer_certificate_identity"], "EXTRACTED")
+        extracted_identity = result["tsa_signer_certificate"]
+        tsa_certificate = x509.load_pem_x509_certificate(self.tsa_pem)
         self.assertEqual(
-            result["tsa_signer_certificate"]["certificate_der_sha256"],
-            hashlib.sha256(self.tsa_pem and x509.load_pem_x509_certificate(self.tsa_pem).public_bytes(serialization.Encoding.DER)).hexdigest(),
+            extracted_identity["certificate_der_sha256"],
+            hashlib.sha256(
+                tsa_certificate.public_bytes(serialization.Encoding.DER)
+            ).hexdigest(),
         )
         self.assertEqual(
-            result["tsa_signer_certificate"]["serial_hex"],
-            format(x509.load_pem_x509_certificate(self.tsa_pem).serial_number, "x"),
+            extracted_identity["issuer_name_der_sha256"],
+            hashlib.sha256(tsa_certificate.issuer.public_bytes()).hexdigest(),
+        )
+        issuer_spki = tsa_certificate.public_key().public_bytes(
+            serialization.Encoding.DER,
+            serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        self.assertEqual(
+            extracted_identity["issuer_spki_sha256"],
+            hashlib.sha256(issuer_spki).hexdigest(),
+        )
+        self.assertEqual(
+            extracted_identity["serial_hex"],
+            format(tsa_certificate.serial_number, "x"),
         )
 
     def test_signer_extraction_failure_does_not_upgrade_revocation_or_invalidate_token(self):
