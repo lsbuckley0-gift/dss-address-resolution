@@ -9,6 +9,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from experiments.rfc3161_anchor_provenance import (
     canonical_provenance_payload,
     verify_timestamp_anchor_provenance,
+    verify_rfc3161_timestamp_with_provenance,
 )
 
 
@@ -140,6 +141,35 @@ class TimestampAnchorProvenanceTests(unittest.TestCase):
                 self.anchor, changed, self.envelope, self.store,
                 at_utc="2026-11-10T13:00:00Z", minimum_sequence=4,
             )
+
+
+    def test_composite_verification_checks_provenance_before_timestamp(self):
+        from unittest.mock import patch
+        with patch("experiments.rfc3161_timestamp.verify_rfc3161_timestamp") as timestamp:
+            timestamp.return_value = {"timestamp_verification": "VALID", "message_imprint": "MATCH"}
+            result = verify_rfc3161_timestamp_with_provenance(
+                b"token", b"payload", self.anchor,
+                {"sha256": hashlib.sha256(self.anchor).hexdigest(), "source_reference": "operator pin"},
+                self.attestation, self.envelope, self.store,
+                at_utc="2026-11-10T13:00:00Z", minimum_sequence=4,
+            )
+        self.assertEqual(result["combined_verification"], "VALID_RELATIVE_TO_CALLER_GOVERNANCE_STORE")
+        self.assertEqual(result["governance_authentication"], "NOT_ESTABLISHED")
+        timestamp.assert_called_once()
+
+    def test_composite_verification_never_checks_timestamp_after_provenance_failure(self):
+        from unittest.mock import patch
+        bad_anchor = self.anchor + b"changed"
+        with patch("experiments.rfc3161_timestamp.verify_rfc3161_timestamp") as timestamp:
+            result = verify_rfc3161_timestamp_with_provenance(
+                b"token", b"payload", bad_anchor,
+                {"sha256": hashlib.sha256(bad_anchor).hexdigest(), "source_reference": "operator pin"},
+                self.attestation, self.envelope, self.store,
+                at_utc="2026-11-10T13:00:00Z", minimum_sequence=4,
+            )
+        self.assertEqual(result["combined_verification"], "PROVENANCE_NOT_VERIFIED")
+        self.assertEqual(result["timestamp_evidence"]["timestamp_verification"], "NOT_PERFORMED")
+        timestamp.assert_not_called()
 
 
 if __name__ == "__main__":
