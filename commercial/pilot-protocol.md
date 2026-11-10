@@ -533,3 +533,29 @@ authenticate those references or the actors who supplied them.
 This is tamper evidence for a retained sequence, not tamper-proof storage.
 Preserve the original event source separately; do not treat a regenerated
 chain as an independent witness to its own history.
+
+### Comparing an external checkpoint
+
+`verify_external_checkpoint` compares the retained event chain with a separate
+checkpoint record conforming to
+`experiments/schemas/audit-chain-checkpoint-v1.schema.json`. The checkpoint
+binds the registration event ID, a sequence number and the digest at that
+sequence to an anchor reference and claimed UTC anchor time. It may point to
+an earlier event while the local chain contains later events. If the retained
+chain ends before the checkpoint sequence, the comparison reports a mismatch;
+if the digest or registration identity differs, it also reports a mismatch.
+
+Supply the record to the read-only verifier with:
+
+```bash
+python -m experiments.audit_event_chain events.json --checkpoint checkpoint.json
+```
+
+A matching checkpoint means the supplied chain contains the same event digest
+at the declared sequence and registration identity. The timestamp comparison
+only checks that the claimed anchor time is not earlier than the event time.
+The result always says `anchor_authentication: NOT_VERIFIED`: the verifier
+does not validate a signature, trusted timestamp token, authority identity or
+independent storage. A checkpoint only protects the prefix up to its sequence;
+later truncation requires a later independently retained checkpoint. This is
+the comparison interface for external anchoring, not an anchoring service.
