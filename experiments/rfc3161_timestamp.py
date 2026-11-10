@@ -130,12 +130,6 @@ def verify_rfc3161_timestamp(
             "event_truth": "NOT_ESTABLISHED",
             "tsa_certificate_revocation": "NOT_CHECKED",
             "historical_revocation_assurance": "NOT_ESTABLISHED",
-            "tsa_certificate_revocation": "NOT_CHECKED",
-            "historical_revocation_assurance": "NOT_ESTABLISHED",
-            "tsa_certificate_revocation": "NOT_CHECKED",
-            "historical_revocation_assurance": "NOT_ESTABLISHED",
-            "tsa_certificate_revocation": "NOT_CHECKED",
-            "historical_revocation_assurance": "NOT_ESTABLISHED",
         }
 
     try:
@@ -176,6 +170,8 @@ def verify_rfc3161_timestamp(
             "message_imprint": "NOT_PERFORMED",
             "trust_anchor": pin_result,
             "error": "OpenSSL executable was not found.",
+            "tsa_certificate_revocation": "NOT_CHECKED",
+            "historical_revocation_assurance": "NOT_ESTABLISHED",
             "timestamp_authentication": "NOT_ESTABLISHED",
             "event_truth": "NOT_ESTABLISHED",
         }
@@ -186,6 +182,8 @@ def verify_rfc3161_timestamp(
             "message_imprint": "NOT_COMPLETED",
             "trust_anchor": pin_result,
             "error": "OpenSSL timestamp verification timed out.",
+            "tsa_certificate_revocation": "NOT_CHECKED",
+            "historical_revocation_assurance": "NOT_ESTABLISHED",
             "timestamp_authentication": "NOT_ESTABLISHED",
             "event_truth": "NOT_ESTABLISHED",
         }
@@ -196,6 +194,8 @@ def verify_rfc3161_timestamp(
             "message_imprint": "NOT_VERIFIED",
             "trust_anchor": pin_result,
             "error": str(exc),
+            "tsa_certificate_revocation": "NOT_CHECKED",
+            "historical_revocation_assurance": "NOT_ESTABLISHED",
             "timestamp_authentication": "NOT_ESTABLISHED",
             "event_truth": "NOT_ESTABLISHED",
         }
