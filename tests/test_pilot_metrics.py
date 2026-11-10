@@ -1060,5 +1060,49 @@ class AuditEventChainTests(unittest.TestCase):
         self.assertIsNone(re.fullmatch(pattern, "2026-10-01T09:00:00+00:00"))
 
 
+    def test_non_string_event_type_and_non_integer_sequence_are_rejected(self):
+        malformed_type = [dict(event) for event in self.events]
+        malformed_type[1]["event_type"] = []
+        with self.assertRaisesRegex(ValueError, "unsupported event_type"):
+            verify_event_chain(malformed_type)
+        malformed_sequence = [dict(event) for event in self.events]
+        malformed_sequence[1]["sequence"] = 1.0
+        with self.assertRaisesRegex(ValueError, "non-contiguous sequence"):
+            verify_event_chain(malformed_sequence)
+
+    def test_event_chain_cli_verifies_complete_chain_without_mutating_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "events.json"
+            original = json.dumps(self.events, indent=2)
+            path.write_text(original, encoding="utf-8")
+            completed = subprocess.run(
+                [sys.executable, "-m", "experiments.audit_event_chain", str(path)],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            report = json.loads(completed.stdout)
+            self.assertEqual(report["required_event_sequence"], "COMPLETE")
+            self.assertEqual(path.read_text(encoding="utf-8"), original)
+
+    def test_event_chain_cli_returns_nonzero_for_incomplete_prefix(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "events.json"
+            path.write_text(json.dumps(self.events[:2]), encoding="utf-8")
+            completed = subprocess.run(
+                [sys.executable, "-m", "experiments.audit_event_chain", str(path)],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(completed.returncode, 1)
+            self.assertEqual(json.loads(completed.stdout)["required_event_sequence"], "INCOMPLETE")
+
+    def test_event_chain_timestamp_precision_is_bounded_to_microseconds(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        schema_path = repo_root / "experiments" / "schemas" / "audit-event-chain-v1.schema.json"
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        pattern = schema["items"]["properties"]["occurred_at_utc"]["pattern"]
+        self.assertIsNotNone(re.fullmatch(pattern, "2026-10-01T09:00:00.123456Z"))
+        self.assertIsNone(re.fullmatch(pattern, "2026-10-01T09:00:00.1234567Z"))
+
+
 if __name__ == "__main__":
     unittest.main()
