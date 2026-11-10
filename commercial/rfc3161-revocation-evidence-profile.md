@@ -158,7 +158,7 @@ No runtime support should be added until the following gates are satisfied:
 
 The first implementation slice should be deliberately narrow: one complete direct CRL profile and one issuer-signed OCSP profile, each with an explicit policy and independently verified synthetic fixtures. Do not add indirect/delta CRLs or delegated OCSP responders until their additional authorization and scope rules have dedicated coverage.
 
-## 9. Standards references
+## 10. Standards references
 
 - RFC 5280, *Internet X.509 Public Key Infrastructure Certificate and Certificate Revocation List (CRL) Profile*, especially CRL fields, scope, distribution points, indirect CRLs and delta CRLs: https://www.rfc-editor.org/rfc/rfc5280
 - RFC 6960, *X.509 Internet Public Key Infrastructure Online Certificate Status Protocol (OCSP)*, especially response time semantics, CertID, responder authorization and status values: https://www.rfc-editor.org/rfc/rfc6960
