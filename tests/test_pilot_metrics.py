@@ -6,7 +6,7 @@ from experiments.pilot_metrics import evaluate
 def decision(state, selected=None, complete=True, latency=None, review=None):
     return {"terminal_state": state, "selected_candidate_id": selected,
             "trace_complete": complete, "latency_ms": latency,
-            "review_seconds": review}
+            "review_seconds": review, "review_routed": review is not None}
 
 
 class PilotMetricsTests(unittest.TestCase):
@@ -40,6 +40,8 @@ class PilotMetricsTests(unittest.TestCase):
         self.assertEqual(baseline["latency_p95_ms_nearest_rank"], 20)
         self.assertEqual(report["systems"]["dss"]["unresolved"], 2)
         self.assertEqual(report["systems"]["dss"]["median_review_seconds"], 40)
+        self.assertEqual(report["systems"]["dss"]["review_routed_cases"], 2)
+        self.assertEqual(report["systems"]["dss"]["review_time_measurement_coverage"], 1.0)
 
     def test_zero_acceptances_has_null_rate_and_interval(self):
         data = {"cases": [
@@ -62,6 +64,24 @@ class PilotMetricsTests(unittest.TestCase):
              "dss": decision("VERIFIED", "A", complete=1)}
         ]}
         with self.assertRaisesRegex(ValueError, "trace_complete must be boolean"):
+            evaluate(data)
+
+    def test_review_time_requires_explicit_review_routing(self):
+        data = {"cases": [
+            {"case_id": "c1", "gold_candidate_id": "A",
+             "baseline": decision("UNRESOLVED", review=12),
+             "dss": decision("UNRESOLVED")}
+        ]}
+        with self.assertRaisesRegex(ValueError, "review_seconds requires review_routed=true"):
+            evaluate(data)
+
+    def test_only_unresolved_cases_can_be_routed_to_review(self):
+        data = {"cases": [
+            {"case_id": "c1", "gold_candidate_id": "A",
+             "baseline": decision("VERIFIED", "A"),
+             "dss": dict(decision("VERIFIED", "A"), review_routed=True)}
+        ]}
+        with self.assertRaisesRegex(ValueError, "only unresolved cases"):
             evaluate(data)
 
     def test_duplicate_case_ids_are_rejected(self):
