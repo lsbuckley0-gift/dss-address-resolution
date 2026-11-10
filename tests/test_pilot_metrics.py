@@ -185,7 +185,7 @@ class PilotMetricsTests(unittest.TestCase):
             report = json.loads(completed.stdout)
             self.assertEqual(json.loads(output_path.read_text(encoding="utf-8")), report)
         self.assertEqual(report["dataset_id"], "paired-pilot-synthetic")
-        self.assertEqual(report["report_version"], "paired-pilot-metrics/1.8")
+        self.assertEqual(report["report_version"], "paired-pilot-metrics/1.9")
         self.assertEqual(report["case_count"], 4)
         self.assertEqual(set(report["stratum_metrics"]), {"EXACT", "TYPO", "FORMATTING_ONLY", "CONFLICTING"})
         self.assertEqual(report["stratum_metrics"]["TYPO"]["case_count"], 1)
@@ -235,6 +235,57 @@ class PilotMetricsTests(unittest.TestCase):
         )
         self.assertEqual(matrix["FALSE_ACCEPT"]["FALSE_REJECT"], 1)
         self.assertEqual(matrix["FALSE_ACCEPT"]["CORRECT_ABSTENTION"], 1)
+
+    def test_paired_class_comparisons_report_exact_discordance_and_direction(self):
+        report = evaluate(self.data)
+        comparisons = report["paired_class_comparisons"]["outcomes"]
+        false_accept = comparisons["FALSE_ACCEPT"]
+        self.assertEqual(false_accept["case_count"], 3)
+        self.assertEqual(false_accept["baseline_only"], 2)
+        self.assertEqual(false_accept["dss_only"], 0)
+        self.assertEqual(false_accept["baseline_and_dss"], 0)
+        self.assertEqual(false_accept["neither"], 1)
+        self.assertEqual(false_accept["discordant_case_count"], 2)
+        self.assertAlmostEqual(
+            false_accept["prevalence_difference_dss_minus_baseline"], -2 / 3
+        )
+        self.assertEqual(false_accept["exact_mcnemar_p_value_two_sided"], 0.5)
+        self.assertEqual(
+            comparisons["FALSE_REJECT"]["exact_mcnemar_p_value_two_sided"], 1.0
+        )
+        self.assertEqual(
+            report["stratum_metrics"]["UNSPECIFIED"]["paired_class_comparisons"]["outcomes"]["FALSE_ACCEPT"]["baseline_only"],
+            2,
+        )
+
+    def test_exact_mcnemar_probability_for_six_one_directional_discordances(self):
+        cases = []
+        for index in range(6):
+            cases.append({
+                "case_id": "ambiguous-" + str(index),
+                "gold_candidate_id": None,
+                "baseline": decision("VERIFIED", "wrong-" + str(index)),
+                "dss": decision("UNRESOLVED"),
+            })
+        comparisons = evaluate(pilot_data(cases))["paired_class_comparisons"]["outcomes"]
+        false_accept = comparisons["FALSE_ACCEPT"]
+        self.assertEqual(false_accept["baseline_only"], 6)
+        self.assertEqual(false_accept["dss_only"], 0)
+        self.assertAlmostEqual(
+            false_accept["exact_mcnemar_p_value_two_sided"], 0.03125
+        )
+
+    def test_paired_class_comparison_partitions_each_stratum(self):
+        report = evaluate(self.data)
+        for stratum in report["stratum_metrics"].values():
+            for comparison in stratum["paired_class_comparisons"]["outcomes"].values():
+                self.assertEqual(
+                    comparison["baseline_and_dss"]
+                    + comparison["baseline_only"]
+                    + comparison["dss_only"]
+                    + comparison["neither"],
+                    stratum["case_count"],
+                )
 
     def test_false_reject_rate_is_null_without_unique_gold_cases(self):
         data = pilot_data([
