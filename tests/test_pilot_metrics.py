@@ -899,6 +899,17 @@ class RegistrationEvidenceTests(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, "ISO 8601 UTC|valid UTC"):
                         verify_registration_evidence(self.endpoint, record)
 
+    def test_six_digit_fractional_timestamps_preserve_strict_chronology(self):
+        record = dict(
+            self.record,
+            registered_at_utc="2026-10-01T09:00:00.123456Z",
+            outcomes_accessed_at_utc="2026-10-01T09:00:00.123457Z",
+            analysis_started_at_utc="2026-10-01T09:00:00.123458Z",
+        )
+        result = verify_registration_evidence(self.endpoint, record)
+        self.assertEqual(result["claimed_chronology"], "REGISTERED_BEFORE_OUTCOME_ACCESS")
+        self.assertEqual(result["claimed_analysis_order"], "ANALYSIS_STRICTLY_AFTER_OUTCOME_ACCESS")
+
     def test_unknown_or_missing_record_fields_are_rejected(self):
         with self.assertRaisesRegex(ValueError, "unsupported field"):
             verify_registration_evidence(self.endpoint, dict(self.record, outcome="WIN"))
