@@ -104,7 +104,7 @@ python experiments/pilot_metrics.py path/to/paired-pilot.json --json-out pilot-r
 python -m unittest discover -s tests -v
 ```
 
-The input is a JSON object with non-empty dataset_id and dataset_version strings and a cases array; both provenance fields are mandatory.
+The input is a JSON object with non-empty dataset_id and dataset_version strings and a cases array; both provenance fields are mandatory. The versioned [JSON Schema](../experiments/schemas/paired-pilot-input-v1.schema.json) publishes the machine-readable input contract, while the evaluator performs its own runtime validation.
 Each case has a unique pseudonymous case_id, an explicitly present gold_candidate_id
 (candidate ID or null when no unique answer exists), and baseline/dss decision
 objects. A missing gold_candidate_id is invalid; it is never inferred to mean
