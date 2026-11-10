@@ -210,7 +210,7 @@ class PilotMetricsTests(unittest.TestCase):
             matrix["CORRECT_AUTO_RESOLUTION"]["CORRECT_AUTO_RESOLUTION"], 1
         )
         self.assertEqual(matrix["FALSE_ACCEPT"]["FALSE_REJECT"], 1)
-        self.assertEqual(matrix["FALSE_REJECT"]["CORRECT_ABSTENTION"], 1)
+        self.assertEqual(matrix["FALSE_ACCEPT"]["CORRECT_ABSTENTION"], 1)
 
     def test_false_reject_rate_is_null_without_unique_gold_cases(self):
         data = pilot_data([
