@@ -156,6 +156,45 @@ plumbing and metric-definition check only; its deliberately small outcomes
 are not evidence of comparative real-world performance. The unit suite runs
 this CLI fixture and checks that stdout and the written JSON report agree.
 
+
+## Pilot ground-truth and pre-registration gate
+
+Do not score a held-out pilot until its identity labels and evaluation rules are
+fixed. A defensible protocol should record the following before either system
+is run against the held-out cases:
+
+1. **Identity unit:** define what one gold candidate represents (for example,
+   a delivery point, premise or customer-authorised destination). Do not let
+   the meaning vary between cases.
+2. **Authority and snapshot:** name the lawful source of truth, its version or
+   snapshot date, the authority hierarchy for conflicting records and the
+   permitted evidence for deciding identity.
+3. **Adjudication:** have two reviewers label cases independently against the
+   declared evidence; send disagreements to a named adjudication process and
+   retain the reason for the final label. A null `gold_candidate_id` means
+   adjudicators have concluded that no unique answer exists. It must not mean
+   missing, unavailable or unfinished labelling; exclude unadjudicated cases
+   from the scored set rather than converting them to null.
+4. **Separation:** freeze the gold labels before scoring. Keep any mapping from
+   pseudonymous case IDs to source records outside this repository, under the
+   data controller's access and retention rules. Neither system should receive
+   the gold labels as decision inputs.
+5. **Paired execution:** run baseline and ∂ss on the same case set and declared
+   input fields. Record software/ruleset versions, configuration, thresholds
+   and run dates; do not tune against the held-out labels.
+6. **Sampling plan:** predeclare the population, inclusion/exclusion rules,
+   sample size and relevant strata (such as exact, formatting-only, typo,
+   duplicate, conflicting, incomplete and stale records). Report each stratum
+   separately where the sample supports it.
+7. **Decision costs:** agree the operational consequences and relative costs
+   of false acceptance, false rejection, correct abstention and human review.
+   Set minimum coverage, maximum error rates, review burden and confidence
+   requirements before opening the held-out results.
+
+The synthetic fixture does not satisfy these requirements. It tests metric
+plumbing and definitions only; it is not a substitute for an adjudicated,
+representative pilot dataset.
+
 The evaluator does not decide whether a pilot passes. Risk thresholds, minimum
 coverage, acceptable review burden, dataset strata, label adjudication and
 confidence requirements must be agreed before opening the held-out set.
