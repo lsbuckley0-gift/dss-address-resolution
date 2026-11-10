@@ -274,6 +274,16 @@ class CheckpointSignatureTests(unittest.TestCase):
                 ])
             self.assertEqual(code, 1)
 
+    def test_cli_requires_complete_timestamp_verification_inputs(self):
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as raised:
+                audit_chain_main([
+                    "events.json", "--signed-checkpoint", "checkpoint.json",
+                    "--signature", "signature.json", "--trust-store", "trust.json",
+                    "--at-utc", "2026-11-10T10:04:00Z", "--timestamp-token", "token.der",
+                ])
+        self.assertEqual(raised.exception.code, 2)
+
     def test_cli_requires_all_signed_checkpoint_inputs(self):
         with contextlib.redirect_stderr(io.StringIO()):
             with self.assertRaises(SystemExit) as raised:
