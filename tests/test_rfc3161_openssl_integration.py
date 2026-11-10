@@ -32,7 +32,10 @@ from experiments.rfc3161_timestamp import (
 )
 from experiments.rfc3161_crl_status import verify_tsa_crl_evidence
 from experiments.rfc3161_ocsp_status import verify_tsa_ocsp_evidence
-from experiments.rfc3161_revocation_identity import check_tsa_issuer_identity
+from experiments.rfc3161_revocation_identity import (
+    check_tsa_issuer_identity,
+    require_issuer_certificate_signing_authority,
+)
 from experiments.rfc3161_anchor_provenance import (
     canonical_provenance_payload,
     verify_rfc3161_timestamp_with_provenance,
@@ -486,11 +489,8 @@ ess_cert_id_chain = no
             "tsa_asserted_gen_time_utc": "2026-11-10T13:00:00Z",
             "tsa_signer_certificate": identity,
         }
-        with self.assertRaisesRegex(ValueError, "original timestamp inputs did not re-verify"):
-            check_tsa_issuer_identity(
-                timestamp_result, tsa, issuer_without_cert_sign,
-                self._timestamp_verification_inputs(),
-            )
+        with self.assertRaisesRegex(ValueError, "not authorized for certificate signing"):
+            require_issuer_certificate_signing_authority(issuer_without_cert_sign)
 
     def test_crl_rejects_wrong_issuer_certificate_binding(self):
         timestamp_result = self._verified_timestamp_result()
