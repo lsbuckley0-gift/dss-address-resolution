@@ -1127,7 +1127,32 @@ class AuditEventChainTests(unittest.TestCase):
         result = verify_registration_chain_binding(endpoint, record, self.events)
         self.assertEqual(result["registration_chain_binding"], "MATCH")
         self.assertTrue(result["registration_event_id_matches"])
+        self.assertTrue(result["registration_event_timestamp_matches"])
         self.assertEqual(result["timestamp_verification"], "NOT_INDEPENDENTLY_VERIFIED")
+
+    def test_registration_chain_binding_rejects_timestamp_disagreement(self):
+        endpoint = {
+            "outcome_class": "FALSE_ACCEPT",
+            "expected_direction": "LOWER",
+            "analysis_population": "ALL_PAIRED_CASES",
+            "alpha": 0.05,
+            "registration_reference": "protocol-v1",
+            "frozen_before_outcomes_review": True,
+        }
+        record = {
+            "record_version": "registration-evidence/v1",
+            "registration_reference": "protocol-v1",
+            "registration_event_id": "evt-registration",
+            "endpoint_spec_sha256": _primary_endpoint_spec_sha256(endpoint),
+            "registered_at_utc": "2026-10-01T09:00:01Z",
+            "outcomes_accessed_at_utc": "2026-10-02T09:00:00Z",
+            "analysis_started_at_utc": "2026-10-02T10:00:00Z",
+            "timestamp_evidence_reference": "archive://record-17",
+        }
+        result = verify_registration_chain_binding(endpoint, record, self.events)
+        self.assertEqual(result["registration_chain_binding"], "MISMATCH")
+        self.assertTrue(result["registration_event_id_matches"])
+        self.assertFalse(result["registration_event_timestamp_matches"])
 
     def test_registration_chain_binding_rejects_a_different_event_id(self):
         endpoint = {
