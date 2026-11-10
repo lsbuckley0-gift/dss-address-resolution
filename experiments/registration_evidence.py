@@ -64,7 +64,7 @@ def verify_registration_evidence(endpoint: dict, record: dict) -> dict:
     )
     digest_matches = digest == expected_digest
     registered_before_access = registered < outcomes_accessed
-    analysis_after_access = analysis_started >= outcomes_accessed
+    analysis_after_access = analysis_started > outcomes_accessed
 
     return {
         "specification_integrity": (
@@ -77,8 +77,8 @@ def verify_registration_evidence(endpoint: dict, record: dict) -> dict:
             if registered_before_access else "NOT_REGISTERED_BEFORE_OUTCOME_ACCESS"
         ),
         "claimed_analysis_order": (
-            "ANALYSIS_AT_OR_AFTER_OUTCOME_ACCESS"
-            if analysis_after_access else "ANALYSIS_BEFORE_OUTCOME_ACCESS"
+            "ANALYSIS_STRICTLY_AFTER_OUTCOME_ACCESS"
+            if analysis_after_access else "ANALYSIS_NOT_STRICTLY_AFTER_OUTCOME_ACCESS"
         ),
         "timestamp_verification": "NOT_INDEPENDENTLY_VERIFIED",
         "timestamp_evidence_reference": record["timestamp_evidence_reference"],
