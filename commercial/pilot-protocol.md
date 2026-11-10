@@ -204,7 +204,7 @@ the baseline decision and columns classify the ∂ss decision as correct automat
 resolution, false accept, false reject or correct abstention. Every paired case
 appears in exactly one cell. This exposes case-level trade-offs—for example, a
 baseline false accept becoming a ∂ss false reject—rather than hiding them inside
-separate aggregate rates. The report format is `paired-pilot-metrics/1.5`; version 1.4 introduced the optional pre-registered sample-sufficiency result and version 1.5 adds a fail-closed count of unclassified cases. The report also groups the
+separate aggregate rates. The report format is `paired-pilot-metrics/1.6`; version 1.4 introduced the optional pre-registered sample-sufficiency result, version 1.5 added a fail-closed count of unclassified cases, and version 1.6 reports observed strata omitted from the pre-registration. The report also groups the
 same measures by case stratum. Accepted labels are `EXACT`, `FORMATTING_ONLY`,
 `TYPO`, `DUPLICATE`, `CONFLICTING`, `INCOMPLETE` and `STALE`. The input
 field is optional for compatibility; omitted labels are explicitly reported as
@@ -271,3 +271,10 @@ prevents a partially classified dataset from appearing to pass merely because
 the explicitly named strata are large enough. The evaluator still permits
 omitted strata when no sample gate is configured, preserving the earlier
 descriptive-report behaviour.
+The gate also lists any observed, classified strata that were not named in
+`required_strata` as `unassessed_strata`. Their presence forces the overall
+gate to `INSUFFICIENT`; a pre-registration cannot silently omit a category
+that appears in the scored data. Include every intended stratum in the
+pre-registered list, or revise the study design before opening held-out
+results. This is an accounting safeguard, not a claim that all strata have
+been sampled representatively.
