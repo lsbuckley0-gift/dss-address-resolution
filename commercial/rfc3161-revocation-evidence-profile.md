@@ -279,6 +279,13 @@ temporary-hold boundary.
 
 ### Verification-result contract
 
+The result schema also enforces evidence-type separation: CRL results cannot
+carry OCSP-only fields or OCSP revocation-assurance labels, and vice versa.
+Each evidence type has its own permitted time-basis and target-status
+vocabulary. Synthetic integration tests validate both real evaluator outputs
+and reject deliberately cross-labelled or mixed-evidence result objects.
+
+
 The standalone evaluator outputs are constrained by
 `experiments/schemas/rfc3161-tsa-revocation-verification-result-v1-draft.schema.json`.
 It fixes the result version, evidence type, identity-binding state, time
