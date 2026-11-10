@@ -324,5 +324,70 @@ class PilotMetricsTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "dataset_id must be a non-empty string"):
             evaluate(data)
 
+    def test_sample_sufficiency_reports_missing_and_below_minimum_strata(self):
+        data = pilot_data([
+            {"case_id": "one", "gold_candidate_id": "A", "stratum": "TYPO",
+             "baseline": decision("VERIFIED", "A"), "dss": decision("VERIFIED", "A")},
+            {"case_id": "two", "gold_candidate_id": None, "stratum": "TYPO",
+             "baseline": decision("UNRESOLVED"), "dss": decision("UNRESOLVED")},
+        ])
+        data["sample_requirements"] = {
+            "required_strata": ["TYPO", "DUPLICATE"],
+            "minimum_case_count": 3,
+            "minimum_unique_gold_case_count": 2,
+        }
+        gate = evaluate(data)["sample_sufficiency"]
+        self.assertEqual(gate["status"], "INSUFFICIENT")
+        self.assertEqual(gate["strata"]["TYPO"]["status"], "BELOW_MINIMUM")
+        self.assertEqual(gate["strata"]["TYPO"]["case_count"], 2)
+        self.assertEqual(gate["strata"]["TYPO"]["unique_gold_case_count"], 1)
+        self.assertEqual(gate["strata"]["DUPLICATE"]["status"], "MISSING")
+        self.assertIn("does not establish representative sampling", gate["interpretation"])
+
+    def test_sample_sufficiency_passes_only_when_both_count_thresholds_are_met(self):
+        data = pilot_data([
+            {"case_id": "typo-1", "gold_candidate_id": "G-1", "stratum": "TYPO",
+             "baseline": decision("VERIFIED", "G-1"), "dss": decision("VERIFIED", "G-1")},
+            {"case_id": "typo-2", "gold_candidate_id": "G-2", "stratum": "TYPO",
+             "baseline": decision("VERIFIED", "G-2"), "dss": decision("VERIFIED", "G-2")},
+            {"case_id": "typo-3", "gold_candidate_id": "G-3", "stratum": "TYPO",
+             "baseline": decision("VERIFIED", "G-3"), "dss": decision("VERIFIED", "G-3")},
+        ])
+        data["sample_requirements"] = {
+            "required_strata": ["TYPO"],
+            "minimum_case_count": 3,
+            "minimum_unique_gold_case_count": 3,
+        }
+        gate = evaluate(data)["sample_sufficiency"]
+        self.assertEqual(gate["status"], "SUFFICIENT")
+        self.assertEqual(gate["strata"]["TYPO"]["status"], "SUFFICIENT")
+
+    def test_sample_sufficiency_is_explicitly_not_configured_by_default(self):
+        gate = evaluate(self.data)["sample_sufficiency"]
+        self.assertEqual(gate["status"], "NOT_CONFIGURED")
+        self.assertIsNone(gate["requirements"])
+
+    def test_sample_requirements_reject_duplicate_or_invalid_strata(self):
+        for labels in (["TYPO", "TYPO"], ["UNSPECIFIED"], ["TYPO", 7]):
+            with self.subTest(labels=labels):
+                data = json.loads(json.dumps(self.data))
+                data["sample_requirements"] = {
+                    "required_strata": labels, "minimum_case_count": 2,
+                    "minimum_unique_gold_case_count": 1,
+                }
+                with self.assertRaisesRegex(ValueError, "required_strata"):
+                    evaluate(data)
+
+    def test_sample_requirements_reject_non_positive_or_boolean_minima(self):
+        for minimum in (0, -1, True, 1.5):
+            with self.subTest(minimum=minimum):
+                data = json.loads(json.dumps(self.data))
+                data["sample_requirements"] = {
+                    "required_strata": ["TYPO"], "minimum_case_count": minimum,
+                    "minimum_unique_gold_case_count": 1,
+                }
+                with self.assertRaisesRegex(ValueError, "minimum_case_count must be a positive integer"):
+                    evaluate(data)
+
 if __name__ == "__main__":
     unittest.main()
