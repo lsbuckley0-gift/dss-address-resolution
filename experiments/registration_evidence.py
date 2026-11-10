@@ -6,7 +6,11 @@ authenticate timestamp authorities, signatures, archives, or access logs.
 from __future__ import annotations
 
 from datetime import datetime
+import argparse
+import json
+from pathlib import Path
 import re
+import sys
 
 from experiments.pilot_metrics import _primary_endpoint_spec_sha256
 
@@ -88,3 +92,34 @@ def verify_registration_evidence(endpoint: dict, record: dict) -> dict:
             "prove that outcomes were inaccessible, or verify an append-only access log."
         ),
     }
+
+def main(argv=None) -> int:
+    """Compare a paired-pilot input with a separate registration evidence JSON file."""
+    parser = argparse.ArgumentParser(
+        description="Check endpoint fingerprint and claimed registration chronology."
+    )
+    parser.add_argument("pilot_input", help="Paired-pilot JSON containing primary_endpoint")
+    parser.add_argument("registration_record", help="Separate registration evidence JSON")
+    args = parser.parse_args(argv)
+    try:
+        pilot = json.loads(Path(args.pilot_input).read_text(encoding="utf-8"))
+        record = json.loads(Path(args.registration_record).read_text(encoding="utf-8"))
+        if not isinstance(pilot, dict) or pilot.get("primary_endpoint") is None:
+            raise ValueError("pilot input must contain a configured primary_endpoint.")
+        result = verify_registration_evidence(pilot["primary_endpoint"], record)
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
+        print(f"registration evidence error: {exc}", file=sys.stderr)
+        return 2
+
+    print(json.dumps(result, indent=2, sort_keys=True))
+    internally_consistent = (
+        result["specification_integrity"] == "MATCH"
+        and result["claimed_chronology"] == "REGISTERED_BEFORE_OUTCOME_ACCESS"
+        and result["claimed_analysis_order"] == "ANALYSIS_STRICTLY_AFTER_OUTCOME_ACCESS"
+    )
+    return 0 if internally_consistent else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+
