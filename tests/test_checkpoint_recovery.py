@@ -40,6 +40,22 @@ class CheckpointRecoveryTests(unittest.TestCase):
     def test_payload_without_receipt_is_prepared_not_accepted(self):
         result = classify_checkpoint_recovery(self.events, self.checkpoint, None)
         self.assertEqual(result["recovery_status"], "PREPARED_NOT_ACCEPTED")
+        self.assertEqual(result["rollback_floor"], "NOT_SUPPLIED")
+
+    def test_prepared_payload_below_floor_preserves_rollback_warning(self):
+        result = classify_checkpoint_recovery(
+            self.events, self.checkpoint, None, minimum_sequence=3
+        )
+        self.assertEqual(result["recovery_status"], "PREPARED_NOT_ACCEPTED")
+        self.assertEqual(result["rollback_floor"], "BELOW_FLOOR")
+        self.assertIn("below the independently supplied rollback floor", result["interpretation"])
+
+    def test_prepared_payload_meeting_floor_is_reported(self):
+        result = classify_checkpoint_recovery(
+            self.events, self.checkpoint, None, minimum_sequence=2
+        )
+        self.assertEqual(result["recovery_status"], "PREPARED_NOT_ACCEPTED")
+        self.assertEqual(result["rollback_floor"], "MEETS_FLOOR")
 
     def test_receipt_without_payload_is_not_reconstructed(self):
         result = classify_checkpoint_recovery(self.events, None, self.receipt)
