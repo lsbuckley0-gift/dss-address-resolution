@@ -317,6 +317,14 @@ class PilotMetricsTests(unittest.TestCase):
         self.assertAlmostEqual(interval[0], -0.9875, places=10)
         self.assertAlmostEqual(interval[1], 0.9875, places=10)
 
+    def test_more_stringent_primary_alpha_widens_conservative_interval(self):
+        standard = _paired_prevalence_difference_interval(2, 5, 20, alpha=0.05)
+        stringent = _paired_prevalence_difference_interval(2, 5, 20, alpha=0.01)
+        self.assertGreaterEqual(
+            stringent[1] - stringent[0],
+            standard[1] - standard[0],
+        )
+
     def test_paired_confidence_interval_is_directionally_symmetric(self):
         forward = _paired_prevalence_difference_interval(1, 6, 20)
         reverse = _paired_prevalence_difference_interval(6, 1, 20)
@@ -345,6 +353,7 @@ class PilotMetricsTests(unittest.TestCase):
         self.assertLess(assessment["endpoint"]["prevalence_difference_confidence_interval"][1], 0)
         self.assertTrue(assessment["endpoint"]["two_sided_mcnemar_p_value_at_or_below_alpha"])
         self.assertEqual(assessment["endpoint"]["case_count"], 20)
+        self.assertEqual(len(assessment["endpoint"]["endpoint_spec_sha256"]), 64)
         self.assertIn("not independently verified", assessment["interpretation"])
 
     def test_primary_endpoint_is_indeterminate_when_interval_crosses_zero(self):
