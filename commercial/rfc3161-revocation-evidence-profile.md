@@ -233,7 +233,7 @@ integration contract is added. The evaluator binds the issuer certificate to
 the prior timestamp result but does not independently re-authenticate the
 trust root. The OCSP evaluator is limited to the issuer-signed RSA/SHA-256 subset described above. Synthetic integration tests cover
 valid direct CRLs, revoked and unlisted serials, issuer mismatch, bad
-signatures, missing CRLNumber/AKI, delta and indirect CRL rejection,
+signatures, missing CRLNumber/AKI, negative CRLNumber rejection, delta and indirect CRL rejection,
 partial-reason scope, TSA CRLDistributionPoints, list-wide indirect-CRL
 `certificateIssuer` rejection (including an unrelated entry), duplicate target serials,
 `removeFromCRL`, unsupported `InvalidityDate`, temporary `certificateHold` and incompatible evidence
