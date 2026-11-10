@@ -42,6 +42,9 @@ class PilotMetricsTests(unittest.TestCase):
         self.assertEqual(report["paired_case_count"], 3)
         self.assertEqual(baseline["false_accepts"], 2)
         self.assertEqual(baseline["auto_resolved"], 3)
+        self.assertEqual(baseline["false_rejects"], 0)
+        self.assertEqual(baseline["unique_gold_cases"], 2)
+        self.assertEqual(baseline["correct_abstentions"], 0)
         self.assertAlmostEqual(baseline["false_accept_rate"], 2 / 3)
         self.assertAlmostEqual(baseline["false_accept_prevalence"], 2 / 3)
         self.assertEqual(baseline["corrections"], 1)
@@ -61,6 +64,9 @@ class PilotMetricsTests(unittest.TestCase):
         metrics = evaluate(data)["systems"]["dss"]
         self.assertIsNone(metrics["false_accept_rate"])
         self.assertIsNone(metrics["false_accept_rate_95pct_wilson"])
+        self.assertEqual(metrics["false_rejects"], 1)
+        self.assertEqual(metrics["false_reject_rate"], 1.0)
+        self.assertEqual(metrics["correct_abstentions"], 0)
 
 
 
@@ -161,21 +167,43 @@ class PilotMetricsTests(unittest.TestCase):
             report = json.loads(completed.stdout)
             self.assertEqual(json.loads(output_path.read_text(encoding="utf-8")), report)
         self.assertEqual(report["dataset_id"], "paired-pilot-synthetic")
+        self.assertEqual(report["report_version"], "paired-pilot-metrics/1.1")
         self.assertEqual(report["case_count"], 4)
 
         baseline = report["systems"]["baseline"]
         self.assertEqual(baseline["false_accepts"], 2)
         self.assertAlmostEqual(baseline["false_accept_rate"], 2 / 3)
         self.assertAlmostEqual(baseline["false_accept_prevalence"], 0.5)
+        self.assertEqual(baseline["false_rejects"], 1)
+        self.assertAlmostEqual(baseline["false_reject_rate"], 1 / 3)
+        self.assertAlmostEqual(baseline["false_reject_prevalence"], 0.25)
+        self.assertEqual(baseline["correct_abstentions"], 0)
 
         dss = report["systems"]["dss"]
         self.assertEqual(dss["false_accepts"], 0)
+        self.assertEqual(dss["false_rejects"], 1)
+        self.assertAlmostEqual(dss["false_reject_rate"], 1 / 3)
+        self.assertAlmostEqual(dss["false_reject_prevalence"], 0.25)
+        self.assertEqual(dss["correct_abstentions"], 1)
         self.assertEqual(dss["correct_corrections"], 1)
         self.assertEqual(dss["review_routed_cases"], 2)
         self.assertEqual(dss["review_cases_with_time"], 2)
         self.assertEqual(dss["median_review_seconds"], 45)
         self.assertEqual(dss["latency_p95_ms_nearest_rank"], 19)
 
+
+
+    def test_false_reject_rate_is_null_without_unique_gold_cases(self):
+        data = pilot_data([
+            {"case_id": "ambiguous", "gold_candidate_id": None,
+             "baseline": decision("UNRESOLVED"),
+             "dss": decision("UNRESOLVED")}
+        ])
+        metrics = evaluate(data)["systems"]["dss"]
+        self.assertEqual(metrics["false_rejects"], 0)
+        self.assertIsNone(metrics["false_reject_rate"])
+        self.assertIsNone(metrics["false_reject_rate_95pct_wilson"])
+        self.assertEqual(metrics["correct_abstentions"], 1)
 
     def test_undeclared_fields_are_rejected_at_every_input_level(self):
         mutations = (
