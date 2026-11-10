@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from experiments.pilot_metrics import (evaluate, _exact_mcnemar_p_value, _clopper_pearson, _paired_prevalence_difference_interval, _primary_endpoint_spec_sha256)
 from experiments.registration_evidence import verify_registration_evidence
-from experiments.audit_event_chain import append_audit_event, verify_event_chain
+from experiments.audit_event_chain import append_audit_event, verify_event_chain, verify_external_checkpoint
 
 
 def decision(state, selected=None, complete=True, latency=None, review=None):
@@ -1102,6 +1102,75 @@ class AuditEventChainTests(unittest.TestCase):
         pattern = schema["items"]["properties"]["occurred_at_utc"]["pattern"]
         self.assertIsNotNone(re.fullmatch(pattern, "2026-10-01T09:00:00.123456Z"))
         self.assertIsNone(re.fullmatch(pattern, "2026-10-01T09:00:00.1234567Z"))
+
+
+    def _checkpoint(self):
+        return {
+            "record_version": "audit-chain-checkpoint/v1",
+            "registration_event_id": self.events[0]["event_id"],
+            "checkpoint_sequence": 1,
+            "checkpoint_event_sha256": self.events[1]["event_sha256"],
+            "anchored_at_utc": "2026-10-02T09:00:01Z",
+            "anchor_reference": "external-ledger://checkpoint-1",
+        }
+
+    def test_matching_checkpoint_binds_retained_prefix_but_does_not_claim_authentication(self):
+        result = verify_external_checkpoint(self.events, self._checkpoint())
+        self.assertEqual(result["checkpoint_binding"], "MATCH")
+        self.assertEqual(result["checkpoint_time_order"], "NOT_BEFORE_EVENT")
+        self.assertEqual(result["anchor_authentication"], "NOT_VERIFIED")
+
+    def test_checkpoint_detects_digest_or_registration_identity_mismatch(self):
+        checkpoint = dict(self._checkpoint(), checkpoint_event_sha256="0" * 64)
+        result = verify_external_checkpoint(self.events, checkpoint)
+        self.assertEqual(result["checkpoint_binding"], "MISMATCH")
+        checkpoint = dict(self._checkpoint(), registration_event_id="other-registration")
+        result = verify_external_checkpoint(self.events, checkpoint)
+        self.assertEqual(result["checkpoint_binding"], "MISMATCH")
+
+    def test_checkpoint_beyond_retained_chain_exposes_missing_prefix(self):
+        checkpoint = dict(self._checkpoint(), checkpoint_sequence=9)
+        result = verify_external_checkpoint(self.events, checkpoint)
+        self.assertEqual(result["checkpoint_binding"], "MISMATCH")
+        self.assertEqual(result["checkpoint_time_order"], "NOT_COMPARABLE")
+
+    def test_checkpoint_timestamp_cannot_precede_anchored_event(self):
+        checkpoint = dict(self._checkpoint(), anchored_at_utc="2026-10-02T08:59:59Z")
+        result = verify_external_checkpoint(self.events, checkpoint)
+        self.assertEqual(result["checkpoint_time_order"], "PRECEDES_EVENT")
+
+    def test_checkpoint_rejects_unknown_fields_and_invalid_sequence(self):
+        with self.assertRaisesRegex(ValueError, "unsupported field"):
+            verify_external_checkpoint(self.events, dict(self._checkpoint(), claimed=True))
+        with self.assertRaisesRegex(ValueError, "non-negative integer"):
+            verify_external_checkpoint(self.events, dict(self._checkpoint(), checkpoint_sequence=True))
+
+    def test_checkpoint_schema_is_strict_and_uses_utc_timestamp(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        schema_path = repo_root / "experiments" / "schemas" / "audit-chain-checkpoint-v1.schema.json"
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        self.assertFalse(schema["additionalProperties"])
+        pattern = schema["properties"]["anchored_at_utc"]["pattern"]
+        self.assertIsNotNone(re.fullmatch(pattern, "2026-10-02T09:00:01.123Z"))
+        self.assertIsNone(re.fullmatch(pattern, "2026-10-02T09:00:01+00:00"))
+
+    def test_cli_fails_when_supplied_checkpoint_does_not_match(self):
+        with tempfile.TemporaryDirectory() as directory:
+            events_path = Path(directory) / "events.json"
+            checkpoint_path = Path(directory) / "checkpoint.json"
+            events_path.write_text(json.dumps(self.events), encoding="utf-8")
+            checkpoint_path.write_text(
+                json.dumps(dict(self._checkpoint(), checkpoint_event_sha256="0" * 64)),
+                encoding="utf-8",
+            )
+            completed = subprocess.run(
+                [sys.executable, "-m", "experiments.audit_event_chain",
+                 str(events_path), "--checkpoint", str(checkpoint_path)],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(completed.returncode, 1)
+            report = json.loads(completed.stdout)
+            self.assertEqual(report["external_checkpoint"]["checkpoint_binding"], "MISMATCH")
 
 
 if __name__ == "__main__":
