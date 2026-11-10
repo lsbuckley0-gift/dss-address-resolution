@@ -266,6 +266,7 @@ ess_cert_id_chain = no
 
     def _build_tsa_crl(
         self, *, revoked_at=None, signer_key=None, include_number=True,
+        crl_number=7,
         include_aki=True, delta=False, this_update=None, next_update=None,
         revocation_reason=None, invalidity_date=None, duplicate_target_entry=False,
         certificate_issuer_entry=False, unrelated_certificate_issuer_entry=False,
@@ -283,7 +284,7 @@ ess_cert_id_chain = no
             .next_update(next_update)
         )
         if include_number:
-            builder = builder.add_extension(x509.CRLNumber(7), critical=False)
+            builder = builder.add_extension(x509.CRLNumber(crl_number), critical=False)
         if include_aki:
             if crl_aki_issuer_serial is None:
                 crl_aki = x509.AuthorityKeyIdentifier.from_issuer_public_key(
@@ -429,6 +430,14 @@ ess_cert_id_chain = no
             verify_tsa_crl_evidence(
                 timestamp_result, self.tsa_pem, self.ca_pem,
                 self._build_tsa_crl(include_aki=False),
+            )
+
+    def test_negative_crl_number_is_rejected(self):
+        timestamp_result = self._verified_timestamp_result()
+        with self.assertRaisesRegex(ValueError, "CRLNumber must be a non-negative integer"):
+            verify_tsa_crl_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem,
+                self._build_tsa_crl(crl_number=-1),
             )
 
     def test_duplicate_tsa_serial_entries_are_rejected(self):
