@@ -276,6 +276,16 @@ delegated-responder rejection, stale/future intervals, revocation after the
 target, unsupported extensions, `removeFromCRL` rejection and the
 temporary-hold boundary.
 
+### Verification-result contract
+
+The standalone evaluator outputs are constrained by
+`experiments/schemas/rfc3161-tsa-revocation-verification-result-v1-draft.schema.json`.
+It fixes the result version, evidence type, identity-binding state, time
+basis, status vocabulary and evidence-specific fields. The end-to-end
+synthetic tests validate actual CRL and OCSP evaluator outputs against this
+schema. As with the input envelope, schema validity is structural only; it
+does not authenticate the issuer, evidence signature or status assertion.
+
 ## 9. Remaining integration gates
 
 The first opt-in CRL and OCSP evaluators now exist, but they are not wired into
