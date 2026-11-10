@@ -14,6 +14,9 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from cryptography import x509
+from cryptography.hazmat.primitives import serialization
+
 _PIN_FIELDS = {"sha256", "source_reference"}
 _MAX_TOKEN_BYTES = 8 * 1024 * 1024
 _MAX_CERT_BUNDLE_BYTES = 2 * 1024 * 1024
@@ -77,6 +80,65 @@ def _claimed_gen_time(token_path: Path, openssl_binary: str, timeout_seconds: in
         int(year), _MONTHS[month], int(day), int(hour), int(minute), int(second),
         tzinfo=timezone.utc,
     )
+
+
+
+def _extract_signer_certificate_identity(
+    token_path: Path,
+    directory: Path,
+    openssl_binary: str,
+    timeout_seconds: int,
+) -> dict:
+    """Extract the CMS signer certificate after timestamp verification succeeds.
+
+    CMS signature/content verification is repeated with certificate-path
+    verification disabled because the caller has already completed the stricter
+    RFC 3161 ts -verify path check. The extracted certificate is identity data,
+    not independent trust or revocation evidence.
+    """
+    signer_path = directory / "tsa-signer.pem"
+    content_path = directory / "tsa-tst-info.der"
+    completed = subprocess.run(
+        [
+            openssl_binary, "cms", "-verify", "-binary", "-inform", "DER",
+            "-in", str(token_path), "-noverify",
+            "-signer", str(signer_path), "-out", str(content_path),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=timeout_seconds,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise ValueError(
+            completed.stderr.strip()
+            or completed.stdout.strip()
+            or "OpenSSL CMS signer extraction failed."
+        )
+    if not signer_path.is_file() or not content_path.is_file():
+        raise ValueError("OpenSSL CMS verification did not produce signer identity output.")
+    signer_pem = signer_path.read_bytes()
+    if (
+        signer_pem.count(b"-----BEGIN CERTIFICATE-----") != 1
+        or signer_pem.count(b"-----END CERTIFICATE-----") != 1
+    ):
+        raise ValueError("RFC 3161 token must yield exactly one signer certificate.")
+    try:
+        certificate = x509.load_pem_x509_certificate(signer_pem)
+        certificate_der = certificate.public_bytes(serialization.Encoding.DER)
+        issuer_name_der = certificate.issuer.public_bytes()
+        issuer_spki_der = certificate.public_key().public_bytes(
+            serialization.Encoding.DER,
+            serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+    except (ValueError, TypeError) as exc:
+        raise ValueError("OpenSSL returned an unusable TSA signer certificate.") from exc
+    return {
+        "certificate_der_sha256": hashlib.sha256(certificate_der).hexdigest(),
+        "issuer_name_der_sha256": hashlib.sha256(issuer_name_der).hexdigest(),
+        "issuer_spki_sha256": hashlib.sha256(issuer_spki_der).hexdigest(),
+        "serial_hex": format(certificate.serial_number, "x"),
+    }
 
 
 def verify_rfc3161_timestamp(
@@ -163,6 +225,19 @@ def verify_rfc3161_timestamp(
                 command, capture_output=True, text=True,
                 timeout=timeout_seconds, check=False,
             )
+            signer_identity = None
+            signer_identity_error = None
+            if completed.returncode == 0:
+                try:
+                    signer_identity = _extract_signer_certificate_identity(
+                        token_path, root, openssl_binary, timeout_seconds
+                    )
+                except FileNotFoundError:
+                    signer_identity_error = "OpenSSL executable was not found for CMS signer extraction."
+                except subprocess.TimeoutExpired:
+                    signer_identity_error = "OpenSSL CMS signer extraction timed out."
+                except (OSError, ValueError) as exc:
+                    signer_identity_error = str(exc)
     except FileNotFoundError:
         return {
             "timestamp_verification": "VERIFICATION_UNAVAILABLE",
@@ -206,6 +281,12 @@ def verify_rfc3161_timestamp(
         "token_signature_and_path": "VALID" if verified else "INVALID",
         "message_imprint": "MATCH" if verified else "NOT_ESTABLISHED",
         "tsa_asserted_gen_time_utc": gen_time.isoformat().replace("+00:00", "Z"),
+        "tsa_signer_certificate_identity": (
+            "EXTRACTED" if signer_identity is not None
+            else "NOT_EXTRACTED" if verified else "NOT_ATTEMPTED"
+        ),
+        "tsa_signer_certificate": signer_identity,
+        "tsa_signer_certificate_identity_error": signer_identity_error,
         "certificate_validation_time": "TOKEN_GEN_TIME",
         "trust_anchor": pin_result,
         "anchor_provenance": "NOT_ESTABLISHED",
