@@ -432,11 +432,11 @@ ess_cert_id_chain = no
         config = config.replace("tsa.pem", "tsa-dp.pem").replace(
             "tsa.key", "tsa-dp.key"
         )
-        config = "\\n".join(
+        config = "\n".join(
             f"serial = {self.root / 'serial-dp'}"
             if line.startswith("serial = ") else line
             for line in config.splitlines()
-        ) + "\\n"
+        ) + "\n"
         (self.root / "tsa-dp.cnf").write_text(config, encoding="utf-8")
         (self.root / "serial-dp").write_text("01\n", encoding="ascii")
         request = self.root / "request-dp.tsq"
