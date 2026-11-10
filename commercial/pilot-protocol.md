@@ -649,3 +649,23 @@ claimed anchor time is true, or whether the underlying event happened. The
 combined result can be `MATCH` while authority and timestamp authentication
 remain explicitly `NOT_ESTABLISHED`. Independent trust-store governance and
 a trusted time source remain external requirements.
+
+
+Verify a signed checkpoint from files without modifying any input:
+
+```bash
+python -m experiments.audit_event_chain events.json \
+  --signed-checkpoint checkpoint.json \
+  --signature checkpoint-signature.json \
+  --trust-store audit-trust-store.json \
+  --at-utc 2026-11-10T10:04:00Z
+```
+
+All four signed-checkpoint inputs are required together. The caller supplies
+`--at-utc` explicitly; this is used only to evaluate the configured key's
+validity interval and is not treated as trusted time. Exit code `0` requires
+a complete event lifecycle, a matching checkpoint binding and a valid
+signature. Exit code `1` indicates a validly parsed but incomplete or
+mismatching chain/checkpoint/signature result; exit code `2` indicates
+malformed files or invalid arguments. The CLI emits the component results so
+a valid signature cannot conceal a failed chain binding.
