@@ -255,6 +255,11 @@ issuer-key hash and serial. The responder must be the issuing CA itself;
 delegated responder certificates are rejected. The initial signature profile
 is RSA/SHA-256 only.
 
+For `ResponderID byKey`, the SHA-1 key hash is recomputed from the issuer
+public-key BIT STRING as specified by RFC 6960; it is not taken from the
+certificate's optional SubjectKeyIdentifier extension, whose value is not a
+substitute for the protocol's responder-key hash.
+
 The response signature is verified over the BasicOCSPResponse signed bytes
 with the bound issuer key. `producedAt`, `thisUpdate` and `nextUpdate` are
 required and checked for a coherent signed interval. If an OCSP request is
