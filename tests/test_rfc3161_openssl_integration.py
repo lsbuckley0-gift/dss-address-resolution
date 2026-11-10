@@ -7,6 +7,8 @@ import base64
 import hashlib
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 import shutil
 import subprocess
 import time
@@ -469,6 +471,34 @@ ess_cert_id_chain = no
                 timestamp_result, tsa_pem, self.ca_pem, crl_der
             )
 
+    def test_crl_without_next_update_is_rejected(self):
+        timestamp_result = self._verified_timestamp_result()
+        crl_der = self._build_tsa_crl()
+        parsed = x509.load_der_x509_crl(crl_der)
+
+        class CRLWithoutNextUpdate:
+            def __init__(self, wrapped):
+                self.wrapped = wrapped
+
+            def __getattr__(self, name):
+                return getattr(self.wrapped, name)
+
+            def __iter__(self):
+                return iter(self.wrapped)
+
+            @property
+            def next_update_utc(self):
+                return None
+
+        with patch(
+            "experiments.rfc3161_crl_status.x509.load_der_x509_crl",
+            return_value=CRLWithoutNextUpdate(parsed),
+        ):
+            with self.assertRaisesRegex(ValueError, "increasing thisUpdate/nextUpdate"):
+                verify_tsa_crl_evidence(
+                    timestamp_result, self.tsa_pem, self.ca_pem, crl_der
+                )
+
     def test_unsupported_critical_crl_extension_is_rejected(self):
         timestamp_result = self._verified_timestamp_result()
         unknown = x509.UnrecognizedExtension(
@@ -691,6 +721,34 @@ ess_cert_id_chain = no
             "CERTIFICATE_HOLD_REPORTED_TARGET_STATUS_NOT_ESTABLISHED",
         )
         self.assertEqual(result["historical_revocation_assurance"], "NOT_ESTABLISHED")
+
+    def test_multiple_ocsp_single_responses_are_rejected(self):
+        timestamp_result = self._verified_timestamp_result()
+        response_der = self._build_tsa_ocsp_response()
+        parsed = ocsp.load_der_ocsp_response(response_der)
+        single = list(parsed.responses)[0]
+        multi_response = SimpleNamespace(
+            response_status=parsed.response_status,
+            certificates=parsed.certificates,
+            responder_name=parsed.responder_name,
+            responder_key_hash=parsed.responder_key_hash,
+            signature_algorithm_oid=parsed.signature_algorithm_oid,
+            signature_hash_algorithm=parsed.signature_hash_algorithm,
+            signature=parsed.signature,
+            tbs_response_bytes=parsed.tbs_response_bytes,
+            responses=[single, single],
+            extensions=parsed.extensions,
+            single_extensions=parsed.single_extensions,
+            produced_at_utc=parsed.produced_at_utc,
+        )
+        with patch(
+            "experiments.rfc3161_ocsp_status.ocsp.load_der_ocsp_response",
+            return_value=multi_response,
+        ):
+            with self.assertRaisesRegex(ValueError, "exactly one OCSP SingleResponse"):
+                verify_tsa_ocsp_evidence(
+                    timestamp_result, self.tsa_pem, self.ca_pem, response_der
+                )
 
     def test_ocsp_unknown_status_is_not_promoted_to_good(self):
         timestamp_result = self._verified_timestamp_result()
