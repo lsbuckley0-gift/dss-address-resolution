@@ -233,8 +233,10 @@ integration contract is added. The evaluator binds the issuer certificate to
 the prior timestamp result but does not independently re-authenticate the
 trust root. The OCSP evaluator is limited to the issuer-signed RSA/SHA-256 subset described above. Synthetic integration tests cover
 valid direct CRLs, revoked and unlisted serials, issuer mismatch, bad
-signatures, missing CRLNumber/AKI, delta CRL rejection and incompatible
-evidence intervals.
+signatures, missing CRLNumber/AKI, delta and indirect CRL rejection,
+partial-reason scope, TSA CRLDistributionPoints, duplicate target serials,
+`removeFromCRL`, temporary `certificateHold` and incompatible evidence
+intervals.
 
 ### Initial issuer-signed OCSP verification slice
 
@@ -289,10 +291,11 @@ that integration or any top-level positive revocation claim:
 4. Do not infer historical non-revocation from one CRL/OCSP good snapshot.
    A future historical-good claim requires authenticated history or a
    separately specified authoritative issuer assertion.
-5. Add remaining adversarial vectors for TSA certificates carrying
-   CRLDistributionPoints, malformed DER and critical-extension edge cases,
-   missing CRL nextUpdate, multiple/ambiguous OCSP SingleResponses, and
-   response/request extension combinations not yet represented in fixtures.
+5. Add remaining adversarial vectors for malformed DER and
+   critical-extension edge cases, missing CRL nextUpdate, multiple/ambiguous
+   OCSP SingleResponses, and response/request extension combinations not yet
+   represented in fixtures. TSA CRLDistributionPoints rejection is now
+   covered by a synthetic timestamp-token integration test.
    Delta CRLs and delegated OCSP responders remain rejected rather than
    partially supported.
 6. Keep synthetic fixtures self-contained; no production authority, private
