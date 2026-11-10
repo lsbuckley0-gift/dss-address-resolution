@@ -137,12 +137,14 @@ unverified identifiers claimed by the evidence. CRL and OCSP binding fields
 are distinct: CRLs bind issuer name and serial in their entries; OCSP CertID
 binds issuer-name hash, issuer-key hash, hash algorithm and serial.
 
-The schema deliberately labels parser observations as untrusted. JSON Schema
-validation checks structure only; it does not decode DER, verify the evidence
-digest against the bytes, authenticate signatures, authorize responders,
-establish CRL scope or decide certificate status. The CI workflow checks the
-schema's JSON syntax, not its cryptographic semantics. This draft is not
-consumed by the RFC 3161 runtime API.
+The schema deliberately labels parser observations as untrusted. The
+pinned Draft 2020-12 validator checks structural conditions, including the
+different CRL and OCSP identifier requirements. Tests cover valid examples,
+missing issuer/CertID bindings, unknown fields, digest syntax and UTC-time
+format. These checks do not decode DER, verify the evidence digest against the
+bytes, authenticate signatures, authorize responders, establish CRL scope or
+decide certificate status. CI also checks the schema's JSON syntax. This draft
+is not consumed by the RFC 3161 runtime API.
 
 ## 9. Implementation gates
 
