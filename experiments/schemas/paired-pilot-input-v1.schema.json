@@ -63,7 +63,8 @@
             "DUPLICATE",
             "CONFLICTING",
             "INCOMPLETE",
-            "STALE"
+            "STALE",
+            "UNSPECIFIED"
           ]
         }
       }
