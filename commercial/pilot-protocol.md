@@ -448,8 +448,9 @@ The verifier rejects missing or undeclared fields, malformed/non-UTC
 timestamps, and malformed digests. It reports whether the reference and
 scientific-specification digest match, whether the claimed registration time
 precedes outcome access, and whether analysis began at or after that access.
-The intended order is strict for registration: registration must precede
-outcome access. Analysis may begin at the same recorded instant as access.
+The intended order is strict: registration must precede outcome access, and
+analysis must have a strictly later timestamp than outcome access. Equal
+recorded timestamps are indeterminate at the available timestamp precision.
 
 **Critical boundary:** these are chronology claims, not authenticated facts.
 The verifier always emits
