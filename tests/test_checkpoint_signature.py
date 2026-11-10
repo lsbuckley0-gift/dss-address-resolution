@@ -14,10 +14,10 @@ from experiments.checkpoint_signature import (
 PURPOSE = "AUDIT_CHAIN_CHECKPOINT"
 
 
-def chain():
+def chain(registration_event_id="reg-1"):
     events = []
     for event_id, event_type, timestamp in [
-        ("reg-1", "REGISTRATION_FROZEN", "2026-11-10T10:00:00Z"),
+        (registration_event_id, "REGISTRATION_FROZEN", "2026-11-10T10:00:00Z"),
         ("access-1", "OUTCOME_ACCESS", "2026-11-10T10:01:00Z"),
         ("analysis-1", "ANALYSIS_STARTED", "2026-11-10T10:02:00Z"),
     ]:
@@ -113,8 +113,7 @@ class CheckpointSignatureTests(unittest.TestCase):
         self.assertEqual(result["key_eligibility"], "KEY_NOT_ACTIVE")
 
     def test_wrong_registration_binding_fails_even_with_valid_signature(self):
-        altered_events = list(self.events)
-        altered_events[0] = dict(altered_events[0], event_id="other-registration")
+        altered_events = chain("other-registration")
         # Re-signing the checkpoint cannot make its registration identity match.
         result = verify_signed_checkpoint(
             altered_events, self.checkpoint, self.envelope, self.store,
