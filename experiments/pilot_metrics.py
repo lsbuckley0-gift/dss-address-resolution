@@ -12,6 +12,12 @@ from pathlib import Path
 
 STATES = {"VERIFIED", "CORRECTED", "UNRESOLVED"}
 SYSTEMS = ("baseline", "dss")
+OUTCOME_CLASSES = (
+    "CORRECT_AUTO_RESOLUTION",
+    "FALSE_ACCEPT",
+    "FALSE_REJECT",
+    "CORRECT_ABSTENTION",
+)
 
 
 def _wilson(successes: int, total: int, z: float = 1.959963984540054):
@@ -110,6 +116,26 @@ def _validate(data):
                 raise ValueError(f"{prefix}.{system}: review_seconds requires review_routed=true.")
 
 
+def _outcome_class(case, system):
+    decision = case[system]
+    if decision["terminal_state"] == "UNRESOLVED":
+        return "FALSE_REJECT" if case["gold_candidate_id"] is not None else "CORRECT_ABSTENTION"
+    if (case["gold_candidate_id"] is not None and
+            decision["selected_candidate_id"] == case["gold_candidate_id"]):
+        return "CORRECT_AUTO_RESOLUTION"
+    return "FALSE_ACCEPT"
+
+
+def _paired_outcome_matrix(cases):
+    matrix = {
+        baseline: {dss: 0 for dss in OUTCOME_CLASSES}
+        for baseline in OUTCOME_CLASSES
+    }
+    for case in cases:
+        matrix[_outcome_class(case, "baseline")][_outcome_class(case, "dss")] += 1
+    return matrix
+
+
 def _system_metrics(cases, system):
     total = len(cases)
     accepted = [c for c in cases if c[system]["terminal_state"] != "UNRESOLVED"]
@@ -167,18 +193,20 @@ def evaluate(data):
     _validate(data)
     cases = data["cases"]
     return {
-        "report_version": "paired-pilot-metrics/1.1",
+        "report_version": "paired-pilot-metrics/1.2",
         "dataset_id": data.get("dataset_id"),
         "dataset_version": data.get("dataset_version"),
         "case_count": len(cases),
         "systems": {system: _system_metrics(cases, system) for system in SYSTEMS},
         "paired_case_count": len(cases),
+        "paired_outcome_matrix": _paired_outcome_matrix(cases),
         "method_notes": [
             "A decision is automatically accepted when terminal_state is VERIFIED or CORRECTED.",
             "A false accept is any automatic acceptance whose selected candidate differs from the gold candidate, including cases labelled with no unique answer.",
             "False-accept rate denominator is all automatic acceptances; prevalence denominator is all cases.",
             "A false reject is an unresolved decision on a case with a non-null unique gold candidate; its rate denominator is all cases with a unique gold label.",
             "A correct abstention is an unresolved decision on a case whose gold candidate is null; false-reject prevalence uses all cases as its denominator.",
+            "The paired outcome matrix places each case once at the intersection of its baseline and dss outcome classes, exposing case-level trade-offs without treating the systems as independent samples.",
             "The 95% interval is the Wilson score interval; no interval is emitted when there are no automatic acceptances.",
             "Latency percentiles use nearest-rank; missing measurements are excluded and counted.",
             "Review time is summarised only for unresolved cases with a supplied review_seconds value.",
