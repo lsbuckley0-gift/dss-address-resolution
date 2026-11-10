@@ -105,8 +105,10 @@ python -m unittest discover -s tests -v
 ```
 
 The input is a JSON object with dataset_id, dataset_version and a cases array.
-Each case has a unique pseudonymous case_id, gold_candidate_id (a candidate ID
-or null when no unique answer exists), and baseline/dss decision objects.
+Each case has a unique pseudonymous case_id, an explicitly present gold_candidate_id
+(candidate ID or null when no unique answer exists), and baseline/dss decision
+objects. A missing gold_candidate_id is invalid; it is never inferred to mean
+that the case is ambiguous.
 Each decision contains terminal_state (VERIFIED, CORRECTED or UNRESOLVED),
 selected_candidate_id (null only when unresolved), trace_complete (boolean),
 and a required review_routed boolean, plus optional non-negative latency_ms and
