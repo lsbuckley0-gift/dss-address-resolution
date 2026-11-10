@@ -1,5 +1,9 @@
 """Tests for the paired pilot metrics contract."""
+import json
+import subprocess
+import sys
 import unittest
+from pathlib import Path
 from experiments.pilot_metrics import evaluate
 
 
@@ -107,6 +111,33 @@ class PilotMetricsTests(unittest.TestCase):
         ]}
         with self.assertRaisesRegex(ValueError, "require a selected candidate"):
             evaluate(data)
+
+
+    def test_synthetic_fixture_runs_through_cli_end_to_end(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        fixture = repo_root / "experiments" / "fixtures" / "paired-pilot-synthetic-v1.json"
+        script = repo_root / "experiments" / "pilot_metrics.py"
+        completed = subprocess.run(
+            [sys.executable, str(script), str(fixture)],
+            cwd=repo_root, capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(completed.returncode, 0, msg=completed.stderr)
+        report = json.loads(completed.stdout)
+        self.assertEqual(report["dataset_id"], "paired-pilot-synthetic")
+        self.assertEqual(report["case_count"], 4)
+
+        baseline = report["systems"]["baseline"]
+        self.assertEqual(baseline["false_accepts"], 2)
+        self.assertAlmostEqual(baseline["false_accept_rate"], 2 / 3)
+        self.assertAlmostEqual(baseline["false_accept_prevalence"], 0.5)
+
+        dss = report["systems"]["dss"]
+        self.assertEqual(dss["false_accepts"], 0)
+        self.assertEqual(dss["correct_corrections"], 1)
+        self.assertEqual(dss["review_routed_cases"], 2)
+        self.assertEqual(dss["review_cases_with_time"], 2)
+        self.assertEqual(dss["median_review_seconds"], 45)
+        self.assertEqual(dss["latency_p95_ms_nearest_rank"], 19)
 
 
 if __name__ == "__main__":
