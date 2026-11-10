@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from experiments.pilot_metrics import (evaluate, _exact_mcnemar_p_value, _clopper_pearson, _paired_prevalence_difference_interval, _primary_endpoint_spec_sha256)
 from experiments.registration_evidence import verify_registration_evidence
-from experiments.audit_event_chain import append_audit_event, verify_event_chain, verify_external_checkpoint
+from experiments.audit_event_chain import append_audit_event, verify_event_chain, verify_external_checkpoint, verify_checkpoint_series
 
 
 def decision(state, selected=None, complete=True, latency=None, review=None):
@@ -1199,6 +1199,72 @@ class AuditEventChainTests(unittest.TestCase):
                 occurred_at_utc="2026-10-02T09:02:00Z", actor_reference="reviewer-1",
                 evidence_reference="archive://registration-v2",
             )
+
+
+    def _checkpoint_series(self):
+        first = self._checkpoint()
+        second = {
+            "record_version": "audit-chain-checkpoint/v1",
+            "registration_event_id": self.events[0]["event_id"],
+            "checkpoint_sequence": 2,
+            "checkpoint_event_sha256": self.events[2]["event_sha256"],
+            "anchored_at_utc": "2026-10-02T09:01:01Z",
+            "anchor_reference": "external-ledger://checkpoint-2",
+        }
+        return [first, second]
+
+    def test_checkpoint_series_matches_in_strict_sequence_and_time_order(self):
+        result = verify_checkpoint_series(self.events, self._checkpoint_series())
+        self.assertEqual(result["checkpoint_series_integrity"], "MATCH")
+        self.assertEqual(result["checkpoint_count"], 2)
+        self.assertEqual(result["anchor_authentication"], "NOT_VERIFIED")
+
+    def test_checkpoint_series_rejects_repeated_sequence_or_anchor_reference(self):
+        checkpoints = self._checkpoint_series()
+        checkpoints[1] = dict(checkpoints[1], checkpoint_sequence=1)
+        result = verify_checkpoint_series(self.events, checkpoints)
+        self.assertEqual(result["checkpoint_series_integrity"], "MISMATCH")
+        self.assertEqual(result["checkpoints"][1]["series_order"], "NON_INCREASING_SEQUENCE")
+        checkpoints = self._checkpoint_series()
+        checkpoints[1] = dict(checkpoints[1], anchor_reference=checkpoints[0]["anchor_reference"])
+        result = verify_checkpoint_series(self.events, checkpoints)
+        self.assertEqual(result["checkpoint_series_integrity"], "MISMATCH")
+        self.assertEqual(result["checkpoints"][1]["series_order"], "DUPLICATE_ANCHOR_REFERENCE")
+
+    def test_checkpoint_series_rejects_non_increasing_anchor_times(self):
+        checkpoints = self._checkpoint_series()
+        checkpoints[1] = dict(checkpoints[1], anchored_at_utc="2026-10-02T09:00:00.500Z")
+        result = verify_checkpoint_series(self.events, checkpoints)
+        self.assertEqual(result["checkpoint_series_integrity"], "MISMATCH")
+        self.assertIn(
+            result["checkpoints"][1]["series_order"],
+            {"NON_INCREASING_ANCHOR_TIME"},
+        )
+
+    def test_checkpoint_series_cli_accepts_matching_series(self):
+        with tempfile.TemporaryDirectory() as directory:
+            events_path = Path(directory) / "events.json"
+            checkpoints_path = Path(directory) / "checkpoints.json"
+            events_path.write_text(json.dumps(self.events), encoding="utf-8")
+            checkpoints_path.write_text(json.dumps(self._checkpoint_series()), encoding="utf-8")
+            completed = subprocess.run(
+                [sys.executable, "-m", "experiments.audit_event_chain",
+                 str(events_path), "--checkpoints", str(checkpoints_path)],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            report = json.loads(completed.stdout)
+            self.assertEqual(
+                report["external_checkpoints"]["checkpoint_series_integrity"], "MATCH"
+            )
+
+    def test_checkpoint_series_schema_references_single_checkpoint_contract(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        schema_path = repo_root / "experiments" / "schemas" / "audit-chain-checkpoint-series-v1.schema.json"
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        self.assertEqual(schema["type"], "array")
+        self.assertEqual(schema["minItems"], 1)
+        self.assertEqual(schema["items"]["$ref"], "audit-chain-checkpoint-v1.schema.json")
 
 
 if __name__ == "__main__":
