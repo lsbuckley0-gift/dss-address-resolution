@@ -113,12 +113,14 @@ AUTHORITY = [
 
 def resolve_address(incoming: str) -> Resolution:
     parts = normalise(incoming).split()
-    if len(parts) < 3:
+    # UK postcodes contain an outward and inward code, so after normalisation
+    # the final two tokens belong to the postcode, not the street.
+    if len(parts) < 4:
         return Resolution(candidate=None, evidence=["Input too short."])
 
-    num, *rest = parts
-    postcode = rest[-1]
-    street = " ".join(rest[:-1])
+    num = parts[0]
+    street = " ".join(parts[1:-2])
+    postcode = " ".join(parts[-2:])
 
     candidates = []
     for rec in AUTHORITY:
