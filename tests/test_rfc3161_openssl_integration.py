@@ -215,6 +215,7 @@ ess_cert_id_chain = no
         self, *, revoked_at=None, signer_key=None, include_number=True,
         include_aki=True, delta=False, this_update=None, next_update=None,
         revocation_reason=None, duplicate_target_entry=False,
+        certificate_issuer_entry=False,
         crl_aki_issuer_serial=None, issuing_distribution_point=None,
         unsupported_crl_extension=None,
     ):
@@ -266,6 +267,11 @@ ess_cert_id_chain = no
             if revocation_reason is not None:
                 revoked_builder = revoked_builder.add_extension(
                     x509.CRLReason(revocation_reason), critical=False
+                )
+            if certificate_issuer_entry:
+                revoked_builder = revoked_builder.add_extension(
+                    x509.CertificateIssuer([x509.DirectoryName(issuer.subject)]),
+                    critical=False,
                 )
             revoked = revoked_builder.build()
             builder = builder.add_revoked_certificate(revoked)
@@ -469,6 +475,28 @@ ess_cert_id_chain = no
         with self.assertRaisesRegex(ValueError, "CRL distribution-point scope matching is unsupported"):
             verify_tsa_crl_evidence(
                 timestamp_result, tsa_pem, self.ca_pem, crl_der
+            )
+
+    def test_malformed_crl_der_is_rejected(self):
+        timestamp_result = self._verified_timestamp_result()
+        with self.assertRaises(ValueError):
+            verify_tsa_crl_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem, b"not a DER CRL"
+            )
+
+    def test_indirect_crl_certificate_issuer_entry_is_rejected(self):
+        timestamp_result = self._verified_timestamp_result()
+        target = datetime.fromisoformat(
+            timestamp_result["tsa_asserted_gen_time_utc"].replace("Z", "+00:00")
+        )
+        crl_der = self._build_tsa_crl(
+            revoked_at=target - timedelta(hours=1),
+            this_update=(target - timedelta(minutes=30)).replace(tzinfo=None),
+            certificate_issuer_entry=True,
+        )
+        with self.assertRaisesRegex(ValueError, "indirect CRL certificateIssuer"):
+            verify_tsa_crl_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem, crl_der
             )
 
     def test_crl_without_next_update_is_rejected(self):
@@ -787,6 +815,13 @@ ess_cert_id_chain = no
         with self.assertRaisesRegex(ValueError, "signature does not verify"):
             verify_tsa_ocsp_evidence(
                 timestamp_result, self.tsa_pem, self.ca_pem, response_der
+            )
+
+    def test_malformed_ocsp_der_is_rejected(self):
+        timestamp_result = self._verified_timestamp_result()
+        with self.assertRaises(ValueError):
+            verify_tsa_ocsp_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem, b"not a DER OCSP response"
             )
 
     def test_ocsp_future_dated_status_interval_is_rejected(self):
