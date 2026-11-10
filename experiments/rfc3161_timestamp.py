@@ -28,7 +28,7 @@ _MONTHS = {
 }
 _TIME_LINE = re.compile(
     r"^Time stamp:\s+([A-Z][a-z]{2})\s+(\d{1,2})\s+"
-    r"(\d{2}):(\d{2}):(\d{2})\s+(\d{4})\s+GMT\s*$",
+    r"(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?\s+(\d{4})\s+GMT\s*$",
     re.MULTILINE,
 )
 
