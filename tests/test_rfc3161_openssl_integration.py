@@ -125,9 +125,7 @@ class RFC3161OpenSSLIntegrationTests(unittest.TestCase):
         ocsp_result = verify_tsa_ocsp_evidence(
             timestamp_result, self.tsa_pem, self.ca_pem,
             self._build_tsa_ocsp_response(),
-        
-            timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+            timestamp_verification_inputs=self._timestamp_verification_inputs(),
         )
         self.assertTrue(self.revocation_result_validator.is_valid(crl_result))
         self.assertTrue(self.revocation_result_validator.is_valid(ocsp_result))
@@ -499,9 +497,7 @@ ess_cert_id_chain = no
                 self.tsa_pem,
                 unrelated_cert.public_bytes(serialization.Encoding.PEM),
                 self._build_tsa_crl(),
-            
-                timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                timestamp_verification_inputs=self._timestamp_verification_inputs(),
             )
 
     def test_crl_rejects_invalid_signature_even_when_issuer_name_matches(self):
@@ -511,9 +507,7 @@ ess_cert_id_chain = no
             verify_tsa_crl_evidence(
                 timestamp_result, self.tsa_pem, self.ca_pem,
                 self._build_tsa_crl(signer_key=wrong_key),
-            
-                timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                timestamp_verification_inputs=self._timestamp_verification_inputs(),
             )
 
     def test_crl_requires_number_and_authority_key_identifier(self):
@@ -522,17 +516,13 @@ ess_cert_id_chain = no
             verify_tsa_crl_evidence(
                 timestamp_result, self.tsa_pem, self.ca_pem,
                 self._build_tsa_crl(include_number=False),
-            
-                timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                timestamp_verification_inputs=self._timestamp_verification_inputs(),
             )
         with self.assertRaisesRegex(ValueError, "Authority Key Identifier"):
             verify_tsa_crl_evidence(
                 timestamp_result, self.tsa_pem, self.ca_pem,
                 self._build_tsa_crl(include_aki=False),
-            
-                timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                timestamp_verification_inputs=self._timestamp_verification_inputs(),
             )
 
     def test_negative_crl_number_is_rejected(self):
@@ -541,9 +531,7 @@ ess_cert_id_chain = no
             verify_tsa_crl_evidence(
                 timestamp_result, self.tsa_pem, self.ca_pem,
                 self._build_tsa_crl(crl_number=-1),
-            
-                timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                timestamp_verification_inputs=self._timestamp_verification_inputs(),
             )
 
     def test_duplicate_tsa_serial_entries_are_rejected(self):
@@ -765,9 +753,7 @@ ess_cert_id_chain = no
             verify_tsa_crl_evidence(
                 timestamp_result, self.tsa_pem, self.ca_pem,
                 self._build_tsa_crl(unsupported_crl_extension=unknown),
-            
-                timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                timestamp_verification_inputs=self._timestamp_verification_inputs(),
             )
 
     def test_crl_with_partial_reason_scope_is_rejected(self):
@@ -785,9 +771,7 @@ ess_cert_id_chain = no
             verify_tsa_crl_evidence(
                 timestamp_result, self.tsa_pem, self.ca_pem,
                 self._build_tsa_crl(issuing_distribution_point=idp),
-            
-                timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                timestamp_verification_inputs=self._timestamp_verification_inputs(),
             )
 
     def test_indirect_crl_is_rejected(self):
@@ -805,9 +789,7 @@ ess_cert_id_chain = no
             verify_tsa_crl_evidence(
                 timestamp_result, self.tsa_pem, self.ca_pem,
                 self._build_tsa_crl(issuing_distribution_point=idp),
-            
-                timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                timestamp_verification_inputs=self._timestamp_verification_inputs(),
             )
 
     def test_delta_crl_is_rejected_by_narrow_complete_crl_profile(self):
@@ -816,9 +798,7 @@ ess_cert_id_chain = no
             verify_tsa_crl_evidence(
                 timestamp_result, self.tsa_pem, self.ca_pem,
                 self._build_tsa_crl(delta=True),
-            
-                timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                timestamp_verification_inputs=self._timestamp_verification_inputs(),
             )
 
     def test_crl_revocation_after_token_time_is_not_backdated(self):
@@ -1189,9 +1169,7 @@ ess_cert_id_chain = no
             verify_tsa_ocsp_evidence(
                 timestamp_result, self.tsa_pem, self.ca_pem,
                 response_der, request_der,
-            
-                timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                timestamp_verification_inputs=self._timestamp_verification_inputs(),
             )
 
     def test_ocsp_nonce_requested_but_not_returned_is_rejected(self):
@@ -1202,9 +1180,7 @@ ess_cert_id_chain = no
             verify_tsa_ocsp_evidence(
                 timestamp_result, self.tsa_pem, self.ca_pem,
                 response_der, request_der,
-            
-                timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                timestamp_verification_inputs=self._timestamp_verification_inputs(),
             )
 
     def test_ocsp_cert_id_hash_algorithm_is_restricted_to_sha256(self):
@@ -1237,9 +1213,7 @@ ess_cert_id_chain = no
         result = verify_tsa_ocsp_evidence(
             timestamp_result, self.tsa_pem, self.ca_pem,
             response_der, request_der,
-        
-            timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+            timestamp_verification_inputs=self._timestamp_verification_inputs(),
         )
         self.assertEqual(result["nonce_binding"], "MATCH")
         mismatched_response = self._build_tsa_ocsp_response(nonce=b"nonce-B")
@@ -1247,9 +1221,7 @@ ess_cert_id_chain = no
             verify_tsa_ocsp_evidence(
                 timestamp_result, self.tsa_pem, self.ca_pem,
                 mismatched_response, request_der,
-            
-                timestamp_verification_inputs=self._timestamp_verification_inputs()
-
+                timestamp_verification_inputs=self._timestamp_verification_inputs(),
             )
 
     def test_ocsp_nonce_without_request_is_rejected(self):
