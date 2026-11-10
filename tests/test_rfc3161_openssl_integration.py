@@ -131,6 +131,23 @@ ess_cert_id_chain = no
         self._run([self.openssl, "ts", "-reply", "-config", str(self.root / "tsa.cnf"), "-queryfile", str(request), "-out", str(response)])
         self._run([self.openssl, "ts", "-reply", "-in", str(response), "-token_out", "-out", str(token)])
         self.token_der = token.read_bytes()
+
+        request_without_cert = self.root / "request-without-cert.tsq"
+        response_without_cert = self.root / "response-without-cert.tsr"
+        token_without_cert = self.root / "token-without-cert.der"
+        self._run([
+            self.openssl, "ts", "-query", "-data", str(self.data_path),
+            "-sha256", "-out", str(request_without_cert),
+        ])
+        self._run([
+            self.openssl, "ts", "-reply", "-config", str(self.root / "tsa.cnf"),
+            "-queryfile", str(request_without_cert), "-out", str(response_without_cert),
+        ])
+        self._run([
+            self.openssl, "ts", "-reply", "-in", str(response_without_cert),
+            "-token_out", "-out", str(token_without_cert),
+        ])
+        self.token_without_embedded_signer_der = token_without_cert.read_bytes()
         self.pin = {
             "sha256": trust_anchor_sha256(self.ca_pem),
             "source_reference": "synthetic-test-only://ephemeral-root",
@@ -216,6 +233,25 @@ ess_cert_id_chain = no
         self.assertEqual(
             extracted_identity["serial_hex"],
             format(tsa_certificate.serial_number, "x"),
+        )
+
+    def test_signer_identity_can_be_resolved_from_supplied_untrusted_certificates(self):
+        result = verify_rfc3161_timestamp(
+            self.token_without_embedded_signer_der,
+            self.data,
+            self.ca_pem,
+            self.pin,
+            intermediates_pem=self.tsa_pem,
+            openssl_binary=self.openssl,
+        )
+        self.assertEqual(result["timestamp_verification"], "VALID", result)
+        self.assertEqual(result["tsa_signer_certificate_identity"], "EXTRACTED")
+        expected = x509.load_pem_x509_certificate(self.tsa_pem)
+        self.assertEqual(
+            result["tsa_signer_certificate"]["certificate_der_sha256"],
+            hashlib.sha256(
+                expected.public_bytes(serialization.Encoding.DER)
+            ).hexdigest(),
         )
 
     def test_signer_issuer_selection_uses_authority_key_identifier(self):
