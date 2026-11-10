@@ -423,6 +423,64 @@ class CheckpointSignatureTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(report["signed_external_checkpoint"]["registration_timestamp_binding"], "MATCH")
 
+    def test_cli_accepts_provenance_first_timestamp_bundle(self):
+        timestamp = {
+            "timestamp_verification": "VALID",
+            "tsa_asserted_gen_time_utc": "2026-11-10T10:00:30Z",
+        }
+        anchor, anchor_pin, attestation, provenance_envelope, governance_store = self.provenance_inputs()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name, value in (
+                ("events.json", self.events),
+                ("checkpoint.json", self.checkpoint),
+                ("signature.json", self.envelope),
+                ("trust.json", self.store),
+                ("timestamp-pin.json", anchor_pin),
+                ("anchor-attestation.json", attestation),
+                ("anchor-signature.json", provenance_envelope),
+                ("governance-store.json", governance_store),
+            ):
+                (root / name).write_text(json.dumps(value), encoding="utf-8")
+            (root / "token.der").write_bytes(b"synthetic-token")
+            (root / "anchor.pem").write_bytes(anchor)
+            output = io.StringIO()
+            with patch("experiments.rfc3161_timestamp.verify_rfc3161_timestamp", return_value=timestamp):
+                with contextlib.redirect_stdout(output):
+                    code = audit_chain_main([
+                        str(root / "events.json"),
+                        "--signed-checkpoint", str(root / "checkpoint.json"),
+                        "--signature", str(root / "signature.json"),
+                        "--trust-store", str(root / "trust.json"),
+                        "--at-utc", "2026-11-10T10:04:00Z",
+                        "--timestamp-token", str(root / "token.der"),
+                        "--timestamp-trust-anchor", str(root / "anchor.pem"),
+                        "--timestamp-trust-anchor-pin", str(root / "timestamp-pin.json"),
+                        "--timestamp-anchor-attestation", str(root / "anchor-attestation.json"),
+                        "--timestamp-anchor-signature", str(root / "anchor-signature.json"),
+                        "--timestamp-governance-trust-store", str(root / "governance-store.json"),
+                        "--timestamp-governance-minimum-sequence", "4",
+                    ])
+        report = json.loads(output.getvalue())
+        signed = report["signed_external_checkpoint"]
+        self.assertEqual(code, 0)
+        self.assertEqual(signed["registration_timestamp_binding"], "MATCH")
+        self.assertEqual(
+            signed["timestamp_anchor_provenance"]["provenance_verification"],
+            "VALID_RELATIVE_TO_CALLER_GOVERNANCE_STORE",
+        )
+
+    def test_cli_rejects_partial_timestamp_provenance_bundle(self):
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as raised:
+                audit_chain_main([
+                    "events.json", "--signed-checkpoint", "checkpoint.json",
+                    "--signature", "signature.json", "--trust-store", "trust.json",
+                    "--at-utc", "2026-11-10T10:04:00Z",
+                    "--timestamp-anchor-attestation", "attestation.json",
+                ])
+        self.assertEqual(raised.exception.code, 2)
+
     def test_cli_requires_complete_timestamp_verification_inputs(self):
         with contextlib.redirect_stderr(io.StringIO()):
             with self.assertRaises(SystemExit) as raised:
