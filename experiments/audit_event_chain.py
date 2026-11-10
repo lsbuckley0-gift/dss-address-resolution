@@ -363,7 +363,16 @@ def main(argv=None) -> int:
     checkpoint_group = parser.add_mutually_exclusive_group()
     checkpoint_group.add_argument("--checkpoint", help="Optional independently held checkpoint JSON file")
     checkpoint_group.add_argument("--checkpoints", help="Optional JSON array of independently held checkpoints")
+    checkpoint_group.add_argument("--signed-checkpoint", help="Checkpoint JSON file with detached signature verification")
+    parser.add_argument("--signature", help="Detached checkpoint signature-envelope JSON file")
+    parser.add_argument("--trust-store", help="Explicit audit trust-store JSON file")
+    parser.add_argument("--at-utc", help="Claimed UTC instant used for key-validity policy (not independently authenticated)")
     args = parser.parse_args(argv)
+    signed_options = (args.signature, args.trust_store, args.at_utc)
+    if args.signed_checkpoint and not all(signed_options):
+        parser.error("--signed-checkpoint requires --signature, --trust-store and --at-utc")
+    if not args.signed_checkpoint and any(signed_options):
+        parser.error("--signature, --trust-store and --at-utc require --signed-checkpoint")
     try:
         events = json.loads(Path(args.event_chain).read_text(encoding="utf-8"))
         report = verify_event_chain(events)
@@ -373,6 +382,15 @@ def main(argv=None) -> int:
         if args.checkpoints:
             checkpoints = json.loads(Path(args.checkpoints).read_text(encoding="utf-8"))
             report["external_checkpoints"] = verify_checkpoint_series(events, checkpoints)
+        if args.signed_checkpoint:
+            from experiments.checkpoint_signature import verify_signed_checkpoint
+
+            checkpoint = json.loads(Path(args.signed_checkpoint).read_text(encoding="utf-8"))
+            signature = json.loads(Path(args.signature).read_text(encoding="utf-8"))
+            trust_store = json.loads(Path(args.trust_store).read_text(encoding="utf-8"))
+            report["signed_external_checkpoint"] = verify_signed_checkpoint(
+                events, checkpoint, signature, trust_store, at_utc=args.at_utc
+            )
     except (OSError, json.JSONDecodeError, ValueError) as exc:
         print(f"audit event chain error: {exc}", file=sys.stderr)
         return 2
@@ -385,6 +403,10 @@ def main(argv=None) -> int:
         )
     if args.checkpoints:
         checkpoint_ok = report["external_checkpoints"]["checkpoint_series_integrity"] == "MATCH"
+    if args.signed_checkpoint:
+        checkpoint_ok = (
+            report["signed_external_checkpoint"]["signed_checkpoint_verification"] == "MATCH"
+        )
     return 0 if report["required_event_sequence"] == "COMPLETE" and checkpoint_ok else 1
 
 
