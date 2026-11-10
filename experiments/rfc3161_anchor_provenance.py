@@ -212,3 +212,72 @@ def verify_timestamp_anchor_provenance(
             "sequence is effective only if maintained independently by the operator."
         ),
     }
+
+
+def verify_rfc3161_timestamp_with_provenance(
+    token_der: bytes,
+    data: bytes,
+    trust_anchor_pem: bytes,
+    trust_anchor_pin: dict,
+    attestation: dict,
+    signature_envelope: dict,
+    governance_trust_store: dict,
+    *,
+    at_utc: str,
+    minimum_sequence: int,
+    governance_trust_store_pin: dict | None = None,
+    intermediates_pem: bytes | None = None,
+    openssl_binary: str = "openssl",
+    timeout_seconds: int = 10,
+) -> dict:
+    """Verify provenance first, then RFC 3161 token against the same anchor.
+
+    A provenance failure prevents OpenSSL timestamp verification. Even a
+    successful composite result remains relative to caller-supplied trust
+    material and does not authenticate the governance root or event truth.
+    """
+    provenance = verify_timestamp_anchor_provenance(
+        trust_anchor_pem,
+        attestation,
+        signature_envelope,
+        governance_trust_store,
+        at_utc=at_utc,
+        minimum_sequence=minimum_sequence,
+        trust_store_pin=governance_trust_store_pin,
+    )
+    if provenance["provenance_verification"] != "VALID_RELATIVE_TO_CALLER_GOVERNANCE_STORE":
+        return {
+            "combined_verification": "PROVENANCE_NOT_VERIFIED",
+            "anchor_provenance": provenance,
+            "timestamp_evidence": {"timestamp_verification": "NOT_PERFORMED"},
+            "governance_authentication": "NOT_ESTABLISHED",
+            "event_truth": "NOT_ESTABLISHED",
+        }
+    from experiments.rfc3161_timestamp import verify_rfc3161_timestamp
+
+    timestamp = verify_rfc3161_timestamp(
+        token_der,
+        data,
+        trust_anchor_pem,
+        trust_anchor_pin,
+        intermediates_pem=intermediates_pem,
+        openssl_binary=openssl_binary,
+        timeout_seconds=timeout_seconds,
+    )
+    valid = timestamp["timestamp_verification"] == "VALID"
+    return {
+        "combined_verification": (
+            "VALID_RELATIVE_TO_CALLER_GOVERNANCE_STORE"
+            if valid else "TIMESTAMP_NOT_VALID"
+        ),
+        "anchor_provenance": provenance,
+        "timestamp_evidence": timestamp,
+        "governance_authentication": "NOT_ESTABLISHED",
+        "event_truth": "NOT_ESTABLISHED",
+        "interpretation": (
+            "The timestamp token was checked only after the exact trust-anchor "
+            "bytes matched a valid provenance attestation under the caller's "
+            "eligible governance key. This does not independently authenticate "
+            "the governance trust root, TSA clock, certificate issuer or event."
+        ),
+    }
