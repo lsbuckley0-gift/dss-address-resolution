@@ -699,3 +699,11 @@ retained by the verifier operator.
 This is a policy-drift detector, not a self-authenticating trust root. It
 deliberately does not embed a governance public key or infer one from the
 trust store it is checking.
+
+
+The signed-checkpoint CLI also accepts an optional `--trust-store-pin` JSON
+file with `sha256` and `source_reference` fields. When supplied, a mismatch
+stops processing before public-key eligibility or signature verification and
+returns `POLICY_PIN_MISMATCH`. Without the optional pin, the report explicitly
+returns `trust_policy_pin: NOT_CHECKED`; signature verification remains
+cryptographically meaningful only relative to the caller-supplied trust store.
