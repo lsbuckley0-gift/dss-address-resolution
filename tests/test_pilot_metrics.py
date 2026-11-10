@@ -1173,5 +1173,33 @@ class AuditEventChainTests(unittest.TestCase):
             self.assertEqual(report["external_checkpoint"]["checkpoint_binding"], "MISMATCH")
 
 
+    def test_canonical_event_digest_is_independent_of_json_key_order(self):
+        reordered = [dict(reversed(list(event.items()))) for event in self.events]
+        report = verify_event_chain(reordered)
+        self.assertEqual(report["chain_head_sha256"], self.events[-1]["event_sha256"])
+
+    def test_previous_link_tampering_is_detected_separately_from_event_content(self):
+        tampered = [dict(event) for event in self.events]
+        tampered[2]["previous_event_sha256"] = "f" * 64
+        with self.assertRaisesRegex(ValueError, "previous_event_sha256 does not match"):
+            verify_event_chain(tampered)
+
+    def test_duplicate_event_id_is_rejected_even_with_recomputed_link(self):
+        with self.assertRaisesRegex(ValueError, "duplicate event_id"):
+            append_audit_event(
+                self.events, event_id="evt-access-1", event_type="OUTCOME_ACCESS",
+                occurred_at_utc="2026-10-02T09:02:00Z", actor_reference="analyst-1",
+                evidence_reference="access-log://entry-2",
+            )
+
+    def test_repeated_registration_event_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "REGISTRATION_FROZEN"):
+            append_audit_event(
+                self.events, event_id="evt-registration-2", event_type="REGISTRATION_FROZEN",
+                occurred_at_utc="2026-10-02T09:02:00Z", actor_reference="reviewer-1",
+                evidence_reference="archive://registration-v2",
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
