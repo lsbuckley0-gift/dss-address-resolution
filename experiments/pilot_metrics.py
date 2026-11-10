@@ -199,6 +199,77 @@ def _exact_mcnemar_p_value(baseline_only, dss_only):
     return min(1.0, 2.0 * tail / (2 ** discordant))
 
 
+def _binomial_cdf(k, n, probability):
+    """Stable binomial lower-tail probability for exact interval inversion."""
+    if k < 0:
+        return 0.0
+    if k >= n:
+        return 1.0
+    if probability <= 0.0:
+        return 1.0
+    if probability >= 1.0:
+        return 0.0
+    log_p = math.log(probability)
+    log_q = math.log1p(-probability)
+    logs = [
+        math.lgamma(n + 1) - math.lgamma(i + 1) - math.lgamma(n - i + 1)
+        + i * log_p + (n - i) * log_q
+        for i in range(k + 1)
+    ]
+    peak = max(logs)
+    return min(1.0, math.exp(peak) * math.fsum(math.exp(value - peak) for value in logs))
+
+
+def _clopper_pearson(successes, total, confidence=0.975):
+    """Two-sided exact binomial interval; confidence must be in (0, 1)."""
+    if total == 0:
+        return [0.0, 1.0]
+    if not 0 <= successes <= total:
+        raise ValueError("successes must be between zero and total")
+    tail = (1.0 - confidence) / 2.0
+
+    def bisect(target, increasing):
+        low, high = 0.0, 1.0
+        for _ in range(64):
+            mid = (low + high) / 2.0
+            value = _binomial_cdf(successes if increasing else successes - 1, total, mid)
+            if increasing:
+                if value > target:
+                    low = mid
+                else:
+                    high = mid
+            else:
+                if value < target:
+                    low = mid
+                else:
+                    high = mid
+        return (low + high) / 2.0
+
+    lower = 0.0 if successes == 0 else bisect(1.0 - tail, False)
+    upper = 1.0 if successes == total else bisect(tail, True)
+    return [lower, upper]
+
+
+def _paired_prevalence_difference_interval(baseline_only, dss_only, total):
+    """Conservative >=95% paired risk-difference interval via Bonferroni CP."""
+    if total == 0:
+        return None
+    discordant = baseline_only + dss_only
+    discordance_interval = _clopper_pearson(discordant, total, confidence=0.975)
+    direction_interval = _clopper_pearson(dss_only, discordant, confidence=0.975)
+    direction_bounds = [
+        2.0 * direction_interval[0] - 1.0,
+        2.0 * direction_interval[1] - 1.0,
+    ]
+    products = [
+        discordance_interval[0] * direction_bounds[0],
+        discordance_interval[0] * direction_bounds[1],
+        discordance_interval[1] * direction_bounds[0],
+        discordance_interval[1] * direction_bounds[1],
+    ]
+    return [max(-1.0, min(products)), min(1.0, max(products))]
+
+
 def _paired_class_comparisons(matrix):
     """One-versus-rest paired comparisons for each mutually exclusive outcome."""
     total = sum(sum(row.values()) for row in matrix.values())
@@ -225,6 +296,9 @@ def _paired_class_comparisons(matrix):
             "discordant_case_count": baseline_only + dss_only,
             "prevalence_difference_dss_minus_baseline": (
                 (dss_only - baseline_only) / total if total else None
+            ),
+            "prevalence_difference_confidence_interval_95pct": (
+                _paired_prevalence_difference_interval(baseline_only, dss_only, total)
             ),
             "exact_mcnemar_p_value_two_sided": _exact_mcnemar_p_value(
                 baseline_only, dss_only
@@ -490,7 +564,7 @@ def evaluate(data):
     sample_sufficiency = _sample_sufficiency(data, cases)
     decision_assessment = _decision_assessment(data, system_results)
     return {
-        "report_version": "paired-pilot-metrics/1.9",
+        "report_version": "paired-pilot-metrics/2.0",
         "dataset_id": data.get("dataset_id"),
         "dataset_version": data.get("dataset_version"),
         "case_count": len(cases),
@@ -509,7 +583,7 @@ def evaluate(data):
             "A false reject is an unresolved decision on a case with a non-null unique gold candidate; its rate denominator is all cases with a unique gold label.",
             "A correct abstention is an unresolved decision on a case whose gold candidate is null; false-reject prevalence uses all cases as its denominator.",
             "The paired outcome matrix places each case once at the intersection of its baseline and dss outcome classes, exposing case-level trade-offs without treating the systems as independent samples.",
-            "paired_class_comparisons reports one-versus-rest paired discordances, prevalence differences and exact two-sided McNemar p-values with Holm adjustment across the four outcomes within each comparison group; the tests are exploratory, assume independent case pairs, and are not a pilot gate or proof of causal superiority. Clustered or repeated entities require a cluster-aware method not implemented here.",
+            "paired_class_comparisons reports one-versus-rest paired discordances, prevalence differences, conservative paired 95% confidence intervals and exact two-sided McNemar p-values with Holm adjustment across the four outcomes within each comparison group; intervals use two 97.5% exact Clopper-Pearson component intervals with Bonferroni coverage, assume independent case pairs, and are exploratory rather than a pilot gate or proof of causal superiority. Clustered or repeated entities require a cluster-aware method not implemented here.",
             "Stratum metrics repeat the same paired measures within each declared case stratum; omitted stratum labels are grouped explicitly as UNSPECIFIED, never silently assigned to a fault class.",
             "Stratum rates are descriptive and retain their raw denominators; small or synthetic strata do not establish statistical significance or field performance.",
             "The optional sample_sufficiency gate checks pre-registered raw-case and unique-gold counts for required strata, fails closed for UNSPECIFIED cases or observed strata omitted from the requirements, and does not establish representative sampling, statistical power, precision or field performance.",
