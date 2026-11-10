@@ -236,8 +236,13 @@ valid direct CRLs, revoked and unlisted serials, issuer mismatch, bad
 signatures, missing CRLNumber/AKI, delta and indirect CRL rejection,
 partial-reason scope, TSA CRLDistributionPoints, list-wide indirect-CRL
 `certificateIssuer` rejection (including an unrelated entry), duplicate target serials,
-`removeFromCRL`, temporary `certificateHold` and incompatible evidence
+`removeFromCRL`, unsupported `InvalidityDate`, temporary `certificateHold` and incompatible evidence
 intervals.
+
+The CRL evaluator rejects `InvalidityDate` rather than silently ignoring it.
+Its relationship to `revocationDate` can affect historical interpretation,
+so that extension remains outside the accepted subset until its semantics
+are specified and tested.
 
 ### Initial issuer-signed OCSP verification slice
 
