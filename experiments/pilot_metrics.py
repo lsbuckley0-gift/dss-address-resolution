@@ -66,6 +66,10 @@ def _validate(data):
                 raise ValueError(f"{prefix}.{system}: accepted decisions require a selected candidate.")
             if not isinstance(decision.get("trace_complete"), bool):
                 raise ValueError(f"{prefix}.{system}.trace_complete must be boolean.")
+            if not isinstance(decision.get("review_routed"), bool):
+                raise ValueError(f"{prefix}.{system}.review_routed must be boolean.")
+            if decision["review_routed"] and decision["terminal_state"] != "UNRESOLVED":
+                raise ValueError(f"{prefix}.{system}: only unresolved cases may be routed to review.")
             for metric in ("latency_ms", "review_seconds"):
                 value = decision.get(metric)
                 if value is not None and (
@@ -73,8 +77,8 @@ def _validate(data):
                     or not math.isfinite(value) or value < 0
                 ):
                     raise ValueError(f"{prefix}.{system}.{metric} must be a finite non-negative number.")
-            if decision["terminal_state"] != "UNRESOLVED" and decision.get("review_seconds") is not None:
-                raise ValueError(f"{prefix}.{system}: review_seconds is only valid for unresolved cases.")
+            if decision.get("review_seconds") is not None and not decision["review_routed"]:
+                raise ValueError(f"{prefix}.{system}: review_seconds requires review_routed=true.")
 
 
 def _system_metrics(cases, system):
@@ -105,7 +109,9 @@ def _system_metrics(cases, system):
         "corrections": len(corrected),
         "correct_corrections": len(corrected) - len(corrected_false),
         "correction_precision": (len(corrected) - len(corrected_false)) / len(corrected) if corrected else None,
+        "review_routed_cases": sum(c[system]["review_routed"] for c in cases),
         "review_cases_with_time": len(reviews),
+        "review_time_measurement_coverage": (len(reviews) / sum(c[system]["review_routed"] for c in cases)) if any(c[system]["review_routed"] for c in cases) else None,
         "median_review_seconds": statistics.median(reviews) if reviews else None,
         "trace_complete": complete,
         "trace_completeness": complete / total if total else None,
