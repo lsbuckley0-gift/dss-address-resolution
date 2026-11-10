@@ -1,6 +1,5 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.invalid/dss/paired-pilot-input-v1.schema.json",
   "title": "∂ss paired pilot metrics input",
   "description": "Metadata-only paired evaluation input. Do not include raw addresses or customer-identifying data.",
   "type": "object",
