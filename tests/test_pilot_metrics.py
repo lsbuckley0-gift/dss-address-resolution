@@ -177,5 +177,36 @@ class PilotMetricsTests(unittest.TestCase):
         self.assertEqual(dss["latency_p95_ms_nearest_rank"], 19)
 
 
+    def test_undeclared_fields_are_rejected_at_every_input_level(self):
+        mutations = (
+            (
+                "input",
+                lambda data: data.update({"raw_address": "fictional value"}),
+                "input contains unsupported field",
+            ),
+            (
+                "case",
+                lambda data: data["cases"][0].update({"address": "fictional value"}),
+                "cases[0] contains unsupported field",
+            ),
+            (
+                "decision",
+                lambda data: data["cases"][0]["dss"].update({"postcode": "ZZ1 1ZZ"}),
+                "cases[0].dss contains unsupported field",
+            ),
+        )
+        for level, mutate, message in mutations:
+            with self.subTest(level=level):
+                data = json.loads(json.dumps(self.data))
+                mutate(data)
+                with self.assertRaisesRegex(ValueError, message):
+                    evaluate(data)
+
+    def test_whitespace_only_provenance_is_rejected(self):
+        data = json.loads(json.dumps(self.data))
+        data["dataset_id"] = "   "
+        with self.assertRaisesRegex(ValueError, "dataset_id must be a non-empty string"):
+            evaluate(data)
+
 if __name__ == "__main__":
     unittest.main()
