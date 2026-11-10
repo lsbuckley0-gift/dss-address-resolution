@@ -695,6 +695,34 @@ class CheckpointSeriesContinuityTests(unittest.TestCase):
                         self.events, [self.first], minimum_sequence=invalid
                     )
 
+    def test_cli_applies_operator_retained_checkpoint_floor(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "events.json").write_text(
+                json.dumps(self.events), encoding="utf-8"
+            )
+            (root / "checkpoints.json").write_text(
+                json.dumps([self.first, self.second]), encoding="utf-8"
+            )
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                code = audit_chain_main([
+                    str(root / "events.json"),
+                    "--checkpoints", str(root / "checkpoints.json"),
+                    "--checkpoint-minimum-sequence", "2",
+                ])
+        report = json.loads(output.getvalue())
+        self.assertEqual(code, 0)
+        self.assertEqual(
+            report["external_checkpoints"]["rollback_floor"], "MEETS_FLOOR"
+        )
+
+    def test_cli_rejects_checkpoint_floor_without_checkpoint_series(self):
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as raised:
+                audit_chain_main(["events.json", "--checkpoint-minimum-sequence", "2"])
+        self.assertEqual(raised.exception.code, 2)
+
 
 if __name__ == "__main__":
     unittest.main()
