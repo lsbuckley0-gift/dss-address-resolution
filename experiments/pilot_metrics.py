@@ -190,19 +190,72 @@ def _paired_outcome_matrix(cases):
     return matrix
 
 
+def _exact_mcnemar_p_value(baseline_only, dss_only):
+    """Two-sided exact McNemar p-value conditional on discordant pairs."""
+    discordant = baseline_only + dss_only
+    if discordant == 0:
+        return 1.0
+    tail = sum(math.comb(discordant, k) for k in range(min(baseline_only, dss_only) + 1))
+    return min(1.0, 2.0 * tail / (2 ** discordant))
+
+
+def _paired_class_comparisons(matrix):
+    """One-versus-rest paired comparisons for each mutually exclusive outcome."""
+    total = sum(sum(row.values()) for row in matrix.values())
+    comparisons = {}
+    for outcome in OUTCOME_CLASSES:
+        baseline_only = sum(
+            matrix[baseline][dss]
+            for baseline in OUTCOME_CLASSES if baseline == outcome
+            for dss in OUTCOME_CLASSES if dss != outcome
+        )
+        dss_only = sum(
+            matrix[baseline][dss]
+            for baseline in OUTCOME_CLASSES if baseline != outcome
+            for dss in OUTCOME_CLASSES if dss == outcome
+        )
+        both = matrix[outcome][outcome]
+        neither = total - baseline_only - dss_only - both
+        comparisons[outcome] = {
+            "case_count": total,
+            "baseline_and_dss": both,
+            "baseline_only": baseline_only,
+            "dss_only": dss_only,
+            "neither": neither,
+            "discordant_case_count": baseline_only + dss_only,
+            "prevalence_difference_dss_minus_baseline": (
+                (dss_only - baseline_only) / total if total else None
+            ),
+            "exact_mcnemar_p_value_two_sided": _exact_mcnemar_p_value(
+                baseline_only, dss_only
+            ),
+        }
+    return {
+        "outcomes": comparisons,
+        "interpretation": (
+            "Each outcome is compared one-versus-rest on the same paired cases. "
+            "Exact two-sided McNemar p-values are unadjusted and exploratory; "
+            "the four outcome tests are dependent. They are not a pilot gate or "
+            "proof of causal superiority."
+        ),
+    }
+
+
 def _stratum_metrics(cases):
     grouped = {}
     for case in cases:
         label = case.get("stratum", "UNSPECIFIED")
         grouped.setdefault(label, []).append(case)
-    return {
-        label: {
+    results = {}
+    for label, group in sorted(grouped.items()):
+        matrix = _paired_outcome_matrix(group)
+        results[label] = {
             "case_count": len(group),
             "systems": {system: _system_metrics(group, system) for system in SYSTEMS},
-            "paired_outcome_matrix": _paired_outcome_matrix(group),
+            "paired_outcome_matrix": matrix,
+            "paired_class_comparisons": _paired_class_comparisons(matrix),
         }
-        for label, group in sorted(grouped.items())
-    }
+    return results
 
 
 def _system_metrics(cases, system):
@@ -421,16 +474,18 @@ def evaluate(data):
     _validate(data)
     cases = data["cases"]
     system_results = {system: _system_metrics(cases, system) for system in SYSTEMS}
+    paired_matrix = _paired_outcome_matrix(cases)
     sample_sufficiency = _sample_sufficiency(data, cases)
     decision_assessment = _decision_assessment(data, system_results)
     return {
-        "report_version": "paired-pilot-metrics/1.8",
+        "report_version": "paired-pilot-metrics/1.9",
         "dataset_id": data.get("dataset_id"),
         "dataset_version": data.get("dataset_version"),
         "case_count": len(cases),
         "systems": system_results,
         "paired_case_count": len(cases),
-        "paired_outcome_matrix": _paired_outcome_matrix(cases),
+        "paired_outcome_matrix": paired_matrix,
+        "paired_class_comparisons": _paired_class_comparisons(paired_matrix),
         "stratum_metrics": _stratum_metrics(cases),
         "sample_sufficiency": sample_sufficiency,
         "decision_assessment": decision_assessment,
@@ -442,6 +497,7 @@ def evaluate(data):
             "A false reject is an unresolved decision on a case with a non-null unique gold candidate; its rate denominator is all cases with a unique gold label.",
             "A correct abstention is an unresolved decision on a case whose gold candidate is null; false-reject prevalence uses all cases as its denominator.",
             "The paired outcome matrix places each case once at the intersection of its baseline and dss outcome classes, exposing case-level trade-offs without treating the systems as independent samples.",
+            "paired_class_comparisons reports one-versus-rest paired discordances, prevalence differences and exact two-sided McNemar p-values for each outcome; these correlated, unadjusted tests are exploratory and are not a pilot gate or proof of causal superiority.",
             "Stratum metrics repeat the same paired measures within each declared case stratum; omitted stratum labels are grouped explicitly as UNSPECIFIED, never silently assigned to a fault class.",
             "Stratum rates are descriptive and retain their raw denominators; small or synthetic strata do not establish statistical significance or field performance.",
             "The optional sample_sufficiency gate checks pre-registered raw-case and unique-gold counts for required strata, fails closed for UNSPECIFIED cases or observed strata omitted from the requirements, and does not establish representative sampling, statistical power, precision or field performance.",
