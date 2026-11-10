@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "∂ss detached audit checkpoint signature envelope",
+  "description": "Detached Ed25519 signature metadata. The schema does not verify the signature or authenticate the key owner.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["record_version", "key_id", "signature_base64"],
+  "properties": {
+    "record_version": {"const": "audit-chain-checkpoint-signature/v1"},
+    "key_id": {"type": "string", "minLength": 1},
+    "signature_base64": {"type": "string", "contentEncoding": "base64", "minLength": 88}
+  }
+}
