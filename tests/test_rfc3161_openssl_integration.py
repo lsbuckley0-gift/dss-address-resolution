@@ -32,6 +32,7 @@ from experiments.rfc3161_timestamp import (
 )
 from experiments.rfc3161_crl_status import verify_tsa_crl_evidence
 from experiments.rfc3161_ocsp_status import verify_tsa_ocsp_evidence
+from experiments.rfc3161_revocation_identity import check_tsa_issuer_identity
 from experiments.rfc3161_anchor_provenance import (
     canonical_provenance_payload,
     verify_rfc3161_timestamp_with_provenance,
@@ -394,6 +395,57 @@ ess_cert_id_chain = no
             result["historical_revocation_assurance"],
             "REVOKED_BY_TARGET_TIME_UNDER_SIGNED_CRL_ASSERTION",
         )
+
+    def test_issuer_identity_match_does_not_replace_key_cert_sign_authority(self):
+        tsa = x509.load_pem_x509_certificate(self.tsa_pem)
+        issuer_without_cert_sign = (
+            x509.CertificateBuilder()
+            .subject_name(self.ca_name)
+            .issuer_name(self.ca_name)
+            .public_key(self.ca_key.public_key())
+            .serial_number(1003)
+            .not_valid_before(datetime(2020, 1, 1))
+            .not_valid_after(datetime(2040, 1, 1))
+            .add_extension(x509.BasicConstraints(ca=True, path_length=1), critical=True)
+            .add_extension(
+                x509.KeyUsage(
+                    digital_signature=True, content_commitment=False,
+                    key_encipherment=False, data_encipherment=False,
+                    key_agreement=False, key_cert_sign=False, crl_sign=True,
+                    encipher_only=False, decipher_only=False,
+                ),
+                critical=True,
+            )
+            .add_extension(
+                x509.SubjectKeyIdentifier.from_public_key(self.ca_key.public_key()),
+                critical=False,
+            )
+            .sign(self.ca_key, hashes.SHA256())
+        )
+        tsa_der = tsa.public_bytes(serialization.Encoding.DER)
+        issuer_der = issuer_without_cert_sign.public_bytes(serialization.Encoding.DER)
+        tsa_spki = tsa.public_key().public_bytes(
+            serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo
+        )
+        issuer_spki = issuer_without_cert_sign.public_key().public_bytes(
+            serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo
+        )
+        identity = {
+            "certificate_der_sha256": hashlib.sha256(tsa_der).hexdigest(),
+            "subject_spki_sha256": hashlib.sha256(tsa_spki).hexdigest(),
+            "issuer_name_der_sha256": hashlib.sha256(tsa.issuer.public_bytes()).hexdigest(),
+            "issuer_certificate_der_sha256": hashlib.sha256(issuer_der).hexdigest(),
+            "issuer_spki_sha256": hashlib.sha256(issuer_spki).hexdigest(),
+            "serial_hex": format(tsa.serial_number, "x"),
+        }
+        timestamp_result = {
+            "timestamp_verification": "VALID",
+            "tsa_signer_certificate_identity": "EXTRACTED",
+            "tsa_asserted_gen_time_utc": "2026-11-10T13:00:00Z",
+            "tsa_signer_certificate": identity,
+        }
+        with self.assertRaisesRegex(ValueError, "not authorized for certificate signing"):
+            check_tsa_issuer_identity(timestamp_result, tsa, issuer_without_cert_sign)
 
     def test_crl_rejects_wrong_issuer_certificate_binding(self):
         timestamp_result = self._verified_timestamp_result()
