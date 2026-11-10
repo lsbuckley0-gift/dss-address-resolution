@@ -916,5 +916,36 @@ class RegistrationEvidenceTests(unittest.TestCase):
         result = verify_registration_evidence(self.endpoint, record)
         self.assertEqual(result["claimed_analysis_order"], "ANALYSIS_NOT_STRICTLY_AFTER_OUTCOME_ACCESS")
 
+
+    def test_registration_evidence_cli_reports_unverified_timestamp_on_consistent_record(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pilot_path = Path(directory) / "pilot.json"
+            record_path = Path(directory) / "registration.json"
+            pilot_path.write_text(json.dumps({"primary_endpoint": self.endpoint}), encoding="utf-8")
+            record_path.write_text(json.dumps(self.record), encoding="utf-8")
+            completed = subprocess.run(
+                [sys.executable, "-m", "experiments.registration_evidence",
+                 str(pilot_path), str(record_path)],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            report = json.loads(completed.stdout)
+            self.assertEqual(report["specification_integrity"], "MATCH")
+            self.assertEqual(report["timestamp_verification"], "NOT_INDEPENDENTLY_VERIFIED")
+
+    def test_registration_evidence_cli_returns_nonzero_for_digest_mismatch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pilot_path = Path(directory) / "pilot.json"
+            record_path = Path(directory) / "registration.json"
+            pilot_path.write_text(json.dumps({"primary_endpoint": self.endpoint}), encoding="utf-8")
+            record_path.write_text(json.dumps(dict(self.record, endpoint_spec_sha256="0" * 64)), encoding="utf-8")
+            completed = subprocess.run(
+                [sys.executable, "-m", "experiments.registration_evidence",
+                 str(pilot_path), str(record_path)],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(completed.returncode, 1)
+            self.assertEqual(json.loads(completed.stdout)["specification_integrity"], "MISMATCH")
+
 if __name__ == "__main__":
     unittest.main()
