@@ -13,6 +13,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from experiments.audit_event_chain import append_audit_event
+from experiments.audit_event_chain import verify_checkpoint_series
 from experiments.audit_event_chain import main as audit_chain_main
 from experiments.trust_policy_pin import trust_store_sha256
 from experiments.rfc3161_anchor_provenance import canonical_provenance_payload
@@ -595,6 +596,81 @@ class CheckpointSignatureTests(unittest.TestCase):
             with self.assertRaises(SystemExit) as raised:
                 audit_chain_main(["events.json", "--signed-checkpoint", "checkpoint.json"])
         self.assertEqual(raised.exception.code, 2)
+
+
+class CheckpointSeriesContinuityTests(unittest.TestCase):
+    def setUp(self):
+        self.events = chain()
+        self.first = checkpoint_for(self.events)
+        self.second = {
+            "record_version": "audit-chain-checkpoint/v1",
+            "registration_event_id": "reg-1",
+            "checkpoint_sequence": 2,
+            "checkpoint_event_sha256": self.events[2]["event_sha256"],
+            "anchored_at_utc": "2026-11-10T10:03:00Z",
+            "anchor_reference": "synthetic://anchor/002",
+        }
+
+    def test_ordered_sparse_checkpoints_bind_the_same_chain(self):
+        result = verify_checkpoint_series(self.events, [self.first, self.second])
+        self.assertEqual(result["checkpoint_series_integrity"], "MATCH")
+        self.assertEqual(
+            [item["series_order"] for item in result["checkpoints"]],
+            ["INCREASING", "INCREASING"],
+        )
+
+    def test_reordered_checkpoints_fail_sequence_continuity(self):
+        result = verify_checkpoint_series(self.events, [self.second, self.first])
+        self.assertEqual(result["checkpoint_series_integrity"], "MISMATCH")
+        self.assertEqual(
+            result["checkpoints"][1]["series_order"],
+            "NON_INCREASING_SEQUENCE",
+        )
+
+    def test_replayed_checkpoint_fails_sequence_continuity(self):
+        replay = dict(self.first)
+        replay["anchored_at_utc"] = "2026-11-10T10:04:00Z"
+        replay["anchor_reference"] = "synthetic://anchor/replay"
+        result = verify_checkpoint_series(self.events, [self.first, replay])
+        self.assertEqual(result["checkpoint_series_integrity"], "MISMATCH")
+        self.assertEqual(
+            result["checkpoints"][1]["series_order"],
+            "NON_INCREASING_SEQUENCE",
+        )
+
+    def test_non_increasing_anchor_time_fails_series(self):
+        later_sequence_earlier_time = dict(
+            self.second, anchored_at_utc="2026-11-10T10:02:00Z"
+        )
+        result = verify_checkpoint_series(
+            self.events, [self.first, later_sequence_earlier_time]
+        )
+        self.assertEqual(result["checkpoint_series_integrity"], "MISMATCH")
+        self.assertEqual(
+            result["checkpoints"][1]["series_order"],
+            "NON_INCREASING_ANCHOR_TIME",
+        )
+
+    def test_duplicate_anchor_reference_fails_series(self):
+        duplicate = dict(
+            self.second,
+            anchor_reference=self.first["anchor_reference"],
+        )
+        result = verify_checkpoint_series(self.events, [self.first, duplicate])
+        self.assertEqual(result["checkpoint_series_integrity"], "MISMATCH")
+        self.assertEqual(
+            result["checkpoints"][1]["series_order"],
+            "DUPLICATE_ANCHOR_REFERENCE",
+        )
+
+    def test_checkpoint_digest_mismatch_fails_even_when_order_increases(self):
+        changed = dict(
+            self.second,
+            checkpoint_event_sha256="0" * 64,
+        )
+        result = verify_checkpoint_series(self.events, [self.first, changed])
+        self.assertEqual(result["checkpoint_series_integrity"], "MISMATCH")
+        self.assertEqual(result["checkpoints"][1]["checkpoint_binding"], "MISMATCH")
 
 
 if __name__ == "__main__":
