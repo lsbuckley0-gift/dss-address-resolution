@@ -62,7 +62,7 @@ def verify_event_chain(events: list) -> dict:
             raise ValueError(f"event at index {index} has unsupported field(s): " + ", ".join(sorted(extra)))
         if event["record_version"] != RECORD_VERSION:
             raise ValueError(f"event at index {index} has an unsupported record_version.")
-        if isinstance(event["sequence"], bool) or event["sequence"] != index:
+        if isinstance(event["sequence"], bool) or not isinstance(event["sequence"], int) or event["sequence"] != index:
             raise ValueError(f"event at index {index} has a non-contiguous sequence.")
         event_id = event["event_id"]
         if not isinstance(event_id, str) or not event_id.strip():
@@ -80,7 +80,7 @@ def verify_event_chain(events: list) -> dict:
         previous_time = occurred
 
         event_type = event["event_type"]
-        if event_type not in _EVENT_TYPES:
+        if not isinstance(event_type, str) or event_type not in _EVENT_TYPES:
             raise ValueError(f"event at index {index} has an unsupported event_type.")
         if event_type == "REGISTRATION_FROZEN":
             if registered or index != 0:
@@ -147,7 +147,7 @@ def append_audit_event(
         last = _timestamp(events[-1]["occurred_at_utc"], "last event timestamp")
         if occurred <= last:
             raise ValueError("new event timestamp must be strictly later than the chain head.")
-    if event_type not in _EVENT_TYPES:
+    if not isinstance(event_type, str) or event_type not in _EVENT_TYPES:
         raise ValueError("unsupported event_type.")
     if any(event["event_id"] == event_id for event in events):
         raise ValueError(f"duplicate event_id: {event_id}")
