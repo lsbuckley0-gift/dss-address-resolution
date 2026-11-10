@@ -437,8 +437,10 @@ registration archive.
 a declared primary endpoint and a separate registration evidence record. The
 record schema is
 `experiments/schemas/registration-evidence-v1.schema.json`. It binds the
-registration reference to the endpoint's SHA-256 specification fingerprint
-and records three distinct claimed events:
+registration reference to the endpoint's SHA-256 specification fingerprint,
+and requires `registration_event_id` as an explicit join key to the first
+`REGISTRATION_FROZEN` event in the audit chain. It records three distinct
+claimed events:
 
 1. `registered_at_utc`: when the frozen endpoint record was registered;
 2. `outcomes_accessed_at_utc`: when held-out outcomes were first accessed;
@@ -480,6 +482,14 @@ conform to the registration-evidence schema. Exit code `0` means the digest,
 reference and *claimed* event order are internally consistent; it does not
 mean the timestamp is trusted. Exit code `1` means an integrity or claimed
 chronology check failed. Exit code `2` means the files or record are invalid.
+
+The registration record's `registration_event_id` also allows a direct
+cross-check against the event chain. The Python API
+`verify_registration_chain_binding(endpoint, registration_record, events)`
+combines the endpoint fingerprint check with the hash-chain check and confirms
+that the record names the chain's first registration event. A matching join
+does not authenticate the timestamp or the event source; it establishes only
+that the supplied records refer to the same declared registration event.
 
 ## Hash-linked audit event chain (v1)
 
