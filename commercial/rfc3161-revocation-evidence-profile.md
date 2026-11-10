@@ -234,8 +234,9 @@ This CRL evaluator is a separate opt-in function; it is not yet wired into
 to return `tsa_certificate_revocation: NOT_CHECKED` and
 `historical_revocation_assurance: NOT_ESTABLISHED` until an explicit
 integration contract is added. The evaluator re-verifies the original token against the supplied pinned
-anchor and intermediates on every call. The pin itself remains caller-supplied
-and its provenance is not independently authenticated. The OCSP evaluator is limited to the issuer-signed RSA/SHA-256 subset described above. Synthetic integration tests cover
+anchor and intermediates on every call. Its result labels issuer trust as
+re-verified relative to that caller-supplied pinned anchor. The pin itself
+remains caller-supplied and its provenance is not independently authenticated. The OCSP evaluator is limited to the issuer-signed RSA/SHA-256 subset described above. Synthetic integration tests cover
 valid direct CRLs, revoked and unlisted serials, issuer mismatch, bad
 signatures, missing CRLNumber/AKI, negative CRLNumber rejection, delta and indirect CRL rejection,
 partial-reason scope, TSA CRLDistributionPoints, list-wide indirect-CRL
