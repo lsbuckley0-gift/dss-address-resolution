@@ -228,7 +228,9 @@ def verify_tsa_crl_evidence(
         revocation_time = revoked_entry.revocation_date_utc
         if revocation_time > this_update:
             raise ValueError("CRL entry revocationDate is later than CRL thisUpdate.")
-        if revocation_time <= target_time:
+        if reason == x509.ReasonFlags.certificate_hold:
+            status_at_target = "CERTIFICATE_HOLD_REPORTED_TARGET_STATUS_NOT_ESTABLISHED"
+        elif revocation_time <= target_time:
             status_at_target = "REVOKED_AT_OR_BEFORE_TARGET"
             historical_assurance = "REVOKED_BY_TARGET_TIME_UNDER_SIGNED_CRL_ASSERTION"
         else:
