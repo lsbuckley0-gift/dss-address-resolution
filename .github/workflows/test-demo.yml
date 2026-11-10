@@ -37,6 +37,7 @@ jobs:
           python -m json.tool experiments/schemas/audit-chain-checkpoint-signature-v1.schema.json > /dev/null
           python -m json.tool experiments/schemas/timestamp-trust-anchor-pin-v1.schema.json > /dev/null
           python -m json.tool experiments/schemas/rfc3161-tsa-anchor-provenance-v1.schema.json > /dev/null
+          python -m json.tool experiments/schemas/rfc3161-tsa-anchor-provenance-signature-v1.schema.json > /dev/null
       - name: Run paired pilot metrics fixture
         run: python experiments/pilot_metrics.py experiments/fixtures/paired-pilot-synthetic-v1.json --json-out /tmp/paired-pilot-report.json
       - name: Run legacy fuzzy comparison harness
