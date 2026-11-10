@@ -71,6 +71,8 @@ def verify_signed_checkpoint(
         timestamp_trust_anchor_pem is not None,
         timestamp_trust_anchor_pin is not None,
     )
+    if any(provenance_inputs) and not all(timestamp_inputs):
+        raise ValueError("timestamp provenance inputs require the complete RFC 3161 timestamp inputs.")
     if any(timestamp_inputs) and not all(timestamp_inputs):
         raise ValueError(
             "timestamp_token_der, timestamp_trust_anchor_pem and "
