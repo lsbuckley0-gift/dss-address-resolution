@@ -32,9 +32,19 @@ def _percentile(values, percentile):
     return ordered[index]
 
 
+def _reject_extra_fields(value, allowed, location):
+    extra = set(value) - allowed
+    if extra:
+        names = ", ".join(sorted(repr(key) for key in extra))
+        raise ValueError(f"{location} contains unsupported field(s): {names}.")
+
+
 def _validate(data):
     if not isinstance(data, dict) or not isinstance(data.get("cases"), list):
         raise ValueError("Input must be an object containing a cases array.")
+    _reject_extra_fields(
+        data, {"dataset_id", "dataset_version", "cases"}, "input"
+    )
     for field in ("dataset_id", "dataset_version"):
         value = data.get(field)
         if not isinstance(value, str) or not value.strip():
@@ -46,6 +56,11 @@ def _validate(data):
         prefix = f"cases[{index}]"
         if not isinstance(case, dict):
             raise ValueError(f"{prefix} must be an object.")
+        _reject_extra_fields(
+            case,
+            {"case_id", "gold_candidate_id", "baseline", "dss"},
+            prefix,
+        )
         case_id = case.get("case_id")
         if not isinstance(case_id, str) or not case_id.strip():
             raise ValueError(f"{prefix}.case_id must be a non-empty string.")
@@ -61,6 +76,14 @@ def _validate(data):
             decision = case.get(system)
             if not isinstance(decision, dict):
                 raise ValueError(f"{prefix}.{system} must be an object.")
+            _reject_extra_fields(
+                decision,
+                {
+                    "terminal_state", "selected_candidate_id", "trace_complete",
+                    "review_routed", "latency_ms", "review_seconds",
+                },
+                f"{prefix}.{system}",
+            )
             if decision.get("terminal_state") not in STATES:
                 raise ValueError(f"{prefix}.{system}.terminal_state is invalid.")
             selected = decision.get("selected_candidate_id")
