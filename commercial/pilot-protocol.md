@@ -204,7 +204,7 @@ the baseline decision and columns classify the ∂ss decision as correct automat
 resolution, false accept, false reject or correct abstention. Every paired case
 appears in exactly one cell. This exposes case-level trade-offs—for example, a
 baseline false accept becoming a ∂ss false reject—rather than hiding them inside
-separate aggregate rates. The report format is `paired-pilot-metrics/1.9`; version 1.4 introduced sample-sufficiency screening, version 1.5 added fail-closed unclassified-case handling, version 1.6 reports observed strata omitted from pre-registration, version 1.7 adds operational threshold assessment, version 1.8 combines the configured gates into a pilot-readiness status, and version 1.9 adds paired one-versus-rest outcome comparisons. The report also groups the
+separate aggregate rates. The report format is `paired-pilot-metrics/1.9`; version 1.4 introduced sample-sufficiency screening, version 1.5 added fail-closed unclassified-case handling, version 1.6 reports observed strata omitted from pre-registration, version 1.7 adds operational threshold assessment, version 1.8 combines the configured gates into a pilot-readiness status, version 1.9 adds paired one-versus-rest outcome comparisons, and version 2.0 adds conservative paired prevalence-difference confidence intervals. The report also groups the
 same measures by case stratum. Accepted labels are `EXACT`, `FORMATTING_ONLY`,
 `TYPO`, `DUPLICATE`, `CONFLICTING`, `INCOMPLETE` and `STALE`. The input
 field is optional for compatibility; omitted labels are explicitly reported as
@@ -342,6 +342,20 @@ which both systems produced that class, baseline only, ∂ss only, or neither;
 the discordant-pair count; and the marginal prevalence difference
 (∂ss minus baseline).
 
+For each class, the report also provides a conservative 95% confidence
+interval for the paired prevalence difference (∂ss minus baseline). Let
+q be the probability that the systems disagree on the one-versus-rest
+classification, and let θ be the conditional probability that only ∂ss has
+the outcome among discordant pairs. The marginal difference is
+q × (2θ − 1). The implementation constructs two-sided 97.5% exact
+Clopper-Pearson intervals for q and θ, then combines their endpoint products.
+Bonferroni's inequality gives at least 95% simultaneous coverage for the two
+components, and the resulting interval is conservative for the paired
+prevalence difference under independent, identically distributed case pairs.
+When no discordances are observed, the interval remains wide rather than
+mistaking an observed zero difference for certainty. This is not a
+case-resampling interval and does not account for clustering.
+
 For each class, the report calculates a two-sided exact McNemar p-value
 from the discordant pairs, then applies the Holm procedure across the four
 outcome-class tests within that overall or stratum-specific comparison group.
@@ -371,3 +385,10 @@ no inference should be made from a synthetic fixture.
 This analysis describes paired outcome changes in the evaluated cases. It
 does not establish causation, representativeness, operational utility, or
 field performance, and it does not alter the existing pilot-readiness gates.
+
+The paired confidence interval is an uncertainty interval for the marginal
+one-versus-rest prevalence difference, not for the false-accept or
+false-reject conditional rates used by the operational decision gate. Those
+existing gates continue to use their separately specified upper Wilson bounds.
+The interval is emitted for every outcome class and comparison group; it is
+descriptive and does not automatically pass or fail pilot readiness.
