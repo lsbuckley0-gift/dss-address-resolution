@@ -62,7 +62,7 @@ its pinned dependency and run:
 
 ```bash
 python -m pip install -r requirements-comparison.txt
-python -m unittest tests.test_comparison -v
+python -m unittest discover -s tests -p 'test_comparison.py' -v
 python run_test.py
 ```
 
