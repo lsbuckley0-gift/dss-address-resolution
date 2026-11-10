@@ -14,7 +14,8 @@ import unittest
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import Ed25519PrivateKey, rsa
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
 from experiments.rfc3161_timestamp import trust_anchor_sha256, verify_rfc3161_timestamp
