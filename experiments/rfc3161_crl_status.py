@@ -123,6 +123,16 @@ def verify_tsa_crl_evidence(
     if this_update is None or next_update is None or next_update <= this_update:
         raise ValueError("CRL must contain an increasing thisUpdate/nextUpdate interval.")
 
+    # certificateIssuer changes the interpretation of subsequent entries
+    # in an indirect CRL. Reject it anywhere in the list, not only on the TSA
+    # serial: otherwise an unrelated entry could silently change list scope.
+    for entry in crl:
+        if any(
+            extension.oid.dotted_string == _CERTIFICATE_ISSUER_OID
+            for extension in entry.extensions
+        ):
+            raise ValueError("indirect CRL certificateIssuer entries are unsupported.")
+
     matching_entries = [
         entry for entry in crl
         if entry.serial_number == tsa_certificate.serial_number
@@ -138,8 +148,6 @@ def verify_tsa_crl_evidence(
     if revoked_entry is not None:
         reason = None
         for extension in revoked_entry.extensions:
-            if extension.oid.dotted_string == _CERTIFICATE_ISSUER_OID:
-                raise ValueError("indirect CRL certificateIssuer entries are unsupported.")
             if extension.oid.dotted_string not in {
                 _CRL_REASON_OID, _INVALIDITY_DATE_OID
             }:
