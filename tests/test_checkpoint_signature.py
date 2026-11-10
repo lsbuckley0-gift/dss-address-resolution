@@ -560,6 +560,15 @@ class CheckpointSignatureTests(unittest.TestCase):
         self.assertEqual(report["timestamp_evidence"]["timestamp_verification"], "NOT_PERFORMED")
         verify.assert_not_called()
 
+    def test_cli_rejects_negative_provenance_sequence_floor(self):
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as raised:
+                audit_chain_main([
+                    "events.json",
+                    "--timestamp-governance-minimum-sequence", "-1",
+                ])
+        self.assertEqual(raised.exception.code, 2)
+
     def test_cli_rejects_partial_timestamp_provenance_bundle(self):
         with contextlib.redirect_stderr(io.StringIO()):
             with self.assertRaises(SystemExit) as raised:
