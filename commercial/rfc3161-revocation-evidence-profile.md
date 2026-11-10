@@ -168,10 +168,14 @@ CMS extraction therefore reads identity from the same token only after that
 stricter timestamp verification has passed. It does not check revocation.
 The runtime now performs this extraction only after
 `openssl ts -verify` succeeds. It exposes the signer certificate's DER
-SHA-256, issuer-name DER SHA-256, issuer SubjectPublicKeyInfo SHA-256 and
-lowercase hexadecimal serial under `tsa_signer_certificate`. These fields
-supply exact identity inputs for a future revocation check; they do not assert
-that the certificate is unrevoked. If extraction fails, the timestamp result
+SHA-256, signer SubjectPublicKeyInfo SHA-256, issuer-name DER SHA-256, exact
+issuer-certificate DER SHA-256, issuer SubjectPublicKeyInfo SHA-256 and
+lowercase hexadecimal serial under `tsa_signer_certificate`. The issuer
+certificate is selected from the caller-supplied anchor/intermediate bundle
+using the signer's issuer name and Authority Key Identifier; zero or multiple
+matches fail identity extraction rather than guessing. These fields supply
+exact identity inputs for a future revocation check; they do not assert that
+the certificate is unrevoked. If extraction fails, the timestamp result
 remains `VALID` when the original RFC 3161 verification passed, while
 `tsa_signer_certificate_identity` becomes `NOT_EXTRACTED` and revocation
 remains `NOT_CHECKED` / `NOT_ESTABLISHED`. A focused test covers this
