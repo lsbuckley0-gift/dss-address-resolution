@@ -5,6 +5,7 @@ put raw addresses or customer-identifying data in this file.
 """
 from __future__ import annotations
 import argparse
+import hashlib
 import json
 import math
 import statistics
@@ -347,6 +348,19 @@ def _paired_class_comparisons(matrix):
     }
 
 
+def _primary_endpoint_spec_sha256(endpoint):
+    """Fingerprint only the scientific endpoint specification, not its audit pointer."""
+    specification = {
+        key: endpoint[key]
+        for key in ("outcome_class", "expected_direction", "analysis_population", "alpha")
+    }
+    canonical = json.dumps(
+        specification, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+        allow_nan=False,
+    ).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
+
+
 def _primary_endpoint_assessment(data, matrix):
     endpoint = data.get("primary_endpoint")
     if endpoint is None:
@@ -384,6 +398,7 @@ def _primary_endpoint_assessment(data, matrix):
             "analysis_population": endpoint["analysis_population"],
             "alpha": alpha,
             "registration_reference": endpoint["registration_reference"],
+            "endpoint_spec_sha256": _primary_endpoint_spec_sha256(endpoint),
             "frozen_before_outcomes_review_attested": True,
             "case_count": comparison["case_count"],
             "prevalence_difference_dss_minus_baseline": estimate,
