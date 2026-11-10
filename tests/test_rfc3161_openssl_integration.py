@@ -45,7 +45,7 @@ def _certificate(subject, issuer, public_key, signer_key, serial, *, is_ca, time
         .add_extension(x509.BasicConstraints(ca=is_ca, path_length=1 if is_ca else None), critical=True)
         .add_extension(
             x509.KeyUsage(
-                digital_signature=timestamp_signer,
+                digital_signature=timestamp_signer or is_ca,
                 content_commitment=False,
                 key_encipherment=False,
                 data_encipherment=False,
