@@ -669,3 +669,33 @@ signature. Exit code `1` indicates a validly parsed but incomplete or
 mismatching chain/checkpoint/signature result; exit code `2` indicates
 malformed files or invalid arguments. The CLI emits the component results so
 a valid signature cannot conceal a failed chain binding.
+
+
+## Out-of-band trust-policy digest pin (v1)
+
+`experiments/trust_policy_pin.py` adds an independent configuration-integrity
+preflight. It validates the supplied trust store, serialises the complete
+record as sorted-key, compact UTF-8 JSON, and computes its SHA-256 digest.
+`verify_trust_store_pin(store, pin)` compares that digest with a caller-supplied
+64-character lowercase hexadecimal digest and requires a non-empty pin-source
+reference.
+
+The pin must be provisioned and retained independently of the trust store.
+Changing a key, status, permitted purpose, validity interval, public key or
+trust-basis reference changes the digest and returns `MISMATCH`. JSON object
+key order does not change the digest; array order remains part of the canonical
+record. An empty allowlist can be pinned, but still authorises no key.
+
+**Critical boundary:** `MATCH` proves only canonical digest equality against
+the supplied pin. The verifier cannot establish who issued the pin, whether
+its reference is genuine, or whether its delivery channel is independent.
+The output therefore states
+`pin_source_authentication: NOT_INDEPENDENTLY_AUTHENTICATED` and
+`trust_policy_authentication: NOT_ESTABLISHED`. Do not describe a matching
+digest as proof that the named authority is genuine. The pin's provenance
+must be established by an external governance process and independently
+retained by the verifier operator.
+
+This is a policy-drift detector, not a self-authenticating trust root. It
+deliberately does not embed a governance public key or infer one from the
+trust store it is checking.
