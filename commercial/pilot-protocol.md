@@ -722,8 +722,9 @@ The verifier uses the OpenSSL `ts` command. It first reads the token's asserted
 GMT `genTime`, then invokes timestamp verification with the exact data bytes,
 an explicit caller-supplied CA PEM bundle, optional untrusted intermediates,
 and `-attime` set to the token's asserted generation time. It explicitly
-requires the `timestampsign` certificate purpose, disables default CA path
-and store lookup, and enables strict X.509 checks. This checks the token
+requires the `timestampsign` certificate purpose, supplies an isolated empty
+CA path alongside the explicit CA file to prevent system CA-directory fallback,
+and enables strict X.509 checks. This checks the token
 signature, message imprint, TSA signing-certificate purpose (including the
 critical timeStamping EKU and permitted key usage), and certificate path at the
 asserted token time. The RFC 3161 command's token verification and the
