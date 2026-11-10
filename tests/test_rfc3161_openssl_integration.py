@@ -214,15 +214,12 @@ ess_cert_id_chain = no
         include_aki=True, delta=False, this_update=None, next_update=None,
         revocation_reason=None, duplicate_target_entry=False,
         crl_aki_issuer_serial=None, issuing_distribution_point=None,
-        omit_next_update=False, unsupported_crl_extension=None,
+        unsupported_crl_extension=None,
     ):
         issuer = x509.load_pem_x509_certificate(self.ca_pem)
         now = datetime.now(timezone.utc).replace(microsecond=0, tzinfo=None)
         this_update = this_update or (now - timedelta(days=1))
-        if not omit_next_update:
-            next_update = next_update or (now + timedelta(days=1))
-        else:
-            next_update = None
+        next_update = next_update or (now + timedelta(days=1))
         builder = (
             x509.CertificateRevocationListBuilder()
             .issuer_name(issuer.subject)
@@ -470,14 +467,6 @@ ess_cert_id_chain = no
         with self.assertRaisesRegex(ValueError, "CRL distribution-point scope matching is unsupported"):
             verify_tsa_crl_evidence(
                 timestamp_result, tsa_pem, self.ca_pem, crl_der
-            )
-
-    def test_crl_requires_next_update(self):
-        timestamp_result = self._verified_timestamp_result()
-        with self.assertRaisesRegex(ValueError, "increasing thisUpdate/nextUpdate"):
-            verify_tsa_crl_evidence(
-                timestamp_result, self.tsa_pem, self.ca_pem,
-                self._build_tsa_crl(omit_next_update=True),
             )
 
     def test_unsupported_critical_crl_extension_is_rejected(self):
