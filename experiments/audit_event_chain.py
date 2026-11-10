@@ -368,12 +368,21 @@ def main(argv=None) -> int:
     parser.add_argument("--trust-store", help="Explicit audit trust-store JSON file")
     parser.add_argument("--trust-store-pin", help="Out-of-band trust-store SHA-256 pin JSON file")
     parser.add_argument("--at-utc", help="Claimed UTC instant used for key-validity policy (not independently authenticated)")
+    parser.add_argument("--timestamp-token", help="DER RFC 3161 TimeStampToken for the canonical checkpoint payload")
+    parser.add_argument("--timestamp-trust-anchor", help="Caller-supplied timestamp CA trust-anchor PEM")
+    parser.add_argument("--timestamp-trust-anchor-pin", help="Out-of-band digest pin for the exact trust-anchor PEM bytes")
+    parser.add_argument("--timestamp-intermediates", help="Optional untrusted TSA/intermediate certificate PEM bundle")
     args = parser.parse_args(argv)
     signed_options = (args.signature, args.trust_store, args.at_utc)
+    timestamp_options = (args.timestamp_token, args.timestamp_trust_anchor, args.timestamp_trust_anchor_pin)
     if args.signed_checkpoint and not all(signed_options):
         parser.error("--signed-checkpoint requires --signature, --trust-store and --at-utc")
-    if not args.signed_checkpoint and (any(signed_options) or args.trust_store_pin):
-        parser.error("--signature, --trust-store, --trust-store-pin and --at-utc require --signed-checkpoint")
+    if any(timestamp_options) and not all(timestamp_options):
+        parser.error("--timestamp-token, --timestamp-trust-anchor and --timestamp-trust-anchor-pin are required together")
+    if args.timestamp_intermediates and not all(timestamp_options):
+        parser.error("--timestamp-intermediates requires all timestamp verification inputs")
+    if not args.signed_checkpoint and (any(signed_options) or args.trust_store_pin or any(timestamp_options) or args.timestamp_intermediates):
+        parser.error("signed-checkpoint and timestamp verification options require --signed-checkpoint")
     try:
         events = json.loads(Path(args.event_chain).read_text(encoding="utf-8"))
         report = verify_event_chain(events)
@@ -393,9 +402,28 @@ def main(argv=None) -> int:
                 json.loads(Path(args.trust_store_pin).read_text(encoding="utf-8"))
                 if args.trust_store_pin else None
             )
+            timestamp_token_der = (
+                Path(args.timestamp_token).read_bytes() if args.timestamp_token else None
+            )
+            timestamp_trust_anchor_pem = (
+                Path(args.timestamp_trust_anchor).read_bytes()
+                if args.timestamp_trust_anchor else None
+            )
+            timestamp_trust_anchor_pin = (
+                json.loads(Path(args.timestamp_trust_anchor_pin).read_text(encoding="utf-8"))
+                if args.timestamp_trust_anchor_pin else None
+            )
+            timestamp_intermediates_pem = (
+                Path(args.timestamp_intermediates).read_bytes()
+                if args.timestamp_intermediates else None
+            )
             report["signed_external_checkpoint"] = verify_signed_checkpoint(
                 events, checkpoint, signature, trust_store, at_utc=args.at_utc,
                 trust_store_pin=trust_store_pin,
+                timestamp_token_der=timestamp_token_der,
+                timestamp_trust_anchor_pem=timestamp_trust_anchor_pem,
+                timestamp_trust_anchor_pin=timestamp_trust_anchor_pin,
+                timestamp_intermediates_pem=timestamp_intermediates_pem,
             )
     except (OSError, json.JSONDecodeError, ValueError) as exc:
         print(f"audit event chain error: {exc}", file=sys.stderr)
