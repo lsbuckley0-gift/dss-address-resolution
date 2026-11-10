@@ -90,6 +90,13 @@ class PilotMetricsTests(unittest.TestCase):
         self.assertTrue(requirements["properties"]["required_strata"]["uniqueItems"])
         self.assertEqual(requirements["properties"]["minimum_case_count"]["minimum"], 1)
         self.assertEqual(requirements["properties"]["minimum_unique_gold_case_count"]["minimum"], 1)
+        primary_endpoint = schema["properties"]["primary_endpoint"]
+        self.assertEqual(primary_endpoint["required"], [
+            "outcome_class", "expected_direction", "analysis_population", "alpha",
+            "registration_reference", "frozen_before_outcomes_review",
+        ])
+        self.assertEqual(primary_endpoint["properties"]["analysis_population"]["const"], "ALL_PAIRED_CASES")
+        self.assertEqual(primary_endpoint["properties"]["frozen_before_outcomes_review"]["const"], True)
         decision_requirements = schema["properties"]["decision_requirements"]
         self.assertEqual(decision_requirements["required"], [
             "system", "max_false_accept_rate_upper_95pct",
@@ -185,7 +192,7 @@ class PilotMetricsTests(unittest.TestCase):
             report = json.loads(completed.stdout)
             self.assertEqual(json.loads(output_path.read_text(encoding="utf-8")), report)
         self.assertEqual(report["dataset_id"], "paired-pilot-synthetic")
-        self.assertEqual(report["report_version"], "paired-pilot-metrics/2.0")
+        self.assertEqual(report["report_version"], "paired-pilot-metrics/2.1")
         self.assertEqual(report["case_count"], 4)
         self.assertEqual(set(report["stratum_metrics"]), {"EXACT", "TYPO", "FORMATTING_ONLY", "CONFLICTING"})
         self.assertEqual(report["stratum_metrics"]["TYPO"]["case_count"], 1)
@@ -315,6 +322,80 @@ class PilotMetricsTests(unittest.TestCase):
         reverse = _paired_prevalence_difference_interval(6, 1, 20)
         self.assertAlmostEqual(forward[0], -reverse[1], places=10)
         self.assertAlmostEqual(forward[1], -reverse[0], places=10)
+
+    def test_primary_endpoint_supports_preregistered_direction_when_interval_excludes_zero(self):
+        cases = [{
+            "case_id": "case-" + str(index),
+            "gold_candidate_id": None,
+            "baseline": decision("VERIFIED", "wrong-" + str(index)),
+            "dss": decision("UNRESOLVED"),
+        } for index in range(20)]
+        data = pilot_data(cases)
+        data["primary_endpoint"] = {
+            "outcome_class": "FALSE_ACCEPT",
+            "expected_direction": "LOWER",
+            "analysis_population": "ALL_PAIRED_CASES",
+            "alpha": 0.05,
+            "registration_reference": "protocol-v1-section-4",
+            "frozen_before_outcomes_review": True,
+        }
+        report = evaluate(data)
+        assessment = report["primary_endpoint_assessment"]
+        self.assertEqual(assessment["status"], "SUPPORTS_DIRECTION")
+        self.assertLess(assessment["endpoint"]["prevalence_difference_confidence_interval"][1], 0)
+        self.assertTrue(assessment["endpoint"]["two_sided_mcnemar_p_value_at_or_below_alpha"])
+        self.assertEqual(assessment["endpoint"]["case_count"], 20)
+        self.assertIn("not independently verified", assessment["interpretation"])
+
+    def test_primary_endpoint_is_indeterminate_when_interval_crosses_zero(self):
+        data = pilot_data([{
+            "case_id": "single",
+            "gold_candidate_id": None,
+            "baseline": decision("VERIFIED", "wrong"),
+            "dss": decision("UNRESOLVED"),
+        }])
+        data["primary_endpoint"] = {
+            "outcome_class": "FALSE_ACCEPT", "expected_direction": "LOWER",
+            "analysis_population": "ALL_PAIRED_CASES", "alpha": 0.05,
+            "registration_reference": "protocol-v1", "frozen_before_outcomes_review": True,
+        }
+        self.assertEqual(evaluate(data)["primary_endpoint_assessment"]["status"], "INDETERMINATE")
+
+    def test_primary_endpoint_reports_opposite_direction_without_rewriting_hypothesis(self):
+        data = pilot_data([{
+            "case_id": "single",
+            "gold_candidate_id": None,
+            "baseline": decision("UNRESOLVED"),
+            "dss": decision("VERIFIED", "wrong"),
+        }])
+        data["primary_endpoint"] = {
+            "outcome_class": "FALSE_ACCEPT", "expected_direction": "LOWER",
+            "analysis_population": "ALL_PAIRED_CASES", "alpha": 0.05,
+            "registration_reference": "protocol-v1", "frozen_before_outcomes_review": True,
+        }
+        self.assertEqual(evaluate(data)["primary_endpoint_assessment"]["status"], "OPPOSITE_DIRECTION")
+
+    def test_primary_endpoint_is_not_configured_by_default(self):
+        assessment = evaluate(self.data)["primary_endpoint_assessment"]
+        self.assertEqual(assessment["status"], "NOT_CONFIGURED")
+        self.assertIsNone(assessment["endpoint"])
+
+    def test_primary_endpoint_rejects_unverifiable_or_invalid_declarations(self):
+        base = {
+            "outcome_class": "FALSE_ACCEPT", "expected_direction": "LOWER",
+            "analysis_population": "ALL_PAIRED_CASES", "alpha": 0.05,
+            "registration_reference": "protocol-v1", "frozen_before_outcomes_review": True,
+        }
+        for field, value, message in [
+            ("frozen_before_outcomes_review", False, "must be true"),
+            ("alpha", True, "strictly between 0 and 1"),
+            ("analysis_population", "UNIQUE_GOLD_CASES", "must be ALL_PAIRED_CASES"),
+            ("registration_reference", "  ", "non-empty string"),
+        ]:
+            data = dict(self.data)
+            data["primary_endpoint"] = dict(base, **{field: value})
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, message):
+                evaluate(data)
 
     def test_exact_mcnemar_is_symmetric_bounded_and_exact_for_small_pairs(self):
         self.assertEqual(_exact_mcnemar_p_value(0, 0), 1.0)
