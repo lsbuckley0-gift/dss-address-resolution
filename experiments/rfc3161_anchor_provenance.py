@@ -99,7 +99,7 @@ def verify_timestamp_anchor_provenance(
         verify_trust_store_pin(governance_trust_store, trust_store_pin)
         if trust_store_pin is not None else {"trust_policy_pin": "NOT_CHECKED"}
     )
-    if pin_result["trust_policy_pin"] != "MATCH":
+    if trust_store_pin is not None and pin_result["trust_policy_pin"] != "MATCH":
         return {
             "provenance_verification": "GOVERNANCE_POLICY_PIN_MISMATCH",
             "attestation_signature": "NOT_PERFORMED",
