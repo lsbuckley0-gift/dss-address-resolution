@@ -25,6 +25,10 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Validate paired pilot JSON Schema syntax
         run: python -m json.tool experiments/schemas/paired-pilot-input-v1.schema.json > /dev/null
+      - name: Validate registration evidence and event-chain JSON Schema syntax
+        run: |
+          python -m json.tool experiments/schemas/registration-evidence-v1.schema.json > /dev/null
+          python -m json.tool experiments/schemas/audit-event-chain-v1.schema.json > /dev/null
       - name: Run paired pilot metrics fixture
         run: python experiments/pilot_metrics.py experiments/fixtures/paired-pilot-synthetic-v1.json --json-out /tmp/paired-pilot-report.json
       - name: Run legacy fuzzy comparison harness
