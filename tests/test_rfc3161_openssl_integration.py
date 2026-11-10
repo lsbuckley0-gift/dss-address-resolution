@@ -1005,6 +1005,22 @@ ess_cert_id_chain = no
         self.assertEqual(result["responder_id_type"], "KEY_HASH")
         self.assertEqual(result["responder_authorization"], "ISSUING_CA_DIRECTLY_SIGNED")
 
+    def test_ocsp_responder_key_hash_uses_public_key_not_certificate_ski(self):
+        timestamp_result = self._verified_timestamp_result()
+        response_der = self._build_tsa_ocsp_response(
+            responder_encoding=ocsp.OCSPResponderEncoding.HASH
+        )
+        with patch(
+            "experiments.rfc3161_ocsp_status.subject_key_identifier",
+            return_value=b"\\x00" * 20,
+            create=True,
+        ):
+            result = verify_tsa_ocsp_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem, response_der
+            )
+        self.assertEqual(result["responder_id_type"], "KEY_HASH")
+        self.assertEqual(result["responder_authorization"], "ISSUING_CA_DIRECTLY_SIGNED")
+
     def test_ocsp_request_cert_id_must_match_exact_tsa_certificate(self):
         timestamp_result = self._verified_timestamp_result()
         other_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
