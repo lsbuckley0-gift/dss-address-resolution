@@ -100,6 +100,8 @@ class RFC3161TimestampTests(unittest.TestCase):
         result = verify_rfc3161_timestamp(self.token, self.data, self.anchor, self.pin)
         self.assertEqual(result["timestamp_verification"], "INVALID_TOKEN")
         self.assertEqual(result["token_signature_and_path"], "NOT_VERIFIED")
+        self.assertIn("refuses to round or truncate", result["error"])
+        run.assert_called_once()
 
     @patch("experiments.rfc3161_timestamp.subprocess.run")
     def test_missing_openssl_is_unavailable_not_valid(self, run):
