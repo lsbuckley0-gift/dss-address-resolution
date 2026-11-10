@@ -89,7 +89,8 @@ class RFC3161OpenSSLIntegrationTests(unittest.TestCase):
             is_ca=False, timestamp_signer=True,
         )
         self.ca_pem = ca_cert.public_bytes(serialization.Encoding.PEM)
-        tsa_pem = tsa_cert.public_bytes(serialization.Encoding.PEM)
+        self.tsa_pem = tsa_cert.public_bytes(serialization.Encoding.PEM)
+        tsa_pem = self.tsa_pem
         tsa_key_pem = tsa_key.private_bytes(
             serialization.Encoding.PEM,
             serialization.PrivateFormat.TraditionalOpenSSL,
@@ -136,6 +137,26 @@ ess_cert_id_chain = no
         result = subprocess.run(command, capture_output=True, text=True, check=False)
         if result.returncode != 0:
             self.fail("Synthetic OpenSSL fixture setup failed: " + result.stderr)
+
+    def test_openssl_cms_extracts_the_verified_timestamp_signer_certificate(self):
+        signer_path = self.root / "extracted-signer.pem"
+        content_path = self.root / "extracted-tst-info.der"
+        result = subprocess.run(
+            [
+                self.openssl, "cms", "-verify", "-binary", "-inform", "DER",
+                "-in", str(self.root / "token.der"), "-noverify",
+                "-signer", str(signer_path), "-out", str(content_path),
+            ],
+            capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        extracted = x509.load_pem_x509_certificate(signer_path.read_bytes())
+        expected = x509.load_pem_x509_certificate(self.tsa_pem)
+        self.assertEqual(
+            extracted.fingerprint(hashes.SHA256()),
+            expected.fingerprint(hashes.SHA256()),
+        )
+        self.assertTrue(content_path.read_bytes())
 
     def test_real_token_signature_imprint_purpose_and_chain_verify(self):
         result = verify_rfc3161_timestamp(
