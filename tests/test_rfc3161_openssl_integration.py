@@ -260,7 +260,7 @@ ess_cert_id_chain = no
     def _build_tsa_crl(
         self, *, revoked_at=None, signer_key=None, include_number=True,
         include_aki=True, delta=False, this_update=None, next_update=None,
-        revocation_reason=None, duplicate_target_entry=False,
+        revocation_reason=None, invalidity_date=None, duplicate_target_entry=False,
         certificate_issuer_entry=False, unrelated_certificate_issuer_entry=False,
         crl_aki_issuer_serial=None, issuing_distribution_point=None,
         unsupported_crl_extension=None,
@@ -313,6 +313,11 @@ ess_cert_id_chain = no
             if revocation_reason is not None:
                 revoked_builder = revoked_builder.add_extension(
                     x509.CRLReason(revocation_reason), critical=False
+                )
+            if invalidity_date is not None:
+                revoked_builder = revoked_builder.add_extension(
+                    x509.InvalidityDate(invalidity_date.replace(tzinfo=None)),
+                    critical=False,
                 )
             if certificate_issuer_entry:
                 revoked_builder = revoked_builder.add_extension(
@@ -541,6 +546,21 @@ ess_cert_id_chain = no
         with self.assertRaises(ValueError):
             verify_tsa_crl_evidence(
                 timestamp_result, self.tsa_pem, self.ca_pem, b"not a DER CRL"
+            )
+
+    def test_crl_invalidity_date_is_rejected_until_semantics_are_supported(self):
+        timestamp_result = self._verified_timestamp_result()
+        target = datetime.fromisoformat(
+            timestamp_result["tsa_asserted_gen_time_utc"].replace("Z", "+00:00")
+        )
+        crl_der = self._build_tsa_crl(
+            revoked_at=target + timedelta(hours=1),
+            invalidity_date=target - timedelta(hours=1),
+            this_update=(target - timedelta(minutes=30)).replace(tzinfo=None),
+        )
+        with self.assertRaisesRegex(ValueError, "InvalidityDate semantics are unsupported"):
+            verify_tsa_crl_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem, crl_der
             )
 
     def test_indirect_crl_certificate_issuer_entry_is_rejected(self):
