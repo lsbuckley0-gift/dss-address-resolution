@@ -25,6 +25,7 @@ from experiments.rfc3161_timestamp import (
     verify_rfc3161_timestamp,
 )
 from experiments.rfc3161_crl_status import verify_tsa_crl_evidence
+from experiments.rfc3161_ocsp_status import verify_tsa_ocsp_evidence
 from experiments.rfc3161_anchor_provenance import (
     canonical_provenance_payload,
     verify_rfc3161_timestamp_with_provenance,
@@ -404,6 +405,196 @@ ess_cert_id_chain = no
         )
         self.assertEqual(result["status_at_target_time"], "NOT_ESTABLISHED")
         self.assertEqual(result["historical_revocation_assurance"], "NOT_ESTABLISHED")
+
+    def _build_tsa_ocsp_request(self, nonce=None, cert=None):
+        issuer = x509.load_pem_x509_certificate(self.ca_pem)
+        tsa = cert or x509.load_pem_x509_certificate(self.tsa_pem)
+        builder = ocsp.OCSPRequestBuilder().add_certificate(
+            tsa, issuer, hashes.SHA256()
+        )
+        if nonce is not None:
+            builder = builder.add_extension(x509.OCSPNonce(nonce), critical=False)
+        return builder.build().public_bytes(serialization.Encoding.DER)
+
+    def _build_tsa_ocsp_response(
+        self, *, status=ocsp.OCSPCertStatus.GOOD, revocation_time=None,
+        revocation_reason=None, nonce=None, cert=None, signer_key=None,
+        responder_cert=None, responder_encoding=ocsp.OCSPResponderEncoding.NAME,
+        included_certificates=None, this_update=None, next_update=None,
+    ):
+        issuer = x509.load_pem_x509_certificate(self.ca_pem)
+        tsa = cert or x509.load_pem_x509_certificate(self.tsa_pem)
+        now = datetime.now(timezone.utc).replace(microsecond=0, tzinfo=None)
+        this_update = this_update or (now - timedelta(days=1))
+        next_update = next_update or (now + timedelta(days=1))
+        responder_cert = responder_cert or issuer
+        builder = (
+            ocsp.OCSPResponseBuilder()
+            .add_response(
+                cert=tsa,
+                issuer=issuer,
+                algorithm=hashes.SHA256(),
+                cert_status=status,
+                this_update=this_update,
+                next_update=next_update,
+                revocation_time=revocation_time,
+                revocation_reason=revocation_reason,
+            )
+            .responder_id(responder_encoding, responder_cert)
+        )
+        if nonce is not None:
+            builder = builder.add_extension(x509.OCSPNonce(nonce), critical=False)
+        if included_certificates is not None:
+            builder = builder.certificates(included_certificates)
+        response = builder.sign(
+            private_key=signer_key or self.ca_key,
+            algorithm=hashes.SHA256(),
+        )
+        return response.public_bytes(serialization.Encoding.DER)
+
+    def test_issuer_signed_ocsp_good_is_not_historical_non_revocation_proof(self):
+        timestamp_result = self._verified_timestamp_result()
+        response_der = self._build_tsa_ocsp_response()
+        result = verify_tsa_ocsp_evidence(
+            timestamp_result, self.tsa_pem, self.ca_pem, response_der
+        )
+        self.assertEqual(result["ocsp_evidence_verification"], "VALID_RELATIVE_TO_BOUND_ISSUER_CERTIFICATE")
+        self.assertEqual(result["ocsp_signature"], "VALID")
+        self.assertEqual(result["responder_authorization"], "ISSUING_CA_DIRECTLY_SIGNED")
+        self.assertEqual(result["ocsp_cert_id_binding"], "MATCH")
+        self.assertEqual(result["status_at_evidence_time"], "GOOD")
+        self.assertEqual(result["status_at_target_time"], "GOOD_AT_OCSP_THIS_UPDATE_ONLY")
+        self.assertEqual(result["historical_revocation_assurance"], "NOT_ESTABLISHED")
+        self.assertEqual(
+            result["good_status_limitation"],
+            "OCSP_GOOD_AT_THIS_UPDATE_DOES_NOT_ESTABLISH_HISTORICAL_NON_REVOCATION",
+        )
+
+    def test_issuer_signed_ocsp_revocation_before_token_time_is_reported(self):
+        timestamp_result = self._verified_timestamp_result()
+        target = datetime.fromisoformat(
+            timestamp_result["tsa_asserted_gen_time_utc"].replace("Z", "+00:00")
+        )
+        response_der = self._build_tsa_ocsp_response(
+            status=ocsp.OCSPCertStatus.REVOKED,
+            revocation_time=(target - timedelta(hours=1)).replace(tzinfo=None),
+            revocation_reason=x509.ReasonFlags.key_compromise,
+            this_update=(target - timedelta(minutes=30)).replace(tzinfo=None),
+        )
+        result = verify_tsa_ocsp_evidence(
+            timestamp_result, self.tsa_pem, self.ca_pem, response_der
+        )
+        self.assertEqual(result["status_at_target_time"], "REVOKED_AT_OR_BEFORE_TARGET")
+        self.assertEqual(
+            result["historical_revocation_assurance"],
+            "REVOKED_BY_TARGET_TIME_UNDER_SIGNED_OCSP_ASSERTION",
+        )
+
+    def test_ocsp_certificate_hold_remains_historically_indeterminate(self):
+        timestamp_result = self._verified_timestamp_result()
+        target = datetime.fromisoformat(
+            timestamp_result["tsa_asserted_gen_time_utc"].replace("Z", "+00:00")
+        )
+        response_der = self._build_tsa_ocsp_response(
+            status=ocsp.OCSPCertStatus.REVOKED,
+            revocation_time=(target - timedelta(hours=1)).replace(tzinfo=None),
+            revocation_reason=x509.ReasonFlags.certificate_hold,
+            this_update=(target - timedelta(minutes=30)).replace(tzinfo=None),
+        )
+        result = verify_tsa_ocsp_evidence(
+            timestamp_result, self.tsa_pem, self.ca_pem, response_der
+        )
+        self.assertEqual(
+            result["status_at_target_time"],
+            "CERTIFICATE_HOLD_REPORTED_TARGET_STATUS_NOT_ESTABLISHED",
+        )
+        self.assertEqual(result["historical_revocation_assurance"], "NOT_ESTABLISHED")
+
+    def test_ocsp_unknown_status_is_not_promoted_to_good(self):
+        timestamp_result = self._verified_timestamp_result()
+        response_der = self._build_tsa_ocsp_response(
+            status=ocsp.OCSPCertStatus.UNKNOWN
+        )
+        result = verify_tsa_ocsp_evidence(
+            timestamp_result, self.tsa_pem, self.ca_pem, response_der
+        )
+        self.assertEqual(result["status_at_target_time"], "UNKNOWN")
+        self.assertEqual(result["historical_revocation_assurance"], "NOT_ESTABLISHED")
+
+    def test_ocsp_cert_id_must_match_exact_tsa_certificate(self):
+        timestamp_result = self._verified_timestamp_result()
+        other_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        other_tsa = _certificate(
+            self.ca_name, self.ca_name, other_key.public_key(),
+            self.ca_key, 9101, is_ca=False,
+        )
+        response_der = self._build_tsa_ocsp_response(cert=other_tsa)
+        with self.assertRaisesRegex(ValueError, "CertID does not identify"):
+            verify_tsa_ocsp_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem, response_der
+            )
+
+    def test_ocsp_response_signature_must_verify_under_bound_issuer(self):
+        timestamp_result = self._verified_timestamp_result()
+        wrong_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        wrong_issuer = _certificate(
+            self.ca_name, self.ca_name, wrong_key.public_key(),
+            wrong_key, 9102, is_ca=True,
+        )
+        response_der = self._build_tsa_ocsp_response(
+            signer_key=wrong_key, responder_cert=wrong_issuer
+        )
+        with self.assertRaisesRegex(ValueError, "signature does not verify"):
+            verify_tsa_ocsp_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem, response_der
+            )
+
+    def test_ocsp_nonce_must_match_the_supplied_request(self):
+        timestamp_result = self._verified_timestamp_result()
+        request_der = self._build_tsa_ocsp_request(nonce=b"nonce-A")
+        response_der = self._build_tsa_ocsp_response(nonce=b"nonce-A")
+        result = verify_tsa_ocsp_evidence(
+            timestamp_result, self.tsa_pem, self.ca_pem,
+            response_der, request_der,
+        )
+        self.assertEqual(result["nonce_binding"], "MATCH")
+        mismatched_response = self._build_tsa_ocsp_response(nonce=b"nonce-B")
+        with self.assertRaisesRegex(ValueError, "nonce does not match"):
+            verify_tsa_ocsp_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem,
+                mismatched_response, request_der,
+            )
+
+    def test_ocsp_nonce_without_request_is_rejected(self):
+        timestamp_result = self._verified_timestamp_result()
+        response_der = self._build_tsa_ocsp_response(nonce=b"unsolicited")
+        with self.assertRaisesRegex(ValueError, "cannot be matched without a request"):
+            verify_tsa_ocsp_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem, response_der
+            )
+
+    def test_delegated_ocsp_responder_is_rejected_by_initial_profile(self):
+        timestamp_result = self._verified_timestamp_result()
+        delegate_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        issuer = x509.load_pem_x509_certificate(self.ca_pem)
+        delegate = _certificate(
+            x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Synthetic OCSP Delegate")]),
+            issuer.subject,
+            delegate_key.public_key(),
+            self.ca_key,
+            9103,
+            is_ca=False,
+        )
+        response_der = self._build_tsa_ocsp_response(
+            signer_key=delegate_key,
+            responder_cert=delegate,
+            responder_encoding=ocsp.OCSPResponderEncoding.HASH,
+            included_certificates=[delegate],
+        )
+        with self.assertRaisesRegex(ValueError, "delegated OCSP responder certificates are unsupported"):
+            verify_tsa_ocsp_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem, response_der
+            )
 
     def test_real_token_signature_imprint_purpose_and_chain_verify(self):
         result = verify_rfc3161_timestamp(
