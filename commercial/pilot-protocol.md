@@ -438,8 +438,10 @@ a declared primary endpoint and a separate registration evidence record. The
 record schema is
 `experiments/schemas/registration-evidence-v1.schema.json`. It binds the
 registration reference to the endpoint's SHA-256 specification fingerprint,
-and requires `registration_event_id` as an explicit join key to the first
-`REGISTRATION_FROZEN` event in the audit chain. It records three distinct
+and requires `registration_event_id` plus
+`registration_event_evidence_reference` as explicit join keys to the first
+`REGISTRATION_FROZEN` event in the audit chain. The record, event ID,
+claimed timestamp and evidence reference must agree. It records three distinct
 claimed events:
 
 1. `registered_at_utc`: when the frozen endpoint record was registered;
@@ -483,16 +485,17 @@ reference and *claimed* event order are internally consistent; it does not
 mean the timestamp is trusted. Exit code `1` means an integrity or claimed
 chronology check failed. Exit code `2` means the files or record are invalid.
 
-The registration record's `registration_event_id` also allows a direct
-cross-check against the event chain. The Python API
+The registration record's `registration_event_id` and
+`registration_event_evidence_reference` allow a direct cross-check against
+the event chain. The Python API
 `verify_registration_chain_binding(endpoint, registration_record, events)`
 combines the endpoint fingerprint check with the hash-chain check and confirms
-that the record names the chain's first registration event and that both
-records carry the same claimed registration timestamp. A mismatch in either
-event ID or timestamp fails the binding. A matching join does not authenticate
-the timestamp or the event source; it establishes only that the supplied
-records refer to the same declared registration event and agree on its claimed
-time.
+that the record names the chain's first registration event, carries the same
+claimed timestamp, and names the same event evidence reference. A mismatch in
+any of these bindings fails. A matching join does not authenticate the
+timestamp or the event source; it establishes only that the supplied records
+refer to the same declared registration event and agree on its claimed time
+and evidence pointer.
 
 ## Hash-linked audit event chain (v1)
 
