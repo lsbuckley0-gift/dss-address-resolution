@@ -420,3 +420,13 @@ is reported as `NOT_CONFIGURED`. The registration reference and
 tool does not independently verify the timestamp, registration record,
 analysis-population lock, or whether anyone had access to held-out outcomes.
 A reference string is an audit pointer, not proof of pre-registration.
+
+The report also emits `endpoint_spec_sha256`, a deterministic SHA-256
+fingerprint of the four scientific design fields (outcome class, expected
+direction, analysis population and alpha). The fingerprint is independent of
+JSON key ordering and excludes the registration pointer and attestation. It
+allows an evaluator to compare the analysed specification with a separately
+archived pre-registration record. The digest establishes content identity only;
+it does not establish when the record was created or whether it was concealed
+from analysts. Chronology still requires a trusted external timestamp or
+registration archive.
