@@ -5,7 +5,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from experiments.pilot_metrics import evaluate, _exact_mcnemar_p_value
+from experiments.pilot_metrics import (evaluate, _exact_mcnemar_p_value, _clopper_pearson, _paired_prevalence_difference_interval)
 
 
 def decision(state, selected=None, complete=True, latency=None, review=None):
@@ -185,7 +185,7 @@ class PilotMetricsTests(unittest.TestCase):
             report = json.loads(completed.stdout)
             self.assertEqual(json.loads(output_path.read_text(encoding="utf-8")), report)
         self.assertEqual(report["dataset_id"], "paired-pilot-synthetic")
-        self.assertEqual(report["report_version"], "paired-pilot-metrics/1.9")
+        self.assertEqual(report["report_version"], "paired-pilot-metrics/2.0")
         self.assertEqual(report["case_count"], 4)
         self.assertEqual(set(report["stratum_metrics"]), {"EXACT", "TYPO", "FORMATTING_ONLY", "CONFLICTING"})
         self.assertEqual(report["stratum_metrics"]["TYPO"]["case_count"], 1)
@@ -284,6 +284,37 @@ class PilotMetricsTests(unittest.TestCase):
             comparisons["CORRECT_ABSTENTION"]["holm_adjusted_p_value_within_four_outcome_family"],
             0.125,
         )
+
+    def test_clopper_pearson_exact_boundary_cases_and_symmetry(self):
+        zero = _clopper_pearson(0, 1, confidence=0.975)
+        one = _clopper_pearson(1, 1, confidence=0.975)
+        self.assertEqual(zero[0], 0.0)
+        self.assertAlmostEqual(zero[1], 0.9875, places=10)
+        self.assertAlmostEqual(one[0], 0.0125, places=10)
+        self.assertEqual(one[1], 1.0)
+        interval = _clopper_pearson(2, 5, confidence=0.975)
+        reflected = _clopper_pearson(3, 5, confidence=0.975)
+        self.assertAlmostEqual(interval[0], 1.0 - reflected[1], places=10)
+        self.assertAlmostEqual(interval[1], 1.0 - reflected[0], places=10)
+
+    def test_paired_prevalence_difference_interval_contains_estimate(self):
+        interval = _paired_prevalence_difference_interval(2, 5, 20)
+        estimate = (5 - 2) / 20
+        self.assertLessEqual(interval[0], estimate)
+        self.assertGreaterEqual(interval[1], estimate)
+        self.assertGreaterEqual(interval[0], -1.0)
+        self.assertLessEqual(interval[1], 1.0)
+
+    def test_no_observed_discordances_still_has_uncertainty_interval(self):
+        interval = _paired_prevalence_difference_interval(0, 0, 1)
+        self.assertAlmostEqual(interval[0], -0.9875, places=10)
+        self.assertAlmostEqual(interval[1], 0.9875, places=10)
+
+    def test_paired_confidence_interval_is_directionally_symmetric(self):
+        forward = _paired_prevalence_difference_interval(1, 6, 20)
+        reverse = _paired_prevalence_difference_interval(6, 1, 20)
+        self.assertAlmostEqual(forward[0], -reverse[1], places=10)
+        self.assertAlmostEqual(forward[1], -reverse[0], places=10)
 
     def test_exact_mcnemar_is_symmetric_bounded_and_exact_for_small_pairs(self):
         self.assertEqual(_exact_mcnemar_p_value(0, 0), 1.0)
