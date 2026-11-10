@@ -61,6 +61,48 @@
         }
       }
     },
+    "primary_endpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outcome_class",
+        "expected_direction",
+        "analysis_population",
+        "alpha",
+        "registration_reference",
+        "frozen_before_outcomes_review"
+      ],
+      "properties": {
+        "outcome_class": {
+          "type": "string",
+          "enum": [
+            "CORRECT_AUTO_RESOLUTION",
+            "FALSE_ACCEPT",
+            "FALSE_REJECT",
+            "CORRECT_ABSTENTION"
+          ]
+        },
+        "expected_direction": {
+          "type": "string",
+          "enum": ["LOWER", "HIGHER"]
+        },
+        "analysis_population": {
+          "const": "ALL_PAIRED_CASES"
+        },
+        "alpha": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 1
+        },
+        "registration_reference": {
+          "type": "string",
+          "minLength": 1
+        },
+        "frozen_before_outcomes_review": {
+          "const": true
+        }
+      }
+    },
     "decision_requirements": {
       "type": "object",
       "additionalProperties": false,
