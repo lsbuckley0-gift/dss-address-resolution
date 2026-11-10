@@ -12,6 +12,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from experiments.audit_event_chain import append_audit_event
 from experiments.audit_event_chain import main as audit_chain_main
+from experiments.trust_policy_pin import trust_store_sha256
 from experiments.checkpoint_signature import (
     canonical_checkpoint_payload,
     verify_signed_checkpoint,
@@ -91,6 +92,30 @@ class CheckpointSignatureTests(unittest.TestCase):
         self.assertEqual(result["signature_verification"], "VALID")
         self.assertEqual(result["authority_authentication"], "NOT_ESTABLISHED")
         self.assertEqual(result["timestamp_authentication"], "NOT_ESTABLISHED")
+
+    def test_policy_pin_mismatch_blocks_signature_verification(self):
+        pin = {
+            "sha256": "0" * 64,
+            "source_reference": "operator-provisioned://wrong-pin",
+        }
+        result = verify_signed_checkpoint(
+            self.events, self.checkpoint, self.envelope, self.store,
+            at_utc="2026-11-10T10:04:00Z", trust_store_pin=pin,
+        )
+        self.assertEqual(result["signed_checkpoint_verification"], "POLICY_PIN_MISMATCH")
+        self.assertEqual(result["signature_verification"], "NOT_PERFORMED")
+
+    def test_matching_policy_pin_is_reported(self):
+        pin = {
+            "sha256": trust_store_sha256(self.store),
+            "source_reference": "operator-provisioned://test-pin",
+        }
+        result = verify_signed_checkpoint(
+            self.events, self.checkpoint, self.envelope, self.store,
+            at_utc="2026-11-10T10:04:00Z", trust_store_pin=pin,
+        )
+        self.assertEqual(result["signed_checkpoint_verification"], "MATCH")
+        self.assertEqual(result["trust_policy_pin"]["trust_policy_pin"], "MATCH")
 
     def test_tampered_checkpoint_invalidates_signature(self):
         changed = dict(self.checkpoint)
