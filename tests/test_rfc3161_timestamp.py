@@ -39,6 +39,8 @@ class RFC3161TimestampTests(unittest.TestCase):
         self.assertEqual(result["tsa_asserted_gen_time_utc"], "2026-11-10T13:00:00Z")
         self.assertEqual(result["certificate_validation_time"], "TOKEN_GEN_TIME")
         self.assertEqual(result["anchor_provenance"], "NOT_ESTABLISHED")
+        self.assertEqual(result["tsa_certificate_revocation"], "NOT_CHECKED")
+        self.assertEqual(result["historical_revocation_assurance"], "NOT_ESTABLISHED")
         self.assertEqual(result["event_truth"], "NOT_ESTABLISHED")
         verify_args = run.call_args_list[1].args[0]
         self.assertIn("-attime", verify_args)
@@ -54,6 +56,8 @@ class RFC3161TimestampTests(unittest.TestCase):
         result = verify_rfc3161_timestamp(self.token, self.data, self.anchor, bad_pin)
         self.assertEqual(result["timestamp_verification"], "TRUST_ANCHOR_PIN_MISMATCH")
         self.assertEqual(result["token_signature_and_path"], "NOT_PERFORMED")
+        self.assertEqual(result["tsa_certificate_revocation"], "NOT_CHECKED")
+        self.assertEqual(result["historical_revocation_assurance"], "NOT_ESTABLISHED")
         run.assert_not_called()
 
     @patch("experiments.rfc3161_timestamp.subprocess.run")
@@ -66,6 +70,8 @@ class RFC3161TimestampTests(unittest.TestCase):
         self.assertEqual(result["timestamp_verification"], "INVALID")
         self.assertEqual(result["message_imprint"], "NOT_ESTABLISHED")
         self.assertEqual(result["timestamp_authentication"], "NOT_ESTABLISHED")
+        self.assertEqual(result["tsa_certificate_revocation"], "NOT_CHECKED")
+        self.assertEqual(result["historical_revocation_assurance"], "NOT_ESTABLISHED")
 
     @patch("experiments.rfc3161_timestamp.subprocess.run")
     def test_unparseable_token_is_not_verified(self, run):
