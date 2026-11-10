@@ -867,9 +867,29 @@ SHA-256 pin. Both must match. Results expose
 `timestamp_anchor_provenance` separately from `timestamp_evidence`, and
 `governance_authentication` remains `NOT_ESTABLISHED`.
 
-This is an explicit opt-in Python API extension. Existing callers that omit
-the provenance bundle retain the previous timestamp-only behaviour, and
-callers that omit all timestamp inputs retain signature-only behaviour. The
-current event-chain CLI continues to support the timestamp-only input set; it
-does not yet expose the provenance bundle. No real governance root or
-operational TSA material is supplied by this integration.
+This is an explicit opt-in extension. Existing callers that omit the
+provenance bundle retain the previous timestamp-only behaviour, and callers
+that omit all timestamp inputs retain signature-only behaviour. The event-chain
+CLI exposes the same opt-in bundle through these additional arguments:
+
+```bash
+python -m experiments.audit_event_chain events.json \
+  --signed-checkpoint checkpoint.json \
+  --signature checkpoint-signature.json \
+  --trust-store audit-trust-store.json \
+  --at-utc 2026-11-10T10:04:00Z \
+  --timestamp-token checkpoint-timestamp-token.der \
+  --timestamp-trust-anchor tsa-root.pem \
+  --timestamp-trust-anchor-pin tsa-root-pin.json \
+  --timestamp-anchor-attestation tsa-anchor-attestation.json \
+  --timestamp-anchor-signature tsa-anchor-signature.json \
+  --timestamp-governance-trust-store governance-trust-store.json \
+  --timestamp-governance-minimum-sequence 4 \
+  --timestamp-governance-trust-store-pin governance-trust-store-pin.json
+```
+
+The four provenance inputs (attestation, signature envelope, governance
+trust store and minimum sequence) are required together; the governance
+trust-store pin is optional. Provenance inputs without the complete RFC 3161
+token/anchor/pin set are rejected. No real governance root or operational TSA
+material is supplied by this integration.
