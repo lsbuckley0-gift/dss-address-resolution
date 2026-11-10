@@ -55,6 +55,17 @@ operation and return check.
 Run them with the same dependency-free command above:
 `python -m unittest discover -s tests -v`.
 
+## Legacy Fuzzy Comparison Harness
+
+The optional `run_test.py` comparison uses RapidFuzz as its fuzzy baseline. Install its pinned dependency and run:
+
+```bash
+python -m pip install -r requirements-comparison.txt
+python run_test.py
+```
+
+The harness asserts each declared ∂ss terminal outcome and checks that every fixture is accounted for with zero ∂ss false accepts. The compressed-postcode fixture is `VERIFIED`: formatting normalisation alone is not recorded as a correction. The fuzzy baseline is measured and reported separately; its results are not assumed in advance.
+
 ## Commercial and Evaluation Documents
 
 - [Commercial market position](commercial/market-position.md)
