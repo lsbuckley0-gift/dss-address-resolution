@@ -77,7 +77,7 @@ class RFC3161TimestampTests(unittest.TestCase):
 
     @patch("experiments.rfc3161_timestamp.subprocess.run")
     def test_fractional_generation_time_is_rejected_not_rounded(self, run):
-        fractional = "Time stamp: Nov 10 13:00:00.125 2026 GMT\\n"
+        fractional = "Time stamp: Nov 10 13:00:00.125 2026 GMT\n"
         run.return_value = subprocess.CompletedProcess([], 0, fractional, "")
         result = verify_rfc3161_timestamp(self.token, self.data, self.anchor, self.pin)
         self.assertEqual(result["timestamp_verification"], "INVALID_TOKEN")
