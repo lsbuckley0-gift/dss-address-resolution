@@ -183,10 +183,6 @@ ess_cert_id_chain = no
             extracted_identity["issuer_name_der_sha256"],
             hashlib.sha256(tsa_certificate.issuer.public_bytes()).hexdigest(),
         )
-        issuer_spki = tsa_certificate.public_key().public_bytes(
-            serialization.Encoding.DER,
-            serialization.PublicFormat.SubjectPublicKeyInfo,
-        )
         self.assertEqual(
             extracted_identity["subject_spki_sha256"],
             hashlib.sha256(
@@ -197,6 +193,10 @@ ess_cert_id_chain = no
             ).hexdigest(),
         )
         issuer_certificate = x509.load_pem_x509_certificate(self.ca_pem)
+        issuer_spki = issuer_certificate.public_key().public_bytes(
+            serialization.Encoding.DER,
+            serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
         self.assertEqual(
             extracted_identity["issuer_certificate_der_sha256"],
             hashlib.sha256(
