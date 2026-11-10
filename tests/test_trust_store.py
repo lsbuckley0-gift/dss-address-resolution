@@ -94,6 +94,18 @@ class TrustStoreTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "validity interval"):
             validate_trust_store(store)
 
+    def test_non_string_status_rejected_cleanly(self):
+        store = sample_store()
+        store["keys"][0]["status"] = []
+        with self.assertRaisesRegex(ValueError, "status must be"):
+            validate_trust_store(store)
+
+    def test_non_string_public_key_rejected_cleanly(self):
+        store = sample_store()
+        store["keys"][0]["public_key_base64"] = 123
+        with self.assertRaisesRegex(ValueError, "must be a string"):
+            validate_trust_store(store)
+
 
 if __name__ == "__main__":
     unittest.main()
