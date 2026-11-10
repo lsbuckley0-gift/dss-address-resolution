@@ -192,6 +192,7 @@ ess_cert_id_chain = no
     def _build_tsa_crl(
         self, *, revoked_at=None, signer_key=None, include_number=True,
         include_aki=True, delta=False, this_update=None, next_update=None,
+        revocation_reason=None, duplicate_target_entry=False,
     ):
         issuer = x509.load_pem_x509_certificate(self.ca_pem)
         now = datetime.now(timezone.utc).replace(microsecond=0, tzinfo=None)
@@ -218,13 +219,19 @@ ess_cert_id_chain = no
             )
         if revoked_at is not None:
             tsa = x509.load_pem_x509_certificate(self.tsa_pem)
-            revoked = (
+            revoked_builder = (
                 x509.RevokedCertificateBuilder()
                 .serial_number(tsa.serial_number)
                 .revocation_date(revoked_at.replace(tzinfo=None))
-                .build()
             )
+            if revocation_reason is not None:
+                revoked_builder = revoked_builder.add_extension(
+                    x509.CRLReason(revocation_reason), critical=False
+                )
+            revoked = revoked_builder.build()
             builder = builder.add_revoked_certificate(revoked)
+            if duplicate_target_entry:
+                builder = builder.add_revoked_certificate(revoked)
         crl = builder.sign(
             private_key=signer_key or self.ca_key,
             algorithm=hashes.SHA256(),
@@ -300,6 +307,36 @@ ess_cert_id_chain = no
             verify_tsa_crl_evidence(
                 timestamp_result, self.tsa_pem, self.ca_pem,
                 self._build_tsa_crl(include_aki=False),
+            )
+
+    def test_duplicate_tsa_serial_entries_are_rejected(self):
+        timestamp_result = self._verified_timestamp_result()
+        target = datetime.fromisoformat(
+            timestamp_result["tsa_asserted_gen_time_utc"].replace("Z", "+00:00")
+        )
+        crl_der = self._build_tsa_crl(
+            revoked_at=target - timedelta(hours=1),
+            this_update=(target - timedelta(minutes=30)).replace(tzinfo=None),
+            duplicate_target_entry=True,
+        )
+        with self.assertRaisesRegex(ValueError, "duplicate entries"):
+            verify_tsa_crl_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem, crl_der
+            )
+
+    def test_remove_from_crl_reason_is_rejected_without_delta_support(self):
+        timestamp_result = self._verified_timestamp_result()
+        target = datetime.fromisoformat(
+            timestamp_result["tsa_asserted_gen_time_utc"].replace("Z", "+00:00")
+        )
+        crl_der = self._build_tsa_crl(
+            revoked_at=target - timedelta(hours=1),
+            this_update=(target - timedelta(minutes=30)).replace(tzinfo=None),
+            revocation_reason=x509.ReasonFlags.remove_from_crl,
+        )
+        with self.assertRaisesRegex(ValueError, "removeFromCRL is unsupported"):
+            verify_tsa_crl_evidence(
+                timestamp_result, self.tsa_pem, self.ca_pem, crl_der
             )
 
     def test_delta_crl_is_rejected_by_narrow_complete_crl_profile(self):
