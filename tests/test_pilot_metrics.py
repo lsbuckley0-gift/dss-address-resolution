@@ -167,8 +167,16 @@ class PilotMetricsTests(unittest.TestCase):
             report = json.loads(completed.stdout)
             self.assertEqual(json.loads(output_path.read_text(encoding="utf-8")), report)
         self.assertEqual(report["dataset_id"], "paired-pilot-synthetic")
-        self.assertEqual(report["report_version"], "paired-pilot-metrics/1.1")
+        self.assertEqual(report["report_version"], "paired-pilot-metrics/1.2")
         self.assertEqual(report["case_count"], 4)
+        matrix = report["paired_outcome_matrix"]
+        self.assertEqual(sum(sum(row.values()) for row in matrix.values()), 4)
+        self.assertEqual(
+            matrix["CORRECT_AUTO_RESOLUTION"]["CORRECT_AUTO_RESOLUTION"], 1
+        )
+        self.assertEqual(matrix["FALSE_ACCEPT"]["FALSE_REJECT"], 1)
+        self.assertEqual(matrix["FALSE_ACCEPT"]["CORRECT_ABSTENTION"], 1)
+        self.assertEqual(matrix["FALSE_REJECT"]["CORRECT_AUTO_RESOLUTION"], 1)
 
         baseline = report["systems"]["baseline"]
         self.assertEqual(baseline["false_accepts"], 2)
@@ -192,6 +200,17 @@ class PilotMetricsTests(unittest.TestCase):
         self.assertEqual(dss["latency_p95_ms_nearest_rank"], 19)
 
 
+
+
+    def test_paired_outcome_matrix_partitions_every_case_once(self):
+        report = evaluate(self.data)
+        matrix = report["paired_outcome_matrix"]
+        self.assertEqual(sum(sum(row.values()) for row in matrix.values()), 3)
+        self.assertEqual(
+            matrix["CORRECT_AUTO_RESOLUTION"]["CORRECT_AUTO_RESOLUTION"], 1
+        )
+        self.assertEqual(matrix["FALSE_ACCEPT"]["FALSE_REJECT"], 1)
+        self.assertEqual(matrix["FALSE_REJECT"]["CORRECT_ABSTENTION"], 1)
 
     def test_false_reject_rate_is_null_without_unique_gold_cases(self):
         data = pilot_data([
