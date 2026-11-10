@@ -292,7 +292,9 @@ def main(argv=None) -> int:
         description="Verify a retained ∂ss registration and outcome-access event chain."
     )
     parser.add_argument("event_chain", help="JSON file containing an array of audit events")
-    parser.add_argument("--checkpoint", help="Optional independently held checkpoint JSON file")
+    checkpoint_group = parser.add_mutually_exclusive_group()
+    checkpoint_group.add_argument("--checkpoint", help="Optional independently held checkpoint JSON file")
+    checkpoint_group.add_argument("--checkpoints", help="Optional JSON array of independently held checkpoints")
     args = parser.parse_args(argv)
     try:
         events = json.loads(Path(args.event_chain).read_text(encoding="utf-8"))
@@ -300,14 +302,21 @@ def main(argv=None) -> int:
         if args.checkpoint:
             checkpoint = json.loads(Path(args.checkpoint).read_text(encoding="utf-8"))
             report["external_checkpoint"] = verify_external_checkpoint(events, checkpoint)
+        if args.checkpoints:
+            checkpoints = json.loads(Path(args.checkpoints).read_text(encoding="utf-8"))
+            report["external_checkpoints"] = verify_checkpoint_series(events, checkpoints)
     except (OSError, json.JSONDecodeError, ValueError) as exc:
         print(f"audit event chain error: {exc}", file=sys.stderr)
         return 2
     print(json.dumps(report, indent=2, sort_keys=True))
-    checkpoint_ok = (not args.checkpoint or (
-        report["external_checkpoint"]["checkpoint_binding"] == "MATCH"
-        and report["external_checkpoint"]["checkpoint_time_order"] != "PRECEDES_EVENT"
-    ))
+    checkpoint_ok = True
+    if args.checkpoint:
+        checkpoint_ok = (
+            report["external_checkpoint"]["checkpoint_binding"] == "MATCH"
+            and report["external_checkpoint"]["checkpoint_time_order"] == "NOT_BEFORE_EVENT"
+        )
+    if args.checkpoints:
+        checkpoint_ok = report["external_checkpoints"]["checkpoint_series_integrity"] == "MATCH"
     return 0 if report["required_event_sequence"] == "COMPLETE" and checkpoint_ok else 1
 
 
