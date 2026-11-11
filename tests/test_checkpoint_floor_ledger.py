@@ -1,5 +1,6 @@
 """Tests for the append-only checkpoint rollback-floor ledger."""
 import json
+import multiprocessing
 import os
 from pathlib import Path
 import tempfile
@@ -16,6 +17,19 @@ from experiments.checkpoint_floor_ledger import (
     classify_checkpoint_recovery_with_floor_ledger,
     load_checkpoint_floor_ledger,
 )
+
+
+def _append_floor_from_process(path, sequence, result_queue):
+    try:
+        result_queue.put(
+            append_checkpoint_floor(
+                path,
+                sequence,
+                f"2026-11-11T10:00:{sequence:02d}Z",
+            )
+        )
+    except ValueError:
+        result_queue.put("REJECTED_AS_STALE")
 
 
 class CheckpointFloorLedgerTests(unittest.TestCase):
@@ -203,6 +217,38 @@ class CheckpointFloorLedgerTests(unittest.TestCase):
         self.assertFalse(self.path.exists())
         self.assertFalse(
             self.path.with_name(self.path.name + ".lock").exists()
+        )
+
+    @unittest.skipUnless(
+        hasattr(os, "O_DIRECTORY") and hasattr(multiprocessing, "get_context"),
+        "POSIX process-locking test requires a fork-capable platform",
+    )
+    def test_separate_processes_share_one_serialized_ledger_history(self):
+        context = multiprocessing.get_context("fork")
+        result_queue = context.Queue()
+        processes = [
+            context.Process(
+                target=_append_floor_from_process,
+                args=(self.path, sequence, result_queue),
+            )
+            for sequence in range(1, 9)
+        ]
+        for process in processes:
+            process.start()
+        for process in processes:
+            process.join(timeout=10)
+            self.assertFalse(process.is_alive(), "writer process did not finish")
+            self.assertEqual(process.exitcode, 0)
+
+        outcomes = [result_queue.get(timeout=2) for _ in processes]
+        self.assertEqual(len(outcomes), 8)
+        entries = load_checkpoint_floor_ledger(self.path)
+        floors = [entry["minimum_checkpoint_sequence"] for entry in entries]
+        self.assertEqual(floors, sorted(floors))
+        self.assertEqual(floors[-1], 8)
+        self.assertEqual(
+            [entry["floor_revision"] for entry in entries],
+            list(range(len(entries))),
         )
 
     def test_timestamp_regression_is_rejected(self):
