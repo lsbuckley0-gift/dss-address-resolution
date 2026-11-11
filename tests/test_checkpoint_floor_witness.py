@@ -10,7 +10,8 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from experiments.checkpoint_floor_witness import (
-    CheckpointFloorWitnessAdvanceUncertain, CheckpointFloorWitnessLocalCommitUncertain,
+    CheckpointFloorWitnessAdvanceUncertain,
+    CheckpointFloorWitnessLocalCommitUncertain,
     advance_checkpoint_floor_with_witness,
     canonical_witness_payload,
     verify_checkpoint_floor_witness_receipt,
@@ -92,10 +93,14 @@ class CheckpointFloorWitnessTests(unittest.TestCase):
                 previous = hashlib.sha256(
                     canonical_witness_payload(owner.receipt)
                 ).hexdigest()
+                advanced_floor = max(
+                    minimum_checkpoint_sequence,
+                    self.minimum_floor_override or 0,
+                )
                 owner.receipt = dict(
                     owner.receipt,
                     witness_sequence=owner.receipt["witness_sequence"] + 1,
-                    minimum_checkpoint_sequence=max(\n                        minimum_checkpoint_sequence,\n                        self.minimum_floor_override or 0,\n                    ),
+                    minimum_checkpoint_sequence=advanced_floor,
                     previous_receipt_sha256=previous,
                 )
                 owner.envelope = dict(
@@ -267,7 +272,8 @@ class CheckpointFloorWitnessTests(unittest.TestCase):
             result = self._coordinate(provider, path, 15, "catch-up-local-17")
             self.assertEqual(result["minimum_checkpoint_sequence"], 17)
             self.assertEqual(provider.read_latest()[0]["minimum_checkpoint_sequence"], 17)
-            self.assertEqual(checkpoint_floor_value(path), 17)\n
+            self.assertEqual(checkpoint_floor_value(path), 17)
+
     def test_lost_provider_response_recovers_by_reading_same_idempotent_result(self):
         from experiments.checkpoint_floor_ledger import checkpoint_floor_value
         provider = self._fake_provider()
@@ -287,7 +293,6 @@ class CheckpointFloorWitnessTests(unittest.TestCase):
             self.assertEqual(provider.advance_calls, 1)
             self.assertEqual(checkpoint_floor_value(path), 15)
 
-\n
     def test_concurrent_higher_provider_floor_is_copied_locally(self):
         from experiments.checkpoint_floor_ledger import checkpoint_floor_value
         provider = self._fake_provider()
@@ -299,7 +304,6 @@ class CheckpointFloorWitnessTests(unittest.TestCase):
             self.assertEqual(provider.read_latest()[0]["minimum_checkpoint_sequence"], 19)
             self.assertEqual(checkpoint_floor_value(path), 19)
 
-\n
     def test_missing_local_parent_prevents_external_advance(self):
         provider = self._fake_provider()
         with tempfile.TemporaryDirectory() as directory:
@@ -308,5 +312,3 @@ class CheckpointFloorWitnessTests(unittest.TestCase):
                 self._coordinate(provider, path, 15, "no-local-directory")
             self.assertEqual(provider.advance_calls, 0)
             self.assertEqual(provider.read_latest()[0]["minimum_checkpoint_sequence"], 14)
-
-
