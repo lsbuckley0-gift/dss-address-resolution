@@ -420,3 +420,99 @@ def advance_checkpoint_floor_with_witness(
         "authority_authentication": "NOT_ESTABLISHED",
         "failure_domain_separation": "DECLARED_DISTINCT_NOT_INDEPENDENTLY_PROVEN",
     }
+
+
+def classify_checkpoint_recovery_with_witness(
+    events: list,
+    checkpoint: dict | None,
+    acceptance_receipt: dict | None,
+    witness_receipt: dict,
+    witness_signature_envelope: dict,
+    trust_store: dict,
+    floor_ledger_path,
+    *,
+    at_utc: str,
+    expected_witness_id: str,
+    expected_provider_id: str,
+    expected_failure_domain_id: str,
+    local_storage_domain_id: str,
+    minimum_witness_sequence: int,
+    operator_minimum_checkpoint_sequence: int,
+    trust_store_pin: dict | None = None,
+) -> dict:
+    """Classify recovery only when signed witness and local floors agree.
+
+    Invalid witness evidence returns WITNESS_NOT_VERIFIED. Missing or corrupt
+    local history propagates an error. A witness/local floor mismatch returns
+    an explicit divergence state rather than silently choosing either source.
+    """
+    witness_result = verify_checkpoint_floor_witness_receipt(
+        witness_receipt, witness_signature_envelope, trust_store,
+        at_utc=at_utc,
+        expected_witness_id=expected_witness_id,
+        expected_provider_id=expected_provider_id,
+        expected_failure_domain_id=expected_failure_domain_id,
+        local_storage_domain_id=local_storage_domain_id,
+        minimum_witness_sequence=minimum_witness_sequence,
+        minimum_checkpoint_sequence=operator_minimum_checkpoint_sequence,
+        trust_store_pin=trust_store_pin,
+    )
+    valid_status = "VALID_RELATIVE_TO_CALLER_GOVERNANCE_AND_DOMAIN_CONFIGURATION"
+    if witness_result["witness_verification"] != valid_status:
+        return {
+            "recovery_status": "WITNESS_NOT_VERIFIED",
+            "witness_verification": witness_result,
+            "rollback_floor": "NOT_TRUSTED",
+            "acceptance_authentication": "NOT_VERIFIED",
+            "authority_authentication": "NOT_ESTABLISHED",
+        }
+
+    from experiments.checkpoint_floor_ledger import load_checkpoint_floor_ledger
+
+    entries = load_checkpoint_floor_ledger(floor_ledger_path)
+    local_latest = entries[-1]
+    local_floor = local_latest["minimum_checkpoint_sequence"]
+    witness_floor = witness_receipt["minimum_checkpoint_sequence"]
+    if local_floor != witness_floor:
+        divergence = (
+            "WITNESS_AHEAD_OF_LOCAL_LEDGER"
+            if witness_floor > local_floor
+            else "LOCAL_LEDGER_AHEAD_OF_WITNESS"
+        )
+        return {
+            "recovery_status": "WITNESS_LOCAL_LEDGER_DIVERGENCE",
+            "rollback_floor": divergence,
+            "local_ledger_floor": local_floor,
+            "local_ledger_revision": local_latest["floor_revision"],
+            "witness_floor": witness_floor,
+            "witness_sequence": witness_receipt["witness_sequence"],
+            "witness_verification": witness_result,
+            "acceptance_authentication": "NOT_VERIFIED",
+            "authority_authentication": "NOT_ESTABLISHED",
+            "interpretation": (
+                "The authenticated-relative-to-caller witness and local ledger "
+                "do not retain the same floor. Do not classify or accept recovery "
+                "from either source alone; reconcile without lowering either floor."
+            ),
+        }
+
+    from experiments.checkpoint_recovery import classify_checkpoint_recovery
+
+    result = classify_checkpoint_recovery(
+        events, checkpoint, acceptance_receipt, minimum_sequence=witness_floor
+    )
+    result["rollback_floor_source"] = (
+        "EXTERNAL_WITNESS_MATCHED_TO_LOCAL_LEDGER_RELATIVE_TO_CALLER_CONFIGURATION"
+    )
+    result["local_ledger_revision"] = local_latest["floor_revision"]
+    result["local_ledger_entry_sha256"] = local_latest["entry_sha256"]
+    result["witness_verification"] = witness_result
+    result["witness_id"] = witness_receipt["witness_id"]
+    result["witness_provider_id"] = witness_receipt["provider_id"]
+    result["witness_sequence"] = witness_receipt["witness_sequence"]
+    result["witness_failure_domain_id"] = witness_receipt["failure_domain_id"]
+    result["failure_domain_separation"] = (
+        "DECLARED_DISTINCT_NOT_INDEPENDENTLY_PROVEN"
+    )
+    result["authority_authentication"] = "NOT_ESTABLISHED"
+    return result
