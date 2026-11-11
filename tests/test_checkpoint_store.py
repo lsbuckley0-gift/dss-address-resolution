@@ -120,6 +120,51 @@ class CheckpointStoreTests(unittest.TestCase):
             "CONFIRMED" if hasattr(os, "O_DIRECTORY") else "UNAVAILABLE",
         )
 
+    def test_higher_sequence_replaces_existing_envelope(self):
+        write_checkpoint_envelope(self.path, self.checkpoint, self.receipt)
+        newer_checkpoint = dict(self.checkpoint, checkpoint_sequence=3)
+        newer_receipt = dict(
+            self.receipt,
+            checkpoint_sequence=3,
+            checkpoint_sha256=_canonical_checkpoint_sha256(newer_checkpoint),
+        )
+        result = write_checkpoint_envelope(
+            self.path, newer_checkpoint, newer_receipt
+        )
+        self.assertEqual(result["replacement"], "ATOMIC_SAME_DIRECTORY_REPLACE")
+        self.assertEqual(
+            load_checkpoint_envelope(self.path)["checkpoint"],
+            newer_checkpoint,
+        )
+
+    def test_write_refuses_to_replace_invalid_existing_envelope(self):
+        self.path.write_text("{truncated", encoding="utf-8")
+        previous = self.path.read_bytes()
+        newer_checkpoint = dict(self.checkpoint, checkpoint_sequence=3)
+        newer_receipt = dict(
+            self.receipt,
+            checkpoint_sequence=3,
+            checkpoint_sha256=_canonical_checkpoint_sha256(newer_checkpoint),
+        )
+        with self.assertRaises(json.JSONDecodeError):
+            write_checkpoint_envelope(
+                self.path, newer_checkpoint, newer_receipt
+            )
+        self.assertEqual(self.path.read_bytes(), previous)
+
+    def test_identical_retry_file_fsync_failure_remains_uncertain(self):
+        write_checkpoint_envelope(self.path, self.checkpoint, self.receipt)
+        previous = self.path.read_bytes()
+        with mock.patch(
+            "experiments.checkpoint_store.os.fsync",
+            side_effect=OSError("injected retry file fsync failure"),
+        ):
+            with self.assertRaises(CheckpointEnvelopeDurabilityUncertain):
+                write_checkpoint_envelope(
+                    self.path, self.checkpoint, self.receipt
+                )
+        self.assertEqual(self.path.read_bytes(), previous)
+
     def test_failed_replace_preserves_previous_envelope_and_cleans_temp(self):
         write_checkpoint_envelope(self.path, self.checkpoint, self.receipt)
         previous = self.path.read_bytes()
