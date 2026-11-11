@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import re
 import tempfile
 
 from experiments.checkpoint_recovery import (
@@ -44,6 +45,16 @@ def _validate_envelope_parts(checkpoint: dict, acceptance_receipt: dict) -> None
         raise ValueError("checkpoint missing field(s): " + ", ".join(sorted(missing)))
     if extra:
         raise ValueError("checkpoint has unsupported field(s): " + ", ".join(sorted(extra)))
+    if checkpoint["record_version"] != "audit-chain-checkpoint/v1":
+        raise ValueError("checkpoint has an unsupported record_version.")
+    for field in ("registration_event_id", "anchor_reference"):
+        value = checkpoint[field]
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"checkpoint {field} must be non-empty.")
+    if not isinstance(checkpoint["checkpoint_event_sha256"], str) or not re.fullmatch(
+        r"[0-9a-f]{64}", checkpoint["checkpoint_event_sha256"]
+    ):
+        raise ValueError("checkpoint_event_sha256 must be a lowercase SHA-256 digest.")
     sequence = checkpoint["checkpoint_sequence"]
     if isinstance(sequence, bool) or not isinstance(sequence, int) or sequence < 0:
         raise ValueError("checkpoint_sequence must be a non-negative integer.")
