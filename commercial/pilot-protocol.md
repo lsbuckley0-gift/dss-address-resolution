@@ -1151,6 +1151,18 @@ Schemas:
 `experiments/schemas/audit-checkpoint-floor-witness-signature-v1.schema.json`.
 The governance key must explicitly allow `CHECKPOINT_FLOOR_WITNESS`.
 
+`classify_checkpoint_recovery_with_witness(...)` is the recovery-side gate.
+It verifies the supplied witness receipt and requires its checkpoint floor to
+equal the fully validated local ledger floor before invoking the recovery
+classifier. An invalid witness returns `WITNESS_NOT_VERIFIED`; a mismatch
+returns `WITNESS_LOCAL_LEDGER_DIVERGENCE`, distinguishing
+`WITNESS_AHEAD_OF_LOCAL_LEDGER` from `LOCAL_LEDGER_AHEAD_OF_WITNESS`.
+Missing or corrupt local history propagates an error. It never silently picks
+the higher or lower source and never classifies recovery from a divergent pair.
+Even a matching pair remains relative to caller-supplied governance material;
+it does not establish authority identity or prove operational independence.
+
+
 ### Append-only local rollback-floor ledger
 
 `experiments/checkpoint_floor_ledger.py` provides a separate JSONL
