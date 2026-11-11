@@ -123,6 +123,25 @@ class CheckpointFloorLedgerTests(unittest.TestCase):
         )
         self.assertEqual(checkpoint_floor_value(self.path), 4)
 
+
+    def test_ledger_reader_uses_shared_interprocess_lock(self):
+        append_checkpoint_floor(self.path, 4, "2026-11-11T10:00:00Z")
+        real_flock = __import__("fcntl").flock
+        lock_modes = []
+
+        def record_flock(descriptor, operation):
+            if operation == __import__("fcntl").LOCK_SH:
+                lock_modes.append("SHARED")
+            return real_flock(descriptor, operation)
+
+        with mock.patch(
+            "experiments.checkpoint_floor_ledger.fcntl.flock",
+            side_effect=record_flock,
+        ):
+            self.assertEqual(checkpoint_floor_value(self.path), 4)
+
+        self.assertEqual(lock_modes, ["SHARED"])
+
     def test_floor_advances_and_forms_digest_chain(self):
         append_checkpoint_floor(self.path, 4, "2026-11-11T10:00:00Z")
         append_checkpoint_floor(self.path, 7, "2026-11-11T10:01:00Z")
