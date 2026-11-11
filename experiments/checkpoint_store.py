@@ -135,7 +135,9 @@ def write_checkpoint_envelope(
     stays on one filesystem. The file is flushed and fsynced before replacement.
     On POSIX systems with O_DIRECTORY, the parent directory is fsynced after
     replacement. If that final fsync fails, the new file may already be visible;
-    CheckpointEnvelopeDurabilityUncertain makes that state explicit.
+    CheckpointEnvelopeDurabilityUncertain makes that state explicit. An optional
+    minimum_sequence rejects candidates below a caller-supplied floor, but does
+    not retain or authenticate that floor.
     """
     envelope = build_checkpoint_envelope(checkpoint, acceptance_receipt)
     candidate_sequence = checkpoint["checkpoint_sequence"]
