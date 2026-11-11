@@ -67,6 +67,10 @@ class CheckpointFloorLedgerTests(unittest.TestCase):
         self.assertEqual(self.path.read_bytes(), previous)
         self.assertEqual(len(load_checkpoint_floor_ledger(self.path)), 1)
 
+    @unittest.skipUnless(
+        hasattr(os, "O_DIRECTORY"),
+        "parent-directory fsync is unavailable on this platform",
+    )
     def test_directory_fsync_failure_is_uncertain_and_retry_reconfirms(self):
         with mock.patch(
             "experiments.checkpoint_floor_ledger.os.fsync",
