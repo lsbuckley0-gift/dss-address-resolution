@@ -14,6 +14,7 @@ from experiments.checkpoint_floor_witness import (
     CheckpointFloorWitnessLocalCommitUncertain,
     advance_checkpoint_floor_with_witness,
     canonical_witness_payload,
+    classify_checkpoint_recovery_with_witness,
     verify_checkpoint_floor_witness_receipt,
 )
 
@@ -127,6 +128,22 @@ class CheckpointFloorWitnessTests(unittest.TestCase):
             minimum_witness_sequence=minimum_witness_sequence,
             operator_minimum_checkpoint_sequence=14,
             idempotency_key=key,
+        )
+
+
+    def _classify(self, path, **overrides):
+        args = {
+            "at_utc": "2026-11-11T11:00:00Z",
+            "expected_witness_id": "witness-east-1",
+            "expected_provider_id": "provider-independent",
+            "expected_failure_domain_id": "provider-control-plane-east",
+            "local_storage_domain_id": "local-disk-a",
+            "minimum_witness_sequence": 8,
+            "operator_minimum_checkpoint_sequence": 14,
+        }
+        args.update(overrides)
+        return classify_checkpoint_recovery_with_witness(
+            [], None, None, self.receipt, self.envelope, self.store, path, **args
         )
 
     def test_valid_receipt_binds_identity_sequence_and_floor(self):
@@ -360,5 +377,74 @@ class CheckpointFloorWitnessTests(unittest.TestCase):
                     idempotency_key="same-domain-refused",
                 )
             self.assertEqual(provider.advance_calls, 0)
+
+
+
+    def test_recovery_classifies_only_when_witness_and_local_floors_match(self):
+        from experiments.checkpoint_floor_ledger import append_checkpoint_floor
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "floor.jsonl"
+            append_checkpoint_floor(path, 14, "2026-11-11T10:30:00Z")
+            result = self._classify(path)
+            self.assertEqual(result["recovery_status"], "NO_RETAINED_STATE")
+            self.assertEqual(
+                result["rollback_floor_source"],
+                "EXTERNAL_WITNESS_MATCHED_TO_LOCAL_LEDGER_RELATIVE_TO_CALLER_CONFIGURATION",
+            )
+            self.assertEqual(result["witness_sequence"], 8)
+            self.assertEqual(result["authority_authentication"], "NOT_ESTABLISHED")
+
+    def test_witness_ahead_of_local_ledger_blocks_recovery_classification(self):
+        from experiments.checkpoint_floor_ledger import append_checkpoint_floor
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "floor.jsonl"
+            append_checkpoint_floor(path, 13, "2026-11-11T10:30:00Z")
+            result = self._classify(path)
+            self.assertEqual(result["recovery_status"], "WITNESS_LOCAL_LEDGER_DIVERGENCE")
+            self.assertEqual(result["rollback_floor"], "WITNESS_AHEAD_OF_LOCAL_LEDGER")
+
+    def test_local_ledger_ahead_of_witness_blocks_recovery_classification(self):
+        from experiments.checkpoint_floor_ledger import append_checkpoint_floor
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "floor.jsonl"
+            append_checkpoint_floor(path, 15, "2026-11-11T10:30:00Z")
+            result = self._classify(path)
+            self.assertEqual(result["recovery_status"], "WITNESS_LOCAL_LEDGER_DIVERGENCE")
+            self.assertEqual(result["rollback_floor"], "LOCAL_LEDGER_AHEAD_OF_WITNESS")
+
+    def test_invalid_witness_prevents_recovery_classification(self):
+        from experiments.checkpoint_floor_ledger import append_checkpoint_floor
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "floor.jsonl"
+            append_checkpoint_floor(path, 14, "2026-11-11T10:30:00Z")
+            changed_envelope = dict(
+                self.envelope,
+                signature_base64=base64.b64encode(b"x" * 64).decode(),
+            )
+            result = classify_checkpoint_recovery_with_witness(
+                [], None, None, self.receipt, changed_envelope, self.store, path,
+                at_utc="2026-11-11T11:00:00Z",
+                expected_witness_id="witness-east-1",
+                expected_provider_id="provider-independent",
+                expected_failure_domain_id="provider-control-plane-east",
+                local_storage_domain_id="local-disk-a",
+                minimum_witness_sequence=8,
+                operator_minimum_checkpoint_sequence=14,
+            )
+            self.assertEqual(result["recovery_status"], "WITNESS_NOT_VERIFIED")
+            self.assertEqual(
+                result["witness_verification"]["witness_verification"],
+                "INVALID_SIGNATURE",
+            )
+
+    def test_missing_or_corrupt_local_ledger_never_defaults_during_witness_recovery(self):
+        with tempfile.TemporaryDirectory() as directory:
+            missing = Path(directory) / "missing.jsonl"
+            with self.assertRaises(FileNotFoundError):
+                self._classify(missing)
+            corrupt = Path(directory) / "corrupt.jsonl"
+            corrupt.write_text("{incomplete", encoding="utf-8")
+            with self.assertRaises(ValueError):
+                self._classify(corrupt)
 
 
