@@ -8,7 +8,9 @@ serialized; this module does not provide inter-process locking.
 """
 from __future__ import annotations
 
+from contextlib import contextmanager
 from datetime import datetime
+import fcntl
 import hashlib
 import json
 import os
@@ -125,7 +127,7 @@ def load_checkpoint_floor_ledger(path: str | os.PathLike) -> list[dict]:
     return entries
 
 
-def append_checkpoint_floor(
+def _append_checkpoint_floor_unlocked(
     path: str | os.PathLike,
     minimum_checkpoint_sequence: int,
     recorded_at_utc: str,
@@ -220,6 +222,49 @@ def append_checkpoint_floor(
         "file_fsync": "CONFIRMED",
         "directory_fsync": directory_status,
     }
+
+
+
+@contextmanager
+def _exclusive_writer_lock(destination: Path):
+    """Serialize floor-ledger writers across processes on POSIX filesystems.
+
+    The lock file is deliberately persistent: unlinking a lock file after
+    release can let competing processes lock different inodes. The caller
+    holds this lock across the complete read/validate/append/fsync sequence.
+    """
+    lock_path = destination.with_name(destination.name + ".lock")
+    descriptor = os.open(
+        lock_path,
+        os.O_CREAT | os.O_RDWR | getattr(os, "O_BINARY", 0),
+        0o600,
+    )
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+    finally:
+        os.close(descriptor)
+
+
+def append_checkpoint_floor(
+    path: str | os.PathLike,
+    minimum_checkpoint_sequence: int,
+    recorded_at_utc: str,
+) -> dict:
+    """Append a monotonic floor entry under an inter-process exclusive lock.
+
+    The lock serializes cooperating writers on POSIX filesystems. It does not
+    authenticate the ledger, protect it from replacement/rollback, or promise
+    distributed locking semantics on network filesystems.
+    """
+    destination = Path(path)
+    with _exclusive_writer_lock(destination):
+        return _append_checkpoint_floor_unlocked(
+            destination, minimum_checkpoint_sequence, recorded_at_utc
+        )
 
 
 def checkpoint_floor_value(path: str | os.PathLike) -> int:
