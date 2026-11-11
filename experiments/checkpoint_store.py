@@ -118,6 +118,11 @@ def write_checkpoint_envelope(
     CheckpointEnvelopeDurabilityUncertain makes that state explicit.
     """
     envelope = build_checkpoint_envelope(checkpoint, acceptance_receipt)
+    destination = Path(path)
+    parent = destination.parent
+    if not parent.is_dir():
+        raise FileNotFoundError(f"checkpoint envelope directory does not exist: {parent}")
+
     if destination.exists():
         current_envelope = load_checkpoint_envelope(destination)
         current_sequence = current_envelope["checkpoint"]["checkpoint_sequence"]
@@ -144,11 +149,6 @@ def write_checkpoint_envelope(
         json.dumps(envelope, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
         + "\n"
     ).encode("utf-8")
-    destination = Path(path)
-    parent = destination.parent
-    if not parent.is_dir():
-        raise FileNotFoundError(f"checkpoint envelope directory does not exist: {parent}")
-
     descriptor, temporary_name = tempfile.mkstemp(
         prefix=f".{destination.name}.", suffix=".tmp", dir=str(parent)
     )
