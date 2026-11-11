@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "∂ss external checkpoint-floor witness signature envelope",
+  "description": "Detached Ed25519 signature over canonical domain-separated witness receipt bytes. Schema validation does not verify the signature.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["record_version", "key_id", "signature_base64"],
+  "properties": {
+    "record_version": { "const": "audit-checkpoint-floor-witness-signature/v1" },
+    "key_id": { "type": "string", "minLength": 1 },
+    "signature_base64": { "type": "string", "contentEncoding": "base64", "minLength": 88 }
+  }
+}
