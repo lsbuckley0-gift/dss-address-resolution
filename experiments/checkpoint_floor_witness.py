@@ -387,6 +387,11 @@ def advance_checkpoint_floor_with_witness(
                 signature_envelope=accepted_signature,
             )
         current_result = advanced_result
+        # A concurrent provider advance may return a floor higher than the
+        # requested value. The local ledger must converge to the signed value.
+        target_floor = max(
+            target_floor, accepted_receipt["minimum_checkpoint_sequence"]
+        )
 
     try:
         local_append = append_checkpoint_floor(
