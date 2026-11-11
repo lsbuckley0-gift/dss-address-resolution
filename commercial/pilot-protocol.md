@@ -1097,3 +1097,33 @@ retained rollback floor, coordinate multiple replicas, or provide backup
 recovery. The caller must still pass the loaded checkpoint and receipt through
 the recovery classifier with independently retained floor state. A successful
 write must not be promoted to an authenticated or globally accepted state.
+
+### Append-only local rollback-floor ledger
+
+`experiments/checkpoint_floor_ledger.py` provides a separate JSONL
+ledger for retaining a monotonically increasing minimum checkpoint sequence.
+Each entry carries a contiguous ledger revision, the minimum checkpoint
+sequence, a UTC recording time, the previous entry digest and its own
+canonical SHA-256 digest. Loading validates the complete chain, revision
+continuity, non-decreasing floor and timestamp, and every entry digest. A
+missing ledger raises `FileNotFoundError`; an empty, truncated, malformed
+or discontinuous ledger fails closed and is never interpreted as floor zero.
+
+`append_checkpoint_floor(path, minimum_checkpoint_sequence, recorded_at_utc)`
+creates the first entry or appends a higher floor. Lower floors are rejected.
+An identical floor does not append a duplicate; it re-fsyncs the existing file
+so a retry can re-evaluate a prior uncertain durability result. The helper
+`checkpoint_floor_value(path)` returns the latest validated floor for
+passing to the checkpoint recovery classifier or the checkpoint envelope
+writer.
+
+The matching schema is
+`experiments/schemas/audit-chain-checkpoint-floor-ledger-entry-v1.schema.json`.
+The ledger is append-only by API convention, not immutable storage. It is a
+separate file, but a second file on the same disk is not an independent failure
+domain. The implementation is single-writer and does not provide
+inter-process locking, authenticated entries, replication, backup protection
+or rollback resistance if the ledger itself is replaced by an older copy.
+Deployments must serialize writers and place protected copies in a genuinely
+separate storage/failure domain. If the ledger is missing or invalid, do not
+infer a floor from the checkpoint envelope or silently reset to zero.
