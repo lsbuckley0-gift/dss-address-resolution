@@ -10,6 +10,7 @@ import base64
 import binascii
 import json
 import re
+from pathlib import Path
 from typing import Protocol
 
 from experiments.audit_event_chain import _timestamp
@@ -311,6 +312,8 @@ def advance_checkpoint_floor_with_witness(
     try:
         local_floor = checkpoint_floor_value(ledger_path)
     except FileNotFoundError:
+        if not Path(ledger_path).parent.is_dir():
+            raise
         local_floor = None
 
     current_receipt, current_signature = witness.read_latest()
