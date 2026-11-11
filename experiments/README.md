@@ -300,7 +300,10 @@ outside the local ledger's failure domain. The verifier binds expected provider
 and witness identifiers, declared failure domain, Ed25519 governance key,
 witness sequence and checkpoint floor. The recovery gate refuses to classify
 when the external and local floors diverge, or when either retained source is
-missing or invalid.
+missing or invalid. Structurally malformed witness receipts and signature
+envelopes are classified as `WITNESS_NOT_VERIFIED` /
+`MALFORMED_WITNESS_EVIDENCE`; invalid caller-supplied policy configuration
+remains an explicit error.
 
 Run the focused tests with:
 
