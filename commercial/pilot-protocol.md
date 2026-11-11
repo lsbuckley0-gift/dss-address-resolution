@@ -1140,7 +1140,9 @@ fsync sequence. The lock file is deliberately not unlinked after release, so
 processes cannot accidentally lock different inodes. This coordinates
 cooperating processes on a supported local POSIX filesystem; it is not a
 distributed lock and must not be assumed reliable on arbitrary network
-filesystems. Authenticated entries, replication, backup protection and
+filesystems. On platforms without the required advisory-lock facility, an
+append is refused rather than performed without writer coordination.
+Authenticated entries, replication, backup protection and
 rollback resistance if the ledger itself is replaced by an older copy remain
 outside this implementation. Deployments must place protected copies in a
 genuinely separate storage/failure domain. If the ledger is missing or invalid,
