@@ -632,3 +632,24 @@ class CheckpointFloorWitnessTests(unittest.TestCase):
             )
             self.assertFalse(path.exists())
 
+
+
+    def test_provider_compare_and_advance_rejects_stale_expected_sequence(self):
+        provider = self._fake_provider()
+        provider.advance_floor(
+            expected_witness_sequence=8,
+            minimum_checkpoint_sequence=15,
+            idempotency_key="first-advance-15",
+        )
+        with self.assertRaisesRegex(ValueError, "witness compare-and-advance conflict"):
+            provider.advance_floor(
+                expected_witness_sequence=8,
+                minimum_checkpoint_sequence=16,
+                idempotency_key="stale-advance-16",
+            )
+        self.assertEqual(provider.advance_calls, 1)
+        self.assertEqual(provider.read_latest()[0]["witness_sequence"], 9)
+        self.assertEqual(
+            provider.read_latest()[0]["minimum_checkpoint_sequence"], 15
+        )
+
