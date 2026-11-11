@@ -326,6 +326,8 @@ def advance_checkpoint_floor_with_witness(
         raise ValueError(
             "requested checkpoint floor is below the operator minimum; refusing regression."
         )
+    # Validate local-append metadata before the external witness can mutate.
+    _timestamp(recorded_at_utc, "recorded_at_utc")
 
     from experiments.checkpoint_floor_ledger import (
         append_checkpoint_floor, checkpoint_floor_value,
