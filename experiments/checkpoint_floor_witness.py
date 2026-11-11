@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -401,6 +402,29 @@ def advance_checkpoint_floor_with_witness(
             raise CheckpointFloorWitnessAdvanceUncertain(
                 "provider may have advanced but its returned receipt was rejected: "
                 + advanced_result["witness_verification"],
+                idempotency_key=key,
+                minimum_checkpoint_sequence=target_floor,
+                receipt=accepted_receipt,
+                signature_envelope=accepted_signature,
+            )
+        expected_previous_digest = hashlib.sha256(
+            canonical_witness_payload(current_receipt)
+        ).hexdigest()
+        if accepted_receipt["witness_sequence"] != (
+            current_receipt["witness_sequence"] + 1
+        ):
+            raise CheckpointFloorWitnessAdvanceUncertain(
+                "provider returned a non-contiguous witness sequence; reconcile "
+                "the provider's retained history before retrying",
+                idempotency_key=key,
+                minimum_checkpoint_sequence=target_floor,
+                receipt=accepted_receipt,
+                signature_envelope=accepted_signature,
+            )
+        if accepted_receipt["previous_receipt_sha256"] != expected_previous_digest:
+            raise CheckpointFloorWitnessAdvanceUncertain(
+                "provider returned a receipt not linked to the previously read "
+                "witness receipt; reconcile the provider's retained history",
                 idempotency_key=key,
                 minimum_checkpoint_sequence=target_floor,
                 receipt=accepted_receipt,
