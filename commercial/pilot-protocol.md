@@ -1112,7 +1112,13 @@ or discontinuous ledger fails closed and is never interpreted as floor zero.
 `append_checkpoint_floor(path, minimum_checkpoint_sequence, recorded_at_utc)`
 creates the first entry or appends a higher floor. Lower floors are rejected.
 An identical floor does not append a duplicate; it re-fsyncs the existing file
-so a retry can re-evaluate a prior uncertain durability result. The helper
+and its parent directory where supported so a retry can re-evaluate a prior
+uncertain durability result. New appends fsync the ledger file and, where
+supported, the parent directory. A failed file or directory fsync is reported
+as durability-uncertain; a retry of the same floor rechecks both. A partial
+append leaves an incomplete tail, which the loader rejects rather than
+repairing or skipping.
+The helper
 `checkpoint_floor_value(path)` returns the latest validated floor for
 passing to the checkpoint recovery classifier or the checkpoint envelope
 writer.
