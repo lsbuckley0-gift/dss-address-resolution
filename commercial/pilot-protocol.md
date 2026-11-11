@@ -1201,6 +1201,8 @@ minimums. This is a verifier-level regression test only. It does not implement
 operator pin storage, atomic acceptance, authenticated backup, or prove a
 real provider's independence; those remain deployment obligations.
 
+A companion negative-control test, `test_restoring_provider_and_operator_pin_backups_reopens_rollback`, restores both the old provider receipt and the old operator-policy backup. The old signed receipt is then accepted against the restored 8/14 policy. This is intentional: the anti-rollback guarantee collapses if the provider and operator pin can be rolled back together. The operator pin's backup, administration and recovery path must therefore be protected independently of the provider, not merely stored in a different file or labelled as a different domain.
+
 
 
 ### Append-only local rollback-floor ledger
