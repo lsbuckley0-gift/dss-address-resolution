@@ -114,7 +114,11 @@ class CheckpointStoreTests(unittest.TestCase):
         result = write_checkpoint_envelope(self.path, self.checkpoint, self.receipt)
         self.assertEqual(self.path.read_bytes(), previous)
         self.assertEqual(result["replacement"], "NOT_REQUIRED_IDENTICAL_ENVELOPE")
-        self.assertEqual(result["file_fsync"], "NOT_PERFORMED")
+        self.assertEqual(result["file_fsync"], "CONFIRMED")
+        self.assertEqual(
+            result["directory_fsync"],
+            "CONFIRMED" if hasattr(os, "O_DIRECTORY") else "UNAVAILABLE",
+        )
 
     def test_failed_replace_preserves_previous_envelope_and_cleans_temp(self):
         write_checkpoint_envelope(self.path, self.checkpoint, self.receipt)
@@ -172,6 +176,15 @@ class CheckpointStoreTests(unittest.TestCase):
         loaded = load_checkpoint_envelope(self.path)
         self.assertEqual(loaded["checkpoint"], self.checkpoint)
         self.assertEqual(calls, 2)
+
+        retry_result = write_checkpoint_envelope(
+            self.path, self.checkpoint, self.receipt
+        )
+        self.assertEqual(
+            retry_result["replacement"], "NOT_REQUIRED_IDENTICAL_ENVELOPE"
+        )
+        self.assertEqual(retry_result["file_fsync"], "CONFIRMED")
+        self.assertEqual(retry_result["directory_fsync"], "CONFIRMED")
 
     def test_loader_rejects_truncated_or_incomplete_envelope(self):
         self.path.write_text(
