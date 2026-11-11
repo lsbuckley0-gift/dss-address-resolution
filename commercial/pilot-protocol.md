@@ -1136,12 +1136,16 @@ The ledger is append-only by API convention, not immutable storage. It is a
 separate file, but a second file on the same disk is not an independent failure
 domain. Writers are serialized with a persistent sidecar lock file and POSIX
 exclusive advisory locking; the lock covers the complete read/validate/append/
-fsync sequence. The lock file is deliberately not unlinked after release, so
-processes cannot accidentally lock different inodes. This coordinates
-cooperating processes on a supported local POSIX filesystem; it is not a
-distributed lock and must not be assumed reliable on arbitrary network
-filesystems. On platforms without the required advisory-lock facility, an
-append is refused rather than performed without writer coordination.
+fsync sequence. Readers take a shared lock on the same sidecar while loading a
+snapshot, so cooperating readers cannot observe an in-progress append. The
+writer validates through an internal unlocked loader while holding its
+exclusive lock, avoiding nested-lock deadlock. The lock file is deliberately
+not unlinked after release, so processes cannot accidentally lock different
+inodes. This coordinates cooperating processes on a supported local POSIX
+filesystem; it is not a distributed lock and must not be assumed reliable on
+arbitrary network filesystems. On platforms without the required advisory-lock
+facility, an append is refused rather than performed without writer
+coordination; reads remain possible because the library cannot append there.
 Authenticated entries, replication, backup protection and
 rollback resistance if the ledger itself is replaced by an older copy remain
 outside this implementation. Deployments must place protected copies in a
