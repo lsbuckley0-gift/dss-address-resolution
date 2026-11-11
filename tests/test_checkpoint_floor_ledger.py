@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from unittest import mock
 
 from experiments.audit_event_chain import append_audit_event
@@ -162,6 +163,32 @@ class CheckpointFloorLedgerTests(unittest.TestCase):
         self.assertEqual(result["append"], "NOT_REQUIRED_IDENTICAL_FLOOR")
         self.assertEqual(result["directory_fsync"], "CONFIRMED")
         self.assertEqual(len(load_checkpoint_floor_ledger(self.path)), 1)
+
+    def test_concurrent_writers_leave_one_valid_monotonic_history(self):
+        def write_floor(sequence):
+            try:
+                return append_checkpoint_floor(
+                    self.path,
+                    sequence,
+                    f"2026-11-11T10:00:{sequence:02d}Z",
+                )
+            except ValueError:
+                # A higher sequence may acquire the lock first; later lower
+                # candidates must then be rejected rather than appended.
+                return "REJECTED_AS_STALE"
+
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            list(executor.map(write_floor, range(1, 9)))
+
+        entries = load_checkpoint_floor_ledger(self.path)
+        floors = [entry["minimum_checkpoint_sequence"] for entry in entries]
+        self.assertEqual(floors, sorted(floors))
+        self.assertEqual(floors[-1], 8)
+        self.assertEqual(
+            [entry["floor_revision"] for entry in entries],
+            list(range(len(entries))),
+        )
+        self.assertTrue(self.path.with_name(self.path.name + ".lock").exists())
 
     def test_timestamp_regression_is_rejected(self):
         append_checkpoint_floor(self.path, 4, "2026-11-11T10:01:00Z")
