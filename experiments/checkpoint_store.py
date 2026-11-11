@@ -118,6 +118,28 @@ def write_checkpoint_envelope(
     CheckpointEnvelopeDurabilityUncertain makes that state explicit.
     """
     envelope = build_checkpoint_envelope(checkpoint, acceptance_receipt)
+    if destination.exists():
+        current_envelope = load_checkpoint_envelope(destination)
+        current_sequence = current_envelope["checkpoint"]["checkpoint_sequence"]
+        candidate_sequence = checkpoint["checkpoint_sequence"]
+        if candidate_sequence < current_sequence:
+            raise ValueError(
+                "checkpoint sequence regression refused: existing sequence "
+                f"{current_sequence} is greater than candidate sequence {candidate_sequence}."
+            )
+        if candidate_sequence == current_sequence:
+            if envelope == current_envelope:
+                return {
+                    "replacement": "NOT_REQUIRED_IDENTICAL_ENVELOPE",
+                    "file_fsync": "NOT_PERFORMED",
+                    "directory_fsync": "NOT_PERFORMED",
+                    "storage_atomicity": "SINGLE_ENVELOPE_ONLY",
+                    "rollback_floor_protection": "NOT_PROVIDED",
+                }
+            raise ValueError(
+                "same checkpoint sequence already exists with different envelope content."
+            )
+
     encoded = (
         json.dumps(envelope, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
         + "\n"
