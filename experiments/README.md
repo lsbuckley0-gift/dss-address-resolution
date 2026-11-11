@@ -296,7 +296,9 @@ for the complete scope boundary.
 `experiments/checkpoint_floor_witness.py` defines the signed witness receipt
 contract, provider protocol, witness-first floor coordination and recovery gate.
 A provider must implement atomic compare-and-advance and idempotent retries
-outside the local ledger's failure domain. The verifier binds expected provider
+outside the local ledger's failure domain. Each returned advance receipt must
+be the immediate next witness sequence and hash-link to the exact prior receipt
+read by the coordinator; a valid signature alone does not establish continuity. The verifier binds expected provider
 and witness identifiers, declared failure domain, Ed25519 governance key,
 witness sequence and checkpoint floor. The recovery gate refuses to classify
 when the external and local floors diverge, or when either retained source is
