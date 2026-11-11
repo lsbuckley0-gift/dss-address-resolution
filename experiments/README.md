@@ -268,3 +268,24 @@ supported candidate. Pairwise cases ensure a near street cannot override a prote
 identity conflict. This is a rule-shaped synthetic conformance matrix, not a
 representative sample, calibrated error rate or real-world accuracy estimate. No
 real addresses, customer data, PAF data or external address services are used.
+
+
+## Atomic checkpoint acceptance envelope
+
+The filesystem adapter `experiments/checkpoint_store.py` stores one validated
+checkpoint payload and its acceptance receipt in a single JSON envelope.
+Run its focused tests with:
+
+```bash
+python -m unittest tests.test_checkpoint_store -v
+```
+
+The adapter fsyncs the temporary file before same-directory `os.replace`,
+then fsyncs the parent directory where `O_DIRECTORY` is available. Its result
+distinguishes replacement, file flush and directory flush. A directory-fsync
+failure after replacement raises `CheckpointEnvelopeDurabilityUncertain`;
+the new file may be visible even though crash durability is unconfirmed.
+The adapter protects only the pair's single-file visibility. It does not
+authenticate the receipt, protect the independent rollback floor, or establish
+a universal filesystem/power-loss guarantee. See the commercial pilot protocol
+for the complete scope boundary.
