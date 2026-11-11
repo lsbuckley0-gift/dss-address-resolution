@@ -1016,7 +1016,11 @@ while `rollback_floor` independently reports `BELOW_FLOOR`,
 `MEETS_FLOOR` or `NOT_SUPPLIED`. An incomplete write must not suppress a
 known rollback warning. A receipt without its payload similarly retains its
 own sequence-floor comparison but is never treated as a reconstructed
-checkpoint.
+checkpoint. Its interpretation must state whether the receipt sequence is
+below the supplied floor, meets it, or has no supplied floor; the state remains
+`RECEIPT_WITHOUT_PAYLOAD` in all three cases. A below-floor receipt is a
+rollback warning, not proof that rollback occurred, because the checkpoint
+payload needed to establish the retained state is absent.
 
 **Recovery boundary:** `CONSISTENT_UNAUTHENTICATED` is deliberately not named
 `ACCEPTED`. The classifier does not authenticate the receipt issuer, verify
