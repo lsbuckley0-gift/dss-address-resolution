@@ -35,9 +35,13 @@ class CheckpointFloorWitness(Protocol):
 
     read_latest returns (receipt, signature_envelope). advance_floor must
     atomically compare expected_witness_sequence, monotonically advance the
-    floor, and be idempotent for a repeated idempotency_key. Both return the
-    exact signed receipt tuple. The operator must pin the provider identity,
-    failure domain and minimum witness sequence independently.
+    floor, and durably bind each idempotency_key to the complete request
+    (expected sequence and requested floor). An exact replay must return the
+    identical accepted receipt tuple even after provider process restart;
+    reusing a key with different request parameters must be rejected. The
+    compare-and-advance and idempotency record must commit atomically. Both
+    methods return the exact signed receipt tuple. The operator must pin the
+    provider identity, failure domain and minimum witness sequence independently.
     """
 
     def read_latest(self) -> tuple[dict, dict]:
