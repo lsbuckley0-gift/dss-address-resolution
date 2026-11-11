@@ -79,6 +79,43 @@ class CheckpointStoreTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "precedes checkpoint"):
             build_checkpoint_envelope(self.checkpoint, changed)
 
+    def test_lower_sequence_cannot_replace_newer_envelope(self):
+        write_checkpoint_envelope(self.path, self.checkpoint, self.receipt)
+        previous = self.path.read_bytes()
+        older_checkpoint = dict(self.checkpoint, checkpoint_sequence=1)
+        older_receipt = dict(
+            self.receipt,
+            checkpoint_sequence=1,
+            checkpoint_sha256=_canonical_checkpoint_sha256(older_checkpoint),
+        )
+        with self.assertRaisesRegex(ValueError, "sequence regression refused"):
+            write_checkpoint_envelope(self.path, older_checkpoint, older_receipt)
+        self.assertEqual(self.path.read_bytes(), previous)
+        self.assertEqual(
+            sorted(p.name for p in Path(self.tempdir.name).iterdir()),
+            ["checkpoint-envelope.json"],
+        )
+
+    def test_same_sequence_with_different_content_is_rejected(self):
+        write_checkpoint_envelope(self.path, self.checkpoint, self.receipt)
+        previous = self.path.read_bytes()
+        changed_checkpoint = dict(self.checkpoint, anchor_reference="anchor:other")
+        changed_receipt = dict(
+            self.receipt,
+            checkpoint_sha256=_canonical_checkpoint_sha256(changed_checkpoint),
+        )
+        with self.assertRaisesRegex(ValueError, "same checkpoint sequence"):
+            write_checkpoint_envelope(self.path, changed_checkpoint, changed_receipt)
+        self.assertEqual(self.path.read_bytes(), previous)
+
+    def test_identical_same_sequence_retry_is_idempotent(self):
+        write_checkpoint_envelope(self.path, self.checkpoint, self.receipt)
+        previous = self.path.read_bytes()
+        result = write_checkpoint_envelope(self.path, self.checkpoint, self.receipt)
+        self.assertEqual(self.path.read_bytes(), previous)
+        self.assertEqual(result["replacement"], "NOT_REQUIRED_IDENTICAL_ENVELOPE")
+        self.assertEqual(result["file_fsync"], "NOT_PERFORMED")
+
     def test_failed_replace_preserves_previous_envelope_and_cleans_temp(self):
         write_checkpoint_envelope(self.path, self.checkpoint, self.receipt)
         previous = self.path.read_bytes()
