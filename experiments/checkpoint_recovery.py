@@ -109,7 +109,17 @@ def classify_checkpoint_recovery(
             "storage_atomicity": "NOT_VERIFIED",
             "interpretation": (
                 "An acceptance receipt is present but its checkpoint payload is absent. "
-                "Do not reconstruct or accept the missing payload from the receipt alone."
+                "Do not reconstruct or accept the missing payload from the receipt alone. "
+                + (
+                    " The receipt sequence is below the independently supplied rollback floor."
+                    if floor_status == "BELOW_FLOOR"
+                    else (
+                        " The receipt sequence meets the independently supplied rollback floor."
+                        if floor_status == "MEETS_FLOOR"
+                        else " No independent rollback floor was supplied for the receipt sequence."
+                    )
+                )
+                + " This receipt-only state is not proof of rollback or of accepted payload availability."
             ),
         }
 
