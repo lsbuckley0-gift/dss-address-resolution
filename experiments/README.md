@@ -317,10 +317,10 @@ Run the focused tests with:
 python -m unittest discover -s tests -p 'test_checkpoint_floor_witness.py' -v
 ```
 
-These tests use a synthetic provider with a shared durable-state fixture
-to simulate adapter restart, exact-result replay and key/request mismatch. They
-do not establish a live provider's persistence, atomicity, independent
-administration or storage separation. A distinct failure-domain label is not proof of independence.
+These tests use a synthetic provider with a shared idempotency-state fixture
+to simulate adapter recreation with retained state, exact-result replay and
+key/request mismatch. They do not establish a live provider's persistence,
+atomicity, independent administration or storage separation. A distinct failure-domain label is not proof of independence.
 Successful verification remains relative to caller-supplied governance and
 operator configuration; authority authentication and event truth remain
 unestablished. See the commercial pilot protocol before integrating a provider.
