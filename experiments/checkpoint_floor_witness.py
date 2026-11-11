@@ -80,7 +80,7 @@ class CheckpointFloorWitnessEvidenceError(ValueError):
 
 def _validate_checkpoint_floor_witness_evidence(
     receipt: object, signature_envelope: object,
-) -> tuple[int, int, str, object, object, bytes]:
+) -> tuple[int, int, str, object, object, bytes, str]:
     """Validate untrusted receipt/envelope shape without inspecting operator policy."""
     try:
         if not isinstance(receipt, dict):
@@ -113,7 +113,7 @@ def _validate_checkpoint_floor_witness_evidence(
             raise ValueError("signature_envelope has unsupported field(s): " + ", ".join(sorted(extra)))
         if signature_envelope["record_version"] != _SIGNATURE_VERSION:
             raise ValueError(f"signature envelope record_version must be {_SIGNATURE_VERSION}.")
-        _non_empty(signature_envelope["key_id"], "signature_envelope.key_id")
+        key_id = _non_empty(signature_envelope["key_id"], "signature_envelope.key_id")
         encoded = signature_envelope["signature_base64"]
         if not isinstance(encoded, str):
             raise ValueError("signature_base64 must be a string.")
@@ -123,7 +123,7 @@ def _validate_checkpoint_floor_witness_evidence(
             raise ValueError("signature_base64 must be valid base64.") from exc
         if len(signature) != 64:
             raise ValueError("Ed25519 signature must decode to 64 bytes.")
-        return sequence, floor, previous, issued, expires, signature
+        return sequence, floor, previous, issued, expires, signature, key_id
     except ValueError as exc:
         raise CheckpointFloorWitnessEvidenceError(str(exc)) from exc
 
@@ -141,7 +141,7 @@ def verify_checkpoint_floor_witness_receipt(
     A distinct failure-domain identifier is a declaration only; operational
     separation must be established independently by the deployment operator.
     """
-    sequence, floor, previous, issued, expires, signature = (
+    sequence, floor, previous, issued, expires, signature, key_id = (
         _validate_checkpoint_floor_witness_evidence(receipt, signature_envelope)
     )
 
