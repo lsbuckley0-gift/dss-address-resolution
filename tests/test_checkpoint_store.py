@@ -60,6 +60,15 @@ class CheckpointStoreTests(unittest.TestCase):
             write_checkpoint_envelope(self.path, self.checkpoint, changed)
         self.assertFalse(self.path.exists())
 
+
+    def test_invalid_checkpoint_identity_fields_are_rejected(self):
+        changed = dict(self.checkpoint, registration_event_id=" ")
+        with self.assertRaisesRegex(ValueError, "registration_event_id"):
+            build_checkpoint_envelope(changed, self.receipt)
+        changed = dict(self.checkpoint, checkpoint_event_sha256="A" * 64)
+        with self.assertRaisesRegex(ValueError, "lowercase SHA-256"):
+            build_checkpoint_envelope(changed, self.receipt)
+
     def test_receipt_sequence_mismatch_is_rejected(self):
         changed = dict(self.receipt, checkpoint_sequence=3)
         with self.assertRaisesRegex(ValueError, "sequence does not match"):
