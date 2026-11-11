@@ -32,6 +32,24 @@ class CheckpointFloorDurabilityUncertain(OSError):
     """A floor entry may be visible, but fsync did not confirm durability."""
 
 
+def _fsync_parent_directory(parent: Path) -> str:
+    """Fsync the directory entry where the platform exposes O_DIRECTORY."""
+    if not hasattr(os, "O_DIRECTORY"):
+        return "UNAVAILABLE"
+    try:
+        directory_fd = os.open(parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    except OSError as exc:
+        raise CheckpointFloorDurabilityUncertain(
+            "floor ledger file may be visible, but parent-directory fsync failed; "
+            "directory-entry durability is uncertain"
+        ) from exc
+    return "CONFIRMED"
+
+
 def _canonical_entry_sha256(entry: dict) -> str:
     canonical = json.dumps(
         entry, sort_keys=True, separators=(",", ":"), ensure_ascii=False
@@ -137,6 +155,7 @@ def append_checkpoint_floor(
                     os.fsync(descriptor)
                 finally:
                     os.close(descriptor)
+                directory_status = _fsync_parent_directory(destination.parent)
             except OSError as exc:
                 raise CheckpointFloorDurabilityUncertain(
                     "existing floor ledger is visible, but retry fsync failed; "
@@ -147,6 +166,7 @@ def append_checkpoint_floor(
                 "floor_revision": previous["floor_revision"],
                 "minimum_checkpoint_sequence": previous_floor,
                 "file_fsync": "CONFIRMED",
+                "directory_fsync": directory_status,
             }
         revision = previous["floor_revision"] + 1
         previous_digest = previous["entry_sha256"]
@@ -166,9 +186,18 @@ def append_checkpoint_floor(
         json.dumps(entry, sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n"
     ).encode("utf-8")
 
-    descriptor = os.open(destination, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+    descriptor = os.open(
+        destination,
+        os.O_WRONLY | os.O_APPEND | os.O_CREAT | getattr(os, "O_BINARY", 0),
+        0o600,
+    )
     try:
-        written = os.write(descriptor, encoded)
+        try:
+            written = os.write(descriptor, encoded)
+        except OSError as exc:
+            raise CheckpointFloorDurabilityUncertain(
+                "floor ledger append failed; the tail may be incomplete and recovery must fail closed"
+            ) from exc
         if written != len(encoded):
             raise CheckpointFloorDurabilityUncertain(
                 "floor ledger append was partial; ledger tail is incomplete and recovery must fail closed"
@@ -179,6 +208,7 @@ def append_checkpoint_floor(
             raise CheckpointFloorDurabilityUncertain(
                 "floor ledger entry may be visible, but fsync failed; durability is uncertain"
             ) from exc
+        directory_status = _fsync_parent_directory(destination.parent)
     finally:
         os.close(descriptor)
 
@@ -188,6 +218,7 @@ def append_checkpoint_floor(
         "minimum_checkpoint_sequence": minimum_checkpoint_sequence,
         "entry_sha256": entry["entry_sha256"],
         "file_fsync": "CONFIRMED",
+        "directory_fsync": directory_status,
     }
 
 
