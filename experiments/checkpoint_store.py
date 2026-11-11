@@ -33,7 +33,25 @@ _CHECKPOINT_FIELDS = {
 
 
 class CheckpointEnvelopeDurabilityUncertain(OSError):
-    """Replacement is visible, but parent-directory durability was not confirmed."""
+    """An envelope is visible, but a required fsync did not confirm durability."""
+
+
+def _fsync_parent_directory(parent: Path) -> str:
+    """Fsync the containing directory where the platform exposes O_DIRECTORY."""
+    if not hasattr(os, "O_DIRECTORY"):
+        return "UNAVAILABLE"
+    try:
+        directory_fd = os.open(parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    except OSError as exc:
+        raise CheckpointEnvelopeDurabilityUncertain(
+            "checkpoint envelope is visible, but parent-directory fsync failed; "
+            "crash durability is uncertain"
+        ) from exc
+    return "CONFIRMED"
 
 
 def _validate_envelope_parts(checkpoint: dict, acceptance_receipt: dict) -> None:
@@ -134,10 +152,22 @@ def write_checkpoint_envelope(
             )
         if candidate_sequence == current_sequence:
             if envelope == current_envelope:
+                try:
+                    current_fd = os.open(destination, os.O_RDONLY)
+                    try:
+                        os.fsync(current_fd)
+                    finally:
+                        os.close(current_fd)
+                except OSError as exc:
+                    raise CheckpointEnvelopeDurabilityUncertain(
+                        "existing checkpoint envelope is visible, but retry file fsync "
+                        "failed; crash durability is uncertain"
+                    ) from exc
+                directory_status = _fsync_parent_directory(parent)
                 return {
                     "replacement": "NOT_REQUIRED_IDENTICAL_ENVELOPE",
-                    "file_fsync": "NOT_PERFORMED",
-                    "directory_fsync": "NOT_PERFORMED",
+                    "file_fsync": "CONFIRMED",
+                    "directory_fsync": directory_status,
                     "storage_atomicity": "SINGLE_ENVELOPE_ONLY",
                     "rollback_floor_protection": "NOT_PROVIDED",
                 }
@@ -161,21 +191,7 @@ def write_checkpoint_envelope(
         os.replace(temporary_name, destination)
         replaced = True
 
-        if hasattr(os, "O_DIRECTORY"):
-            try:
-                directory_fd = os.open(parent, os.O_RDONLY | os.O_DIRECTORY)
-                try:
-                    os.fsync(directory_fd)
-                finally:
-                    os.close(directory_fd)
-            except OSError as exc:
-                raise CheckpointEnvelopeDurabilityUncertain(
-                    "checkpoint envelope replacement is visible, but parent-directory "
-                    "fsync failed; crash durability is uncertain"
-                ) from exc
-            directory_status = "CONFIRMED"
-        else:
-            directory_status = "UNAVAILABLE"
+        directory_status = _fsync_parent_directory(parent)
 
         return {
             "replacement": "ATOMIC_SAME_DIRECTORY_REPLACE",
