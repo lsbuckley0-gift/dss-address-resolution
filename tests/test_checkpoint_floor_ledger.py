@@ -124,6 +124,7 @@ class CheckpointFloorLedgerTests(unittest.TestCase):
         self.assertEqual(checkpoint_floor_value(self.path), 4)
 
 
+    @unittest.skipUnless(os.name == "posix", "shared advisory locks require POSIX")
     def test_ledger_reader_uses_shared_interprocess_lock(self):
         append_checkpoint_floor(self.path, 4, "2026-11-11T10:00:00Z")
         real_flock = __import__("fcntl").flock
