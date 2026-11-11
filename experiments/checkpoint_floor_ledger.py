@@ -10,7 +10,10 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from datetime import datetime
-import fcntl
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - exercised on non-POSIX platforms
+    fcntl = None
 import hashlib
 import json
 import os
@@ -132,7 +135,7 @@ def _append_checkpoint_floor_unlocked(
     minimum_checkpoint_sequence: int,
     recorded_at_utc: str,
 ) -> dict:
-    """Append a monotonic floor entry; caller must serialize concurrent writers."""
+    """Append a monotonic floor entry; caller must hold the writer lock."""
     if (
         isinstance(minimum_checkpoint_sequence, bool)
         or not isinstance(minimum_checkpoint_sequence, int)
@@ -233,6 +236,11 @@ def _exclusive_writer_lock(destination: Path):
     release can let competing processes lock different inodes. The caller
     holds this lock across the complete read/validate/append/fsync sequence.
     """
+    if fcntl is None:
+        raise RuntimeError(
+            "inter-process floor-ledger locking is unavailable on this platform; "
+            "refusing an unprotected append"
+        )
     lock_path = destination.with_name(destination.name + ".lock")
     descriptor = os.open(
         lock_path,
