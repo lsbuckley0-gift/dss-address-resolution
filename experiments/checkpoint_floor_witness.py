@@ -74,6 +74,60 @@ def _integer(value: object, field: str, *, positive: bool = False) -> int:
     return value
 
 
+class CheckpointFloorWitnessEvidenceError(ValueError):
+    """Receipt or signature-envelope evidence is structurally invalid."""
+
+
+def _validate_checkpoint_floor_witness_evidence(
+    receipt: object, signature_envelope: object,
+) -> tuple[int, int, str, object, object, bytes]:
+    """Validate untrusted receipt/envelope shape without inspecting operator policy."""
+    try:
+        if not isinstance(receipt, dict):
+            raise ValueError("receipt must be an object.")
+        missing, extra = _RECEIPT_FIELDS - set(receipt), set(receipt) - _RECEIPT_FIELDS
+        if missing:
+            raise ValueError("receipt missing field(s): " + ", ".join(sorted(missing)))
+        if extra:
+            raise ValueError("receipt has unsupported field(s): " + ", ".join(sorted(extra)))
+        if receipt["record_version"] != _RECEIPT_VERSION:
+            raise ValueError(f"receipt record_version must be {_RECEIPT_VERSION}.")
+        for field in ("witness_id", "provider_id", "failure_domain_id", "authority_name"):
+            _non_empty(receipt[field], field)
+        sequence = _integer(receipt["witness_sequence"], "witness_sequence", positive=True)
+        floor = _integer(receipt["minimum_checkpoint_sequence"], "minimum_checkpoint_sequence")
+        previous = receipt["previous_receipt_sha256"]
+        if not isinstance(previous, str) or not re.fullmatch(r"[0-9a-f]{64}", previous):
+            raise ValueError("previous_receipt_sha256 must be a lowercase SHA-256 digest.")
+        issued = _timestamp(receipt["issued_at_utc"], "receipt.issued_at_utc")
+        expires = _timestamp(receipt["expires_at_utc"], "receipt.expires_at_utc")
+        if expires <= issued:
+            raise ValueError("receipt validity interval must be increasing.")
+
+        if not isinstance(signature_envelope, dict):
+            raise ValueError("signature_envelope must be an object.")
+        missing, extra = _SIGNATURE_FIELDS - set(signature_envelope), set(signature_envelope) - _SIGNATURE_FIELDS
+        if missing:
+            raise ValueError("signature_envelope missing field(s): " + ", ".join(sorted(missing)))
+        if extra:
+            raise ValueError("signature_envelope has unsupported field(s): " + ", ".join(sorted(extra)))
+        if signature_envelope["record_version"] != _SIGNATURE_VERSION:
+            raise ValueError(f"signature envelope record_version must be {_SIGNATURE_VERSION}.")
+        _non_empty(signature_envelope["key_id"], "signature_envelope.key_id")
+        encoded = signature_envelope["signature_base64"]
+        if not isinstance(encoded, str):
+            raise ValueError("signature_base64 must be a string.")
+        try:
+            signature = base64.b64decode(encoded, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise ValueError("signature_base64 must be valid base64.") from exc
+        if len(signature) != 64:
+            raise ValueError("Ed25519 signature must decode to 64 bytes.")
+        return sequence, floor, previous, issued, expires, signature
+    except ValueError as exc:
+        raise CheckpointFloorWitnessEvidenceError(str(exc)) from exc
+
+
 def verify_checkpoint_floor_witness_receipt(
     receipt: dict, signature_envelope: dict, trust_store: dict, *,
     at_utc: str, expected_witness_id: str, expected_provider_id: str,
@@ -87,17 +141,9 @@ def verify_checkpoint_floor_witness_receipt(
     A distinct failure-domain identifier is a declaration only; operational
     separation must be established independently by the deployment operator.
     """
-    if not isinstance(receipt, dict):
-        raise ValueError("receipt must be an object.")
-    missing, extra = _RECEIPT_FIELDS - set(receipt), set(receipt) - _RECEIPT_FIELDS
-    if missing:
-        raise ValueError("receipt missing field(s): " + ", ".join(sorted(missing)))
-    if extra:
-        raise ValueError("receipt has unsupported field(s): " + ", ".join(sorted(extra)))
-    if receipt["record_version"] != _RECEIPT_VERSION:
-        raise ValueError(f"receipt record_version must be {_RECEIPT_VERSION}.")
-    for field in ("witness_id", "provider_id", "failure_domain_id", "authority_name"):
-        _non_empty(receipt[field], field)
+    sequence, floor, previous, issued, expires, signature = (
+        _validate_checkpoint_floor_witness_evidence(receipt, signature_envelope)
+    )
 
     for field, expected in (
         ("witness_id", expected_witness_id),
@@ -120,20 +166,11 @@ def verify_checkpoint_floor_witness_receipt(
             "authority_authentication": "NOT_ESTABLISHED",
         }
 
-    sequence = _integer(receipt["witness_sequence"], "witness_sequence", positive=True)
-    floor = _integer(receipt["minimum_checkpoint_sequence"], "minimum_checkpoint_sequence")
     minimum_witness_sequence = _integer(minimum_witness_sequence, "minimum_witness_sequence")
     minimum_checkpoint_sequence = _integer(
         minimum_checkpoint_sequence, "minimum_checkpoint_sequence"
     )
-    previous = receipt["previous_receipt_sha256"]
-    if not isinstance(previous, str) or not re.fullmatch(r"[0-9a-f]{64}", previous):
-        raise ValueError("previous_receipt_sha256 must be a lowercase SHA-256 digest.")
-    issued = _timestamp(receipt["issued_at_utc"], "receipt.issued_at_utc")
-    expires = _timestamp(receipt["expires_at_utc"], "receipt.expires_at_utc")
     instant = _timestamp(at_utc, "at_utc")
-    if expires <= issued:
-        raise ValueError("receipt validity interval must be increasing.")
     if not issued <= instant < expires:
         return {
             "witness_verification": "RECEIPT_OUTSIDE_VALIDITY",
@@ -150,26 +187,6 @@ def verify_checkpoint_floor_witness_receipt(
             "minimum_checkpoint_sequence": minimum_checkpoint_sequence,
             "authority_authentication": "NOT_ESTABLISHED",
         }
-
-    if not isinstance(signature_envelope, dict):
-        raise ValueError("signature_envelope must be an object.")
-    missing, extra = _SIGNATURE_FIELDS - set(signature_envelope), set(signature_envelope) - _SIGNATURE_FIELDS
-    if missing:
-        raise ValueError("signature_envelope missing field(s): " + ", ".join(sorted(missing)))
-    if extra:
-        raise ValueError("signature_envelope has unsupported field(s): " + ", ".join(sorted(extra)))
-    if signature_envelope["record_version"] != _SIGNATURE_VERSION:
-        raise ValueError(f"signature envelope record_version must be {_SIGNATURE_VERSION}.")
-    key_id = _non_empty(signature_envelope["key_id"], "signature_envelope.key_id")
-    encoded = signature_envelope["signature_base64"]
-    if not isinstance(encoded, str):
-        raise ValueError("signature_base64 must be a string.")
-    try:
-        signature = base64.b64decode(encoded, validate=True)
-    except (binascii.Error, ValueError) as exc:
-        raise ValueError("signature_base64 must be valid base64.") from exc
-    if len(signature) != 64:
-        raise ValueError("Ed25519 signature must decode to 64 bytes.")
 
     pin = (
         verify_trust_store_pin(trust_store, trust_store_pin)
