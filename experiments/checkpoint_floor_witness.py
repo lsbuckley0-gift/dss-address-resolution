@@ -241,3 +241,140 @@ def verify_checkpoint_floor_witness_receipt(
             "ledger and independently verify provider separation."
         ),
     }
+
+
+
+class CheckpointFloorWitnessLocalCommitUncertain(RuntimeError):
+    """The witness advanced but the matching local floor append did not confirm."""
+
+    def __init__(self, message, *, receipt, signature_envelope, idempotency_key,
+                 minimum_checkpoint_sequence):
+        super().__init__(message)
+        self.receipt = receipt
+        self.signature_envelope = signature_envelope
+        self.idempotency_key = idempotency_key
+        self.minimum_checkpoint_sequence = minimum_checkpoint_sequence
+
+
+def advance_checkpoint_floor_with_witness(
+    witness: CheckpointFloorWitness,
+    ledger_path,
+    minimum_checkpoint_sequence: int,
+    recorded_at_utc: str,
+    trust_store: dict,
+    *,
+    at_utc: str,
+    expected_witness_id: str,
+    expected_provider_id: str,
+    expected_failure_domain_id: str,
+    local_storage_domain_id: str,
+    minimum_witness_sequence: int,
+    operator_minimum_checkpoint_sequence: int,
+    idempotency_key: str,
+    trust_store_pin: dict | None = None,
+) -> dict:
+    """Advance the external witness first, then bring the local ledger up to it.
+
+    If the local append fails after witness advancement, raise
+    CheckpointFloorWitnessLocalCommitUncertain with the accepted signed receipt.
+    Retrying with the same idempotency key reads the provider's latest receipt
+    and retries local convergence; it never attempts to lower the witness.
+    """
+    requested_floor = _integer(
+        minimum_checkpoint_sequence, "minimum_checkpoint_sequence"
+    )
+    operator_floor = _integer(
+        operator_minimum_checkpoint_sequence, "operator_minimum_checkpoint_sequence"
+    )
+    key = _non_empty(idempotency_key, "idempotency_key")
+    if requested_floor < operator_floor:
+        raise ValueError(
+            "requested checkpoint floor is below the operator minimum; refusing regression."
+        )
+
+    from experiments.checkpoint_floor_ledger import (
+        append_checkpoint_floor, checkpoint_floor_value,
+    )
+
+    try:
+        local_floor = checkpoint_floor_value(ledger_path)
+    except FileNotFoundError:
+        local_floor = None
+
+    current_receipt, current_signature = witness.read_latest()
+    current_result = verify_checkpoint_floor_witness_receipt(
+        current_receipt, current_signature, trust_store,
+        at_utc=at_utc,
+        expected_witness_id=expected_witness_id,
+        expected_provider_id=expected_provider_id,
+        expected_failure_domain_id=expected_failure_domain_id,
+        local_storage_domain_id=local_storage_domain_id,
+        minimum_witness_sequence=minimum_witness_sequence,
+        minimum_checkpoint_sequence=operator_floor,
+        trust_store_pin=trust_store_pin,
+    )
+    if current_result["witness_verification"] != (
+        "VALID_RELATIVE_TO_CALLER_GOVERNANCE_AND_DOMAIN_CONFIGURATION"
+    ):
+        raise ValueError(
+            "current external witness receipt is not acceptable: "
+            + current_result["witness_verification"]
+        )
+
+    target_floor = max(
+        requested_floor,
+        operator_floor,
+        current_receipt["minimum_checkpoint_sequence"],
+        local_floor if local_floor is not None else 0,
+    )
+    accepted_receipt, accepted_signature = current_receipt, current_signature
+    if target_floor > current_receipt["minimum_checkpoint_sequence"]:
+        accepted_receipt, accepted_signature = witness.advance_floor(
+            expected_witness_sequence=current_receipt["witness_sequence"],
+            minimum_checkpoint_sequence=target_floor,
+            idempotency_key=key,
+        )
+        advanced_result = verify_checkpoint_floor_witness_receipt(
+            accepted_receipt, accepted_signature, trust_store,
+            at_utc=at_utc,
+            expected_witness_id=expected_witness_id,
+            expected_provider_id=expected_provider_id,
+            expected_failure_domain_id=expected_failure_domain_id,
+            local_storage_domain_id=local_storage_domain_id,
+            minimum_witness_sequence=current_receipt["witness_sequence"] + 1,
+            minimum_checkpoint_sequence=target_floor,
+            trust_store_pin=trust_store_pin,
+        )
+        if advanced_result["witness_verification"] != (
+            "VALID_RELATIVE_TO_CALLER_GOVERNANCE_AND_DOMAIN_CONFIGURATION"
+        ):
+            raise ValueError(
+                "advanced external witness receipt is not acceptable: "
+                + advanced_result["witness_verification"]
+            )
+        current_result = advanced_result
+
+    try:
+        local_append = append_checkpoint_floor(
+            ledger_path, target_floor, recorded_at_utc
+        )
+    except Exception as exc:
+        raise CheckpointFloorWitnessLocalCommitUncertain(
+            "external witness floor is retained but local ledger convergence "
+            "did not confirm; retry with the same idempotency key and never "
+            "lower the witness",
+            receipt=accepted_receipt,
+            signature_envelope=accepted_signature,
+            idempotency_key=key,
+            minimum_checkpoint_sequence=target_floor,
+        ) from exc
+
+    return {
+        "coordination": "WITNESS_VERIFIED_LOCAL_LEDGER_CONVERGED",
+        "minimum_checkpoint_sequence": target_floor,
+        "witness": current_result,
+        "local_ledger_append": local_append,
+        "idempotency_key": key,
+        "authority_authentication": "NOT_ESTABLISHED",
+        "failure_domain_separation": "DECLARED_DISTINCT_NOT_INDEPENDENTLY_PROVEN",
+    }
