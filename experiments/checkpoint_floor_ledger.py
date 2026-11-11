@@ -100,8 +100,8 @@ def _validate_entry(entry: dict, *, expected_revision: int, previous_digest: str
     return entry
 
 
-def load_checkpoint_floor_ledger(path: str | os.PathLike) -> list[dict]:
-    """Load the complete ledger; malformed or discontinuous history fails closed."""
+def _load_checkpoint_floor_ledger_unlocked(path: str | os.PathLike) -> list[dict]:
+    """Load and validate the complete ledger; caller coordinates concurrent access."""
     entries = []
     previous_digest = _GENESIS_DIGEST
     previous_time = None
@@ -130,6 +130,22 @@ def load_checkpoint_floor_ledger(path: str | os.PathLike) -> list[dict]:
     return entries
 
 
+def load_checkpoint_floor_ledger(path: str | os.PathLike) -> list[dict]:
+    """Load a stable ledger snapshot under a shared inter-process lock.
+
+    Cooperating appenders hold the exclusive side of the same persistent
+    sidecar lock, so readers cannot observe an in-progress append. This does
+    not protect against writers that ignore the lock or ledger replacement.
+    """
+    destination = Path(path)
+    if fcntl is None:
+        # Library appends refuse to run without advisory locking on this
+        # platform, so a read remains possible without a cooperating writer.
+        return _load_checkpoint_floor_ledger_unlocked(destination)
+    with _shared_reader_lock(destination):
+        return _load_checkpoint_floor_ledger_unlocked(destination)
+
+
 def _append_checkpoint_floor_unlocked(
     path: str | os.PathLike,
     minimum_checkpoint_sequence: int,
@@ -145,7 +161,7 @@ def _append_checkpoint_floor_unlocked(
     recorded_at = _timestamp(recorded_at_utc, "recorded_at_utc")
     destination = Path(path)
     if destination.exists():
-        entries = load_checkpoint_floor_ledger(destination)
+        entries = _load_checkpoint_floor_ledger_unlocked(destination)
         previous = entries[-1]
         previous_floor = previous["minimum_checkpoint_sequence"]
         previous_time = _timestamp(previous["recorded_at_utc"], "floor_ledger.recorded_at_utc")
@@ -229,6 +245,25 @@ def _append_checkpoint_floor_unlocked(
 
 
 @contextmanager
+def _shared_reader_lock(destination: Path):
+    """Hold a shared sidecar lock while reading a stable ledger snapshot."""
+    lock_path = destination.with_name(destination.name + ".lock")
+    descriptor = os.open(
+        lock_path,
+        os.O_CREAT | os.O_RDWR | getattr(os, "O_BINARY", 0),
+        0o600,
+    )
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_SH)
+        try:
+            yield
+        finally:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+    finally:
+        os.close(descriptor)
+
+
+@contextmanager
 def _exclusive_writer_lock(destination: Path):
     """Serialize floor-ledger writers across processes on POSIX filesystems.
 
@@ -264,9 +299,10 @@ def append_checkpoint_floor(
 ) -> dict:
     """Append a monotonic floor entry under an inter-process exclusive lock.
 
-    The lock serializes cooperating writers on POSIX filesystems. It does not
-    authenticate the ledger, protect it from replacement/rollback, or promise
-    distributed locking semantics on network filesystems.
+    The exclusive lock serializes cooperating writers and excludes shared-lock
+    readers on POSIX filesystems. It does not authenticate the ledger, protect
+    it from replacement/rollback, or promise distributed locking semantics on
+    network filesystems.
     """
     destination = Path(path)
     with _exclusive_writer_lock(destination):
