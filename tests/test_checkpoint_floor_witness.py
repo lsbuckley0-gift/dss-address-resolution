@@ -79,6 +79,7 @@ class CheckpointFloorWitnessTests(unittest.TestCase):
             def __init__(self):
                 self.advance_calls = 0
                 self.raise_after_advance = False
+                self.minimum_floor_override = None
 
             def read_latest(self):
                 return owner.receipt, owner.envelope
@@ -94,7 +95,7 @@ class CheckpointFloorWitnessTests(unittest.TestCase):
                 owner.receipt = dict(
                     owner.receipt,
                     witness_sequence=owner.receipt["witness_sequence"] + 1,
-                    minimum_checkpoint_sequence=minimum_checkpoint_sequence,
+                    minimum_checkpoint_sequence=max(\n                        minimum_checkpoint_sequence,\n                        self.minimum_floor_override or 0,\n                    ),
                     previous_receipt_sha256=previous,
                 )
                 owner.envelope = dict(
@@ -285,5 +286,17 @@ class CheckpointFloorWitnessTests(unittest.TestCase):
             self.assertEqual(result["coordination"], "WITNESS_VERIFIED_LOCAL_LEDGER_CONVERGED")
             self.assertEqual(provider.advance_calls, 1)
             self.assertEqual(checkpoint_floor_value(path), 15)
+
+\n
+    def test_concurrent_higher_provider_floor_is_copied_locally(self):
+        from experiments.checkpoint_floor_ledger import checkpoint_floor_value
+        provider = self._fake_provider()
+        provider.minimum_floor_override = 19
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "floor.jsonl"
+            result = self._coordinate(provider, path, 15, "race-to-19")
+            self.assertEqual(result["minimum_checkpoint_sequence"], 19)
+            self.assertEqual(provider.read_latest()[0]["minimum_checkpoint_sequence"], 19)
+            self.assertEqual(checkpoint_floor_value(path), 19)
 
 
