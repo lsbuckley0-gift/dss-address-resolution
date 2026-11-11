@@ -1032,3 +1032,44 @@ transaction or a documented write-ahead protocol, retain the rollback floor
 independently, and test actual crash behaviour at each persistence boundary.
 If the storage layer cannot establish which state committed, recovery must
 fail closed rather than infer acceptance.
+
+
+### Single-file checkpoint acceptance envelope (v1)
+
+`experiments/checkpoint_store.py` provides an initial filesystem persistence
+adapter for the checkpoint/receipt pair. The envelope schema is
+`experiments/schemas/audit-chain-checkpoint-acceptance-envelope-v1.schema.json`;
+it references the existing strict checkpoint and acceptance-receipt schemas.
+
+`build_checkpoint_envelope(checkpoint, acceptance_receipt)` rejects a
+malformed checkpoint, unsupported fields, a receipt sequence mismatch, a
+receipt digest mismatch, or a receipt time before the checkpoint anchor.
+`write_checkpoint_envelope(path, checkpoint, acceptance_receipt)` serialises
+the validated pair into one JSON file. It creates a temporary file in the
+destination directory, flushes and fsyncs that file, then replaces the
+destination with `os.replace`. Because both records are in one file, readers
+cannot observe a newly written payload paired with an old receipt through
+this adapter's normal read path. `load_checkpoint_envelope(path)` reads and
+validates the complete envelope; it never synthesises a missing member.
+
+The write result reports `ATOMIC_SAME_DIRECTORY_REPLACE`,
+`file_fsync: CONFIRMED`, `directory_fsync` and
+`storage_atomicity: SINGLE_ENVELOPE_ONLY`. On platforms exposing
+`O_DIRECTORY`, the adapter fsyncs the parent directory after replacement.
+If that fsync fails, `CheckpointEnvelopeDurabilityUncertain` is raised:
+the replacement may already be visible, but crash durability is not
+confirmed. Where directory fsync is unavailable, the result says
+`directory_fsync: UNAVAILABLE`; it does not silently claim full durability.
+A failed replacement leaves the previous destination intact and removes
+the temporary file.
+
+**Scope boundary:** this is a single-file filesystem adapter, not a
+cross-platform transactional storage guarantee. Atomic replacement semantics
+depend on the operating system and filesystem. File fsync and directory fsync
+are evidence of requested flush operations, not proof against every hardware,
+controller, network-filesystem or power-loss failure. The adapter does not
+authenticate the receipt, verify the event chain, protect the independently
+retained rollback floor, coordinate multiple replicas, or provide backup
+recovery. The caller must still pass the loaded checkpoint and receipt through
+the recovery classifier with independently retained floor state. A successful
+write must not be promoted to an authenticated or globally accepted state.
