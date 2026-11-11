@@ -82,6 +82,8 @@ class CheckpointFloorWitnessTests(unittest.TestCase):
                 self.advance_calls = 0
                 self.raise_after_advance = False
                 self.minimum_floor_override = None
+                self.sequence_jump = 0
+                self.break_previous_link = False
 
             def read_latest(self):
                 return owner.receipt, owner.envelope
@@ -100,9 +102,9 @@ class CheckpointFloorWitnessTests(unittest.TestCase):
                 )
                 owner.receipt = dict(
                     owner.receipt,
-                    witness_sequence=owner.receipt["witness_sequence"] + 1,
+                    witness_sequence=(\n                        owner.receipt["witness_sequence"] + 1 + self.sequence_jump\n                    ),
                     minimum_checkpoint_sequence=advanced_floor,
-                    previous_receipt_sha256=previous,
+                    previous_receipt_sha256=(\n                        "0" * 64 if self.break_previous_link else previous\n                    ),
                 )
                 owner.envelope = dict(
                     owner.envelope,
@@ -529,5 +531,31 @@ class CheckpointFloorWitnessTests(unittest.TestCase):
             append_checkpoint_floor(path, 14, "2026-11-11T10:30:00Z")
             with self.assertRaisesRegex(ValueError, "minimum_witness_sequence"):
                 self._classify(path, minimum_witness_sequence=True)
+
+
+
+    def test_provider_advance_must_be_immediate_next_witness_sequence(self):
+        provider = self._fake_provider()
+        provider.sequence_jump = 1
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "floor.jsonl"
+            with self.assertRaisesRegex(
+                CheckpointFloorWitnessAdvanceUncertain, "non-contiguous witness sequence"
+            ):
+                self._coordinate(provider, path, 15, "sequence-gap")
+            self.assertEqual(provider.advance_calls, 1)
+            self.assertFalse(path.exists())
+
+    def test_provider_advance_must_link_to_previously_read_receipt(self):
+        provider = self._fake_provider()
+        provider.break_previous_link = True
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "floor.jsonl"
+            with self.assertRaisesRegex(
+                CheckpointFloorWitnessAdvanceUncertain, "not linked"
+            ):
+                self._coordinate(provider, path, 15, "broken-witness-link")
+            self.assertEqual(provider.advance_calls, 1)
+            self.assertFalse(path.exists())
 
 
