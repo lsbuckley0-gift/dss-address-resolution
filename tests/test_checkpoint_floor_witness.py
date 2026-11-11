@@ -10,7 +10,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from experiments.checkpoint_floor_witness import (
-    CheckpointFloorWitnessLocalCommitUncertain,
+    CheckpointFloorWitnessAdvanceUncertain, CheckpointFloorWitnessLocalCommitUncertain,
     advance_checkpoint_floor_with_witness,
     canonical_witness_payload,
     verify_checkpoint_floor_witness_receipt,
@@ -78,6 +78,7 @@ class CheckpointFloorWitnessTests(unittest.TestCase):
         class FakeProvider:
             def __init__(self):
                 self.advance_calls = 0
+                self.raise_after_advance = False
 
             def read_latest(self):
                 return owner.receipt, owner.envelope
@@ -102,6 +103,9 @@ class CheckpointFloorWitnessTests(unittest.TestCase):
                         owner.private.sign(canonical_witness_payload(owner.receipt))
                     ).decode(),
                 )
+                if self.raise_after_advance:
+                    self.raise_after_advance = False
+                    raise TimeoutError("injected lost provider response")
                 return owner.receipt, owner.envelope
 
         return FakeProvider()
@@ -262,4 +266,24 @@ class CheckpointFloorWitnessTests(unittest.TestCase):
             result = self._coordinate(provider, path, 15, "catch-up-local-17")
             self.assertEqual(result["minimum_checkpoint_sequence"], 17)
             self.assertEqual(provider.read_latest()[0]["minimum_checkpoint_sequence"], 17)
-            self.assertEqual(checkpoint_floor_value(path), 17)
+            self.assertEqual(checkpoint_floor_value(path), 17)\n
+    def test_lost_provider_response_recovers_by_reading_same_idempotent_result(self):
+        from experiments.checkpoint_floor_ledger import checkpoint_floor_value
+        provider = self._fake_provider()
+        provider.raise_after_advance = True
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "floor.jsonl"
+            with self.assertRaises(CheckpointFloorWitnessAdvanceUncertain) as caught:
+                self._coordinate(provider, path, 15, "checkpoint-floor-15")
+            self.assertEqual(caught.exception.idempotency_key, "checkpoint-floor-15")
+            self.assertEqual(provider.advance_calls, 1)
+            self.assertEqual(provider.read_latest()[0]["minimum_checkpoint_sequence"], 15)
+            result = self._coordinate(
+                provider, path, 15, "checkpoint-floor-15",
+                minimum_witness_sequence=9,
+            )
+            self.assertEqual(result["coordination"], "WITNESS_VERIFIED_LOCAL_LEDGER_CONVERGED")
+            self.assertEqual(provider.advance_calls, 1)
+            self.assertEqual(checkpoint_floor_value(path), 15)
+
+
