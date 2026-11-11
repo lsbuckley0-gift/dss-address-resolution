@@ -126,6 +126,8 @@ def write_checkpoint_envelope(
     path: str | os.PathLike,
     checkpoint: dict,
     acceptance_receipt: dict,
+    *,
+    minimum_sequence: int | None = None,
 ) -> dict:
     """Atomically replace one envelope file and report the durability boundary.
 
@@ -136,6 +138,24 @@ def write_checkpoint_envelope(
     CheckpointEnvelopeDurabilityUncertain makes that state explicit.
     """
     envelope = build_checkpoint_envelope(checkpoint, acceptance_receipt)
+    candidate_sequence = checkpoint["checkpoint_sequence"]
+    if minimum_sequence is not None:
+        if (
+            isinstance(minimum_sequence, bool)
+            or not isinstance(minimum_sequence, int)
+            or minimum_sequence < 0
+        ):
+            raise ValueError(
+                "minimum_sequence must be a non-negative integer when supplied."
+            )
+        if candidate_sequence < minimum_sequence:
+            raise ValueError(
+                "checkpoint sequence is below the caller-supplied minimum_sequence floor."
+            )
+        floor_result = "CALLER_SUPPLIED_FLOOR_CHECKED_NOT_PERSISTED"
+    else:
+        floor_result = "NOT_PROVIDED"
+
     destination = Path(path)
     parent = destination.parent
     if not parent.is_dir():
@@ -144,7 +164,6 @@ def write_checkpoint_envelope(
     if destination.exists():
         current_envelope = load_checkpoint_envelope(destination)
         current_sequence = current_envelope["checkpoint"]["checkpoint_sequence"]
-        candidate_sequence = checkpoint["checkpoint_sequence"]
         if candidate_sequence < current_sequence:
             raise ValueError(
                 "checkpoint sequence regression refused: existing sequence "
@@ -169,7 +188,7 @@ def write_checkpoint_envelope(
                     "file_fsync": "CONFIRMED",
                     "directory_fsync": directory_status,
                     "storage_atomicity": "SINGLE_ENVELOPE_ONLY",
-                    "rollback_floor_protection": "NOT_PROVIDED",
+                    "rollback_floor_protection": floor_result,
                 }
             raise ValueError(
                 "same checkpoint sequence already exists with different envelope content."
@@ -198,7 +217,7 @@ def write_checkpoint_envelope(
             "file_fsync": "CONFIRMED",
             "directory_fsync": directory_status,
             "storage_atomicity": "SINGLE_ENVELOPE_ONLY",
-            "rollback_floor_protection": "NOT_PROVIDED",
+            "rollback_floor_protection": floor_result,
         }
     finally:
         if not replaced:
