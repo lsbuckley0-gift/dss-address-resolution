@@ -120,6 +120,44 @@ class CheckpointStoreTests(unittest.TestCase):
             "CONFIRMED" if hasattr(os, "O_DIRECTORY") else "UNAVAILABLE",
         )
 
+    def test_caller_floor_rejects_below_floor_before_write(self):
+        with self.assertRaisesRegex(ValueError, "below the caller-supplied minimum_sequence floor"):
+            write_checkpoint_envelope(
+                self.path,
+                self.checkpoint,
+                self.receipt,
+                minimum_sequence=3,
+            )
+        self.assertFalse(self.path.exists())
+
+    def test_caller_floor_boundary_is_checked_and_reported(self):
+        result = write_checkpoint_envelope(
+            self.path,
+            self.checkpoint,
+            self.receipt,
+            minimum_sequence=2,
+        )
+        self.assertEqual(
+            result["rollback_floor_protection"],
+            "CALLER_SUPPLIED_FLOOR_CHECKED_NOT_PERSISTED",
+        )
+        self.assertEqual(
+            load_checkpoint_envelope(self.path)["checkpoint"],
+            self.checkpoint,
+        )
+
+    def test_invalid_caller_floor_is_rejected(self):
+        for invalid in (-1, True, 1.5, "2"):
+            with self.subTest(invalid=invalid):
+                with self.assertRaisesRegex(ValueError, "minimum_sequence"):
+                    write_checkpoint_envelope(
+                        self.path,
+                        self.checkpoint,
+                        self.receipt,
+                        minimum_sequence=invalid,
+                    )
+                self.assertFalse(self.path.exists())
+
     def test_higher_sequence_replaces_existing_envelope(self):
         write_checkpoint_envelope(self.path, self.checkpoint, self.receipt)
         newer_checkpoint = dict(self.checkpoint, checkpoint_sequence=3)
