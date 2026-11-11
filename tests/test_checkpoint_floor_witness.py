@@ -332,3 +332,33 @@ class CheckpointFloorWitnessTests(unittest.TestCase):
         )
 
 
+
+    def test_corrupt_local_ledger_prevents_external_advance(self):
+        provider = self._fake_provider()
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "floor.jsonl"
+            path.write_text("{truncated", encoding="utf-8")
+            with self.assertRaises(ValueError):
+                self._coordinate(provider, path, 15, "corrupt-local-ledger")
+            self.assertEqual(provider.advance_calls, 0)
+            self.assertEqual(provider.read_latest()[0]["minimum_checkpoint_sequence"], 14)
+
+    def test_same_domain_witness_is_rejected_before_advance(self):
+        provider = self._fake_provider()
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "floor.jsonl"
+            with self.assertRaisesRegex(ValueError, "SAME_FAILURE_DOMAIN"):
+                advance_checkpoint_floor_with_witness(
+                    provider, path, 15, "2026-11-11T11:30:00Z", self.store,
+                    at_utc="2026-11-11T11:00:00Z",
+                    expected_witness_id="witness-east-1",
+                    expected_provider_id="provider-independent",
+                    expected_failure_domain_id="provider-control-plane-east",
+                    local_storage_domain_id="provider-control-plane-east",
+                    minimum_witness_sequence=8,
+                    operator_minimum_checkpoint_sequence=14,
+                    idempotency_key="same-domain-refused",
+                )
+            self.assertEqual(provider.advance_calls, 0)
+
+
