@@ -1134,9 +1134,14 @@ The matching schema is
 `experiments/schemas/audit-chain-checkpoint-floor-ledger-entry-v1.schema.json`.
 The ledger is append-only by API convention, not immutable storage. It is a
 separate file, but a second file on the same disk is not an independent failure
-domain. The implementation is single-writer and does not provide
-inter-process locking, authenticated entries, replication, backup protection
-or rollback resistance if the ledger itself is replaced by an older copy.
-Deployments must serialize writers and place protected copies in a genuinely
-separate storage/failure domain. If the ledger is missing or invalid, do not
-infer a floor from the checkpoint envelope or silently reset to zero.
+domain. Writers are serialized with a persistent sidecar lock file and POSIX
+exclusive advisory locking; the lock covers the complete read/validate/append/
+fsync sequence. The lock file is deliberately not unlinked after release, so
+processes cannot accidentally lock different inodes. This coordinates
+cooperating processes on a supported local POSIX filesystem; it is not a
+distributed lock and must not be assumed reliable on arbitrary network
+filesystems. Authenticated entries, replication, backup protection and
+rollback resistance if the ledger itself is replaced by an older copy remain
+outside this implementation. Deployments must place protected copies in a
+genuinely separate storage/failure domain. If the ledger is missing or invalid,
+do not infer a floor from the checkpoint envelope or silently reset to zero.
