@@ -1137,8 +1137,9 @@ provider advance returns a still-higher signed floor, that exact higher floor
 is copied into the local ledger. The returned receipt must be the immediate
 next witness sequence and its `previous_receipt_sha256` must equal the digest
 of the receipt read before the advance; a signed but discontinuous transition
-is treated as uncertain and is not copied locally. The local ledger's parent
-directory is preflighted before any external advance. If the provider advance call
+is treated as uncertain and is not copied locally. The local ledger's parent directory and caller-supplied local recording
+timestamp are preflighted before any external advance, so a known local-path
+or timestamp error cannot needlessly mutate the remote floor. If the provider advance call
 times out or returns an unverifiable receipt, it raises
 `CheckpointFloorWitnessAdvanceUncertain` with the idempotency key; the provider
 may already have advanced, so retry by reading its latest state and reusing
