@@ -295,9 +295,13 @@ for the complete scope boundary.
 
 `experiments/checkpoint_floor_witness.py` defines the signed witness receipt
 contract, provider protocol, witness-first floor coordination and recovery gate.
-A provider must implement atomic compare-and-advance and idempotent retries
-outside the local ledger's failure domain. Each returned advance receipt must
-be the immediate next witness sequence and hash-link to the exact prior receipt
+A provider must implement atomic compare-and-advance and durable idempotency
+outside the local ledger's failure domain. Each idempotency key is bound to the
+complete request (expected witness sequence and requested floor); an exact retry
+must replay the identical accepted receipt tuple after provider restart, while
+reuse with different request parameters must be rejected. The key binding and
+floor advance must commit atomically. Each returned advance receipt must be
+the immediate next witness sequence and hash-link to the exact prior receipt
 read by the coordinator; a valid signature alone does not establish continuity. The verifier binds expected provider
 and witness identifiers, declared failure domain, Ed25519 governance key,
 witness sequence and checkpoint floor. The recovery gate refuses to classify
@@ -313,9 +317,10 @@ Run the focused tests with:
 python -m unittest discover -s tests -p 'test_checkpoint_floor_witness.py' -v
 ```
 
-These tests use a synthetic in-memory provider; they do not establish a live
-provider's atomicity, idempotency, independent administration or storage
-separation. A distinct failure-domain label is not proof of independence.
+These tests use a synthetic provider with a shared durable-state fixture
+to simulate adapter restart, exact-result replay and key/request mismatch. They
+do not establish a live provider's persistence, atomicity, independent
+administration or storage separation. A distinct failure-domain label is not proof of independence.
 Successful verification remains relative to caller-supplied governance and
 operator configuration; authority authentication and event truth remain
 unestablished. See the commercial pilot protocol before integrating a provider.
