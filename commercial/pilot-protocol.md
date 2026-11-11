@@ -1127,7 +1127,10 @@ receipt, advances the witness first using compare-and-advance, verifies the
 returned receipt, then appends the resulting floor locally. The target is the
 maximum of the requested floor, operator floor, current witness floor and
 current local floor; it cannot lower either retained floor. If the local append
-fails after witness advancement, it raises
+times out or returns an unverifiable receipt, it raises
+`CheckpointFloorWitnessAdvanceUncertain` with the idempotency key; the provider
+may already have advanced, so retry by reading its latest state and reusing
+that key. If the local append fails after a verified witness advance, it raises
 `CheckpointFloorWitnessLocalCommitUncertain` carrying the signed receipt and
 idempotency key. Retry by reading the provider again and using the same key;
 the helper converges the local ledger without issuing a second advance when
