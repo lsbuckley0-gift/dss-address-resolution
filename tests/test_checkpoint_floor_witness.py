@@ -74,8 +74,10 @@ class CheckpointFloorWitnessTests(unittest.TestCase):
             self.receipt, self.envelope, self.store, **args
         )
 
-    def _fake_provider(self):
+    def _fake_provider(self, durable_state=None):
         owner = self
+        if durable_state is None:
+            durable_state = {"idempotency_records": {}}
 
         class FakeProvider:
             def __init__(self):
@@ -84,12 +86,23 @@ class CheckpointFloorWitnessTests(unittest.TestCase):
                 self.minimum_floor_override = None
                 self.sequence_jump = 0
                 self.break_previous_link = False
+                self.durable_state = durable_state
 
             def read_latest(self):
                 return owner.receipt, owner.envelope
 
             def advance_floor(self, *, expected_witness_sequence,
                               minimum_checkpoint_sequence, idempotency_key):
+                request = (expected_witness_sequence, minimum_checkpoint_sequence)
+                records = self.durable_state["idempotency_records"]
+                if idempotency_key in records:
+                    prior_request, prior_result = records[idempotency_key]
+                    if request != prior_request:
+                        raise ValueError(
+                            "idempotency key reused with different request"
+                        )
+                    return prior_result
+
                 self.advance_calls += 1
                 if expected_witness_sequence != owner.receipt["witness_sequence"]:
                     raise ValueError("witness compare-and-advance conflict")
@@ -116,10 +129,12 @@ class CheckpointFloorWitnessTests(unittest.TestCase):
                         owner.private.sign(canonical_witness_payload(owner.receipt))
                     ).decode(),
                 )
+                accepted_result = (owner.receipt, owner.envelope)
+                records[idempotency_key] = (request, accepted_result)
                 if self.raise_after_advance:
                     self.raise_after_advance = False
                     raise TimeoutError("injected lost provider response")
-                return owner.receipt, owner.envelope
+                return accepted_result
 
         return FakeProvider()
 
@@ -562,4 +577,38 @@ class CheckpointFloorWitnessTests(unittest.TestCase):
             self.assertEqual(provider.advance_calls, 1)
             self.assertFalse(path.exists())
 
+    def test_provider_replays_identical_result_after_adapter_restart(self):
+        provider = self._fake_provider()
+        durable_state = provider.durable_state
+        original = provider.advance_floor(
+            expected_witness_sequence=8,
+            minimum_checkpoint_sequence=15,
+            idempotency_key="durable-replay-15",
+        )
+        restarted_provider = self._fake_provider(durable_state)
+        replay = restarted_provider.advance_floor(
+            expected_witness_sequence=8,
+            minimum_checkpoint_sequence=15,
+            idempotency_key="durable-replay-15",
+        )
+        self.assertEqual(replay, original)
+        self.assertEqual(restarted_provider.advance_calls, 0)
+        self.assertEqual(restarted_provider.read_latest(), original)
+
+    def test_provider_rejects_idempotency_key_reuse_for_different_request(self):
+        provider = self._fake_provider()
+        provider.advance_floor(
+            expected_witness_sequence=8,
+            minimum_checkpoint_sequence=15,
+            idempotency_key="bound-request-15",
+        )
+        with self.assertRaisesRegex(
+            ValueError, "idempotency key reused with different request"
+        ):
+            provider.advance_floor(
+                expected_witness_sequence=8,
+                minimum_checkpoint_sequence=16,
+                idempotency_key="bound-request-15",
+            )
+        self.assertEqual(provider.advance_calls, 1)
 
