@@ -1098,6 +1098,42 @@ recovery. The caller must still pass the loaded checkpoint and receipt through
 the recovery classifier with independently retained floor state. A successful
 write must not be promoted to an authenticated or globally accepted state.
 
+### External checkpoint-floor witness contract
+
+`experiments/checkpoint_floor_witness.py` defines the `CheckpointFloorWitness`
+adapter contract and verifies detached Ed25519 receipts. A provider must expose
+`read_latest()` and an atomic `advance_floor(expected_witness_sequence,
+minimum_checkpoint_sequence, idempotency_key)`. The advance operation must
+compare-and-advance monotonically at the provider, and retries with the same
+idempotency key must return the same accepted result. The provider's sequence
+and floor must be retained outside the local checkpoint/ledger failure domain.
+
+A receipt binds the witness ID, provider ID, declared failure-domain ID,
+governance authority name, monotonic witness sequence, minimum checkpoint
+sequence, previous-receipt digest and validity interval. Its signature uses a
+separate domain prefix and the trust-store purpose
+`CHECKPOINT_FLOOR_WITNESS`. Verification requires operator-pinned expected
+identities, the local storage-domain identifier, a minimum witness sequence
+maintained independently of the local ledger, and the required checkpoint
+floor. A same-domain receipt is rejected. A distinct domain label is reported
+only as `DECLARED_DISTINCT_NOT_INDEPENDENTLY_PROVEN`: it does not prove
+separate ownership, infrastructure, administrators, backups or recovery.
+
+A successful signature result is relative to the caller-supplied governance
+trust store and configuration. It does not authenticate the authority, prove
+provider operation, or prove event truth. The interface is not a deployed
+provider, durable witness, distributed transaction or atomic commit protocol.
+Before integrating a provider, define crash recovery for witness-ahead/local-
+ledger-behind states: never lower the witness; retry the local append using the
+same accepted witness receipt, or stop for explicit reconciliation. Do not
+advance acceptance based solely on a local ledger when the required witness is
+unavailable or unverifiable.
+
+Schemas:
+`experiments/schemas/audit-checkpoint-floor-witness-v1.schema.json` and
+`experiments/schemas/audit-checkpoint-floor-witness-signature-v1.schema.json`.
+The governance key must explicitly allow `CHECKPOINT_FLOOR_WITNESS`.
+
 ### Append-only local rollback-floor ledger
 
 `experiments/checkpoint_floor_ledger.py` provides a separate JSONL
