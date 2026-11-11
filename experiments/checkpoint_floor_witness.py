@@ -463,17 +463,31 @@ def classify_checkpoint_recovery_with_witness(
     local history propagates an error. A witness/local floor mismatch returns
     an explicit divergence state rather than silently choosing either source.
     """
-    witness_result = verify_checkpoint_floor_witness_receipt(
-        witness_receipt, witness_signature_envelope, trust_store,
-        at_utc=at_utc,
-        expected_witness_id=expected_witness_id,
-        expected_provider_id=expected_provider_id,
-        expected_failure_domain_id=expected_failure_domain_id,
-        local_storage_domain_id=local_storage_domain_id,
-        minimum_witness_sequence=minimum_witness_sequence,
-        minimum_checkpoint_sequence=operator_minimum_checkpoint_sequence,
-        trust_store_pin=trust_store_pin,
-    )
+    try:
+        witness_result = verify_checkpoint_floor_witness_receipt(
+            witness_receipt, witness_signature_envelope, trust_store,
+            at_utc=at_utc,
+            expected_witness_id=expected_witness_id,
+            expected_provider_id=expected_provider_id,
+            expected_failure_domain_id=expected_failure_domain_id,
+            local_storage_domain_id=local_storage_domain_id,
+            minimum_witness_sequence=minimum_witness_sequence,
+            minimum_checkpoint_sequence=operator_minimum_checkpoint_sequence,
+            trust_store_pin=trust_store_pin,
+        )
+    except CheckpointFloorWitnessEvidenceError as exc:
+        return {
+            "recovery_status": "WITNESS_NOT_VERIFIED",
+            "witness_verification": {
+                "witness_verification": "MALFORMED_WITNESS_EVIDENCE",
+                "signature_verification": "NOT_PERFORMED",
+                "evidence_error": str(exc),
+                "authority_authentication": "NOT_ESTABLISHED",
+            },
+            "rollback_floor": "NOT_TRUSTED",
+            "acceptance_authentication": "NOT_VERIFIED",
+            "authority_authentication": "NOT_ESTABLISHED",
+        }
     valid_status = "VALID_RELATIVE_TO_CALLER_GOVERNANCE_AND_DOMAIN_CONFIGURATION"
     if witness_result["witness_verification"] != valid_status:
         return {
