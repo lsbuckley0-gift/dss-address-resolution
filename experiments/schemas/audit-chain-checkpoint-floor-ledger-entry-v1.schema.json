@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "audit-chain-checkpoint-floor-ledger-entry-v1.schema.json",
+  "title": "Audit checkpoint floor ledger entry",
+  "description": "One append-only rollback-floor ledger entry. A valid entry is not proof that the ledger is independently stored, authenticated, or rollback-resistant.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "record_version",
+    "floor_revision",
+    "minimum_checkpoint_sequence",
+    "recorded_at_utc",
+    "previous_entry_sha256",
+    "entry_sha256"
+  ],
+  "properties": {
+    "record_version": {
+      "const": "audit-checkpoint-floor-ledger-entry/v1"
+    },
+    "floor_revision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "minimum_checkpoint_sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "recorded_at_utc": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "previous_entry_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "entry_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}
