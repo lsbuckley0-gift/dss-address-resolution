@@ -1121,13 +1121,24 @@ separate ownership, infrastructure, administrators, backups or recovery.
 
 A successful signature result is relative to the caller-supplied governance
 trust store and configuration. It does not authenticate the authority, prove
-provider operation, or prove event truth. The interface is not a deployed
-provider, durable witness, distributed transaction or atomic commit protocol.
-Before integrating a provider, define crash recovery for witness-ahead/local-
-ledger-behind states: never lower the witness; retry the local append using the
-same accepted witness receipt, or stop for explicit reconciliation. Do not
-advance acceptance based solely on a local ledger when the required witness is
-unavailable or unverifiable.
+provider operation, or prove event truth. The helper
+`advance_checkpoint_floor_with_witness(...)` reads and verifies the current
+receipt, advances the witness first using compare-and-advance, verifies the
+returned receipt, then appends the resulting floor locally. The target is the
+maximum of the requested floor, operator floor, current witness floor and
+current local floor; it cannot lower either retained floor. If the local append
+fails after witness advancement, it raises
+`CheckpointFloorWitnessLocalCommitUncertain` carrying the signed receipt and
+idempotency key. Retry by reading the provider again and using the same key;
+the helper converges the local ledger without issuing a second advance when
+the provider already retains the target. A corrupt local ledger is not treated
+as an empty ledger.
+
+This is still not a distributed transaction or proof of atomic acceptance.
+The provider adapter is not deployed, and provider-side atomicity/idempotency
+must be demonstrated by its implementation. Do not advance acceptance based
+solely on a local ledger when the required witness is unavailable or
+unverifiable.
 
 Schemas:
 `experiments/schemas/audit-checkpoint-floor-witness-v1.schema.json` and
