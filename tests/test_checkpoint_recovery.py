@@ -72,6 +72,34 @@ class CheckpointRecoveryTests(unittest.TestCase):
     def test_receipt_without_payload_is_not_reconstructed(self):
         result = classify_checkpoint_recovery(self.events, None, self.receipt)
         self.assertEqual(result["recovery_status"], "RECEIPT_WITHOUT_PAYLOAD")
+        self.assertEqual(result["checkpoint_binding"], "MISSING_PAYLOAD")
+        self.assertEqual(result["rollback_floor"], "NOT_SUPPLIED")
+        self.assertIn("No independent rollback floor was supplied", result["interpretation"])
+        self.assertIn("not proof of rollback", result["interpretation"])
+
+    def test_receipt_without_payload_below_floor_is_explicitly_warned(self):
+        result = classify_checkpoint_recovery(
+            self.events, None, self.receipt, minimum_sequence=3
+        )
+        self.assertEqual(result["recovery_status"], "RECEIPT_WITHOUT_PAYLOAD")
+        self.assertEqual(result["rollback_floor"], "BELOW_FLOOR")
+        self.assertIn("below the independently supplied rollback floor", result["interpretation"])
+        self.assertIn("not proof of rollback", result["interpretation"])
+
+    def test_receipt_without_payload_meeting_floor_is_explicitly_reported(self):
+        result = classify_checkpoint_recovery(
+            self.events, None, self.receipt, minimum_sequence=2
+        )
+        self.assertEqual(result["recovery_status"], "RECEIPT_WITHOUT_PAYLOAD")
+        self.assertEqual(result["rollback_floor"], "MEETS_FLOOR")
+        self.assertIn("meets the independently supplied rollback floor", result["interpretation"])
+
+    def test_invalid_receipt_sequence_without_payload_is_rejected(self):
+        for invalid in (-1, True, 2.0, "2"):
+            with self.subTest(invalid=invalid):
+                changed = dict(self.receipt, checkpoint_sequence=invalid)
+                with self.assertRaisesRegex(ValueError, "non-negative integer"):
+                    classify_checkpoint_recovery(self.events, None, changed)
 
     def test_neither_copy_is_reported_as_ambiguous(self):
         result = classify_checkpoint_recovery(self.events, None, None)
