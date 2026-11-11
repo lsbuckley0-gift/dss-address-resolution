@@ -225,3 +225,31 @@ def append_checkpoint_floor(
 def checkpoint_floor_value(path: str | os.PathLike) -> int:
     """Return the latest retained floor; missing/corrupt ledgers never imply zero."""
     return load_checkpoint_floor_ledger(path)[-1]["minimum_checkpoint_sequence"]
+
+def classify_checkpoint_recovery_with_floor_ledger(
+    events: list,
+    checkpoint: dict | None,
+    acceptance_receipt: dict | None,
+    floor_ledger_path: str | os.PathLike,
+) -> dict:
+    """Classify recovery using the latest validated floor-ledger entry.
+
+    Missing or invalid floor history propagates as an error; it is never
+    silently replaced with zero or inferred from the checkpoint envelope.
+    The returned provenance labels the local ledger as unauthenticated.
+    """
+    entries = load_checkpoint_floor_ledger(floor_ledger_path)
+    latest = entries[-1]
+    from experiments.checkpoint_recovery import classify_checkpoint_recovery
+
+    result = classify_checkpoint_recovery(
+        events,
+        checkpoint,
+        acceptance_receipt,
+        minimum_sequence=latest["minimum_checkpoint_sequence"],
+    )
+    result["rollback_floor_source"] = "LOCAL_APPEND_ONLY_LEDGER_NOT_AUTHENTICATED"
+    result["rollback_floor_revision"] = latest["floor_revision"]
+    result["rollback_floor_entry_sha256"] = latest["entry_sha256"]
+    return result
+
