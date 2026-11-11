@@ -138,9 +138,12 @@ class CheckpointFloorWitnessTests(unittest.TestCase):
 
         return FakeProvider()
 
-    def _coordinate(self, provider, path, floor, key, minimum_witness_sequence=8):
+    def _coordinate(
+        self, provider, path, floor, key, minimum_witness_sequence=8,
+        recorded_at_utc="2026-11-11T11:30:00Z",
+    ):
         return advance_checkpoint_floor_with_witness(
-            provider, path, floor, "2026-11-11T11:30:00Z", self.store,
+            provider, path, floor, recorded_at_utc, self.store,
             at_utc="2026-11-11T11:00:00Z",
             expected_witness_id="witness-east-1",
             expected_provider_id="provider-independent",
@@ -611,4 +614,21 @@ class CheckpointFloorWitnessTests(unittest.TestCase):
                 idempotency_key="bound-request-15",
             )
         self.assertEqual(provider.advance_calls, 1)
+
+
+
+    def test_invalid_local_recording_time_prevents_external_advance(self):
+        provider = self._fake_provider()
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "floor.jsonl"
+            with self.assertRaises(ValueError):
+                self._coordinate(
+                    provider, path, 15, "invalid-local-time",
+                    recorded_at_utc="not-a-timestamp",
+                )
+            self.assertEqual(provider.advance_calls, 0)
+            self.assertEqual(
+                provider.read_latest()[0]["minimum_checkpoint_sequence"], 14
+            )
+            self.assertFalse(path.exists())
 
