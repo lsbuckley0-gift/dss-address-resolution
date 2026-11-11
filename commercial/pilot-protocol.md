@@ -1104,9 +1104,15 @@ write must not be promoted to an authenticated or globally accepted state.
 adapter contract and verifies detached Ed25519 receipts. A provider must expose
 `read_latest()` and an atomic `advance_floor(expected_witness_sequence,
 minimum_checkpoint_sequence, idempotency_key)`. The advance operation must
-compare-and-advance monotonically at the provider, and retries with the same
-idempotency key must return the same accepted result. The provider's sequence
-and floor must be retained outside the local checkpoint/ledger failure domain.
+compare-and-advance monotonically at the provider. It must durably bind each
+idempotency key to the complete request (expected witness sequence and requested
+floor), atomically commit that binding with the floor advance, and replay the
+identical accepted receipt tuple for an exact retry even after provider process
+restart. Reusing a key with different request parameters must be rejected.
+A test double can exercise this contract, but cannot establish that a deployed
+provider actually persists the binding or commits it atomically. The provider's
+sequence, floor and idempotency records must be retained outside the local
+checkpoint/ledger failure domain.
 
 A receipt binds the witness ID, provider ID, declared failure-domain ID,
 governance authority name, monotonic witness sequence, minimum checkpoint
