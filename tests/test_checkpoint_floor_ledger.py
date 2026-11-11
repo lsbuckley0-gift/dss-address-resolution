@@ -190,6 +190,21 @@ class CheckpointFloorLedgerTests(unittest.TestCase):
         )
         self.assertTrue(self.path.with_name(self.path.name + ".lock").exists())
 
+    def test_append_refuses_when_interprocess_locking_is_unavailable(self):
+        with mock.patch(
+            "experiments.checkpoint_floor_ledger.fcntl", None
+        ):
+            with self.assertRaisesRegex(
+                RuntimeError, "locking is unavailable"
+            ):
+                append_checkpoint_floor(
+                    self.path, 4, "2026-11-11T10:00:00Z"
+                )
+        self.assertFalse(self.path.exists())
+        self.assertFalse(
+            self.path.with_name(self.path.name + ".lock").exists()
+        )
+
     def test_timestamp_regression_is_rejected(self):
         append_checkpoint_floor(self.path, 4, "2026-11-11T10:01:00Z")
         with self.assertRaisesRegex(ValueError, "timestamp regression refused"):
