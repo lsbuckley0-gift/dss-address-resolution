@@ -1067,8 +1067,11 @@ Before replacement, the adapter validates any existing destination envelope.
 A candidate with a lower checkpoint sequence is rejected, preventing a stale
 single writer from silently replacing a newer retained checkpoint. Reusing
 the current sequence is permitted only when the complete envelope is identical;
-that exact retry is an idempotent no-op and performs no new fsync. Different
-content at the same sequence is rejected. An unreadable or invalid existing
+that exact retry does not replace the file, but it re-fsyncs the existing file
+and parent directory where supported so a prior uncertain durability result
+can be re-evaluated. A retry fsync failure remains an explicit durability-
+uncertain result. Different content at the same sequence is rejected. An
+unreadable or invalid existing
 envelope also blocks replacement rather than being silently overwritten.
 This monotonic guard is scoped to the documented single-writer adapter; it is
 not a compare-and-swap primitive and does not make concurrent writers safe.
