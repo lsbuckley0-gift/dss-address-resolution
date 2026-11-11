@@ -110,6 +110,20 @@ class CheckpointFloorLedgerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "digest mismatch"):
             checkpoint_floor_value(self.path)
 
+    def test_partial_append_is_uncertain_and_loader_rejects_tail(self):
+        with mock.patch(
+            "experiments.checkpoint_floor_ledger.os.write",
+            side_effect=lambda descriptor, data: len(data) - 1,
+        ):
+            with self.assertRaisesRegex(
+                CheckpointFloorDurabilityUncertain, "append was partial"
+            ):
+                append_checkpoint_floor(
+                    self.path, 4, "2026-11-11T10:00:00Z"
+                )
+        with self.assertRaisesRegex(ValueError, "incomplete"):
+            load_checkpoint_floor_ledger(self.path)
+
     def test_incomplete_tail_fails_closed(self):
         append_checkpoint_floor(self.path, 4, "2026-11-11T10:00:00Z")
         with self.path.open("ab") as stream:
