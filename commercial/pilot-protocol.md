@@ -1121,7 +1121,14 @@ repairing or skipping.
 The helper
 `checkpoint_floor_value(path)` returns the latest validated floor for
 passing to the checkpoint recovery classifier or the checkpoint envelope
-writer.
+writer. To reduce the chance of accidentally omitting the floor, deployments
+may call
+`classify_checkpoint_recovery_with_floor_ledger(events, checkpoint, receipt, path)`.
+It loads and validates the ledger before classification, propagates missing or
+invalid-ledger errors, and adds the ledger revision and entry digest to the
+result. Its provenance label is explicitly
+`LOCAL_APPEND_ONLY_LEDGER_NOT_AUTHENTICATED`; it does not upgrade the
+classifier's unauthenticated status.
 
 The matching schema is
 `experiments/schemas/audit-chain-checkpoint-floor-ledger-entry-v1.schema.json`.
