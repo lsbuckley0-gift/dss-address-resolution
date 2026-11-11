@@ -299,4 +299,14 @@ class CheckpointFloorWitnessTests(unittest.TestCase):
             self.assertEqual(provider.read_latest()[0]["minimum_checkpoint_sequence"], 19)
             self.assertEqual(checkpoint_floor_value(path), 19)
 
+\n
+    def test_missing_local_parent_prevents_external_advance(self):
+        provider = self._fake_provider()
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "missing" / "floor.jsonl"
+            with self.assertRaises(FileNotFoundError):
+                self._coordinate(provider, path, 15, "no-local-directory")
+            self.assertEqual(provider.advance_calls, 0)
+            self.assertEqual(provider.read_latest()[0]["minimum_checkpoint_sequence"], 14)
+
 
