@@ -319,6 +319,14 @@ Run the focused tests with:
 python -m unittest discover -s tests -p 'test_checkpoint_floor_witness.py' -v
 ```
 
+A rollback regression also captures a genuine signed sequence-8/floor-14
+provider backup, advances to sequence 9/floor 15, then restores the old provider
+state while retaining operator minimums 9/15 separately. The old signature
+still verifies under the old policy but is rejected against the retained
+minimums. This demonstrates the verifier's conditional anti-rollback
+behaviour; it does not implement durable operator pin storage or prove
+independent backup protection.
+
 These tests use a synthetic provider with a shared idempotency-state fixture
 to simulate adapter recreation with retained state, exact-result replay and
 key/request mismatch. They do not establish a live provider's persistence,
