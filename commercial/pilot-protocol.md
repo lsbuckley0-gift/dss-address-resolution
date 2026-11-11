@@ -1063,9 +1063,10 @@ confirmed. Where directory fsync is unavailable, the result says
 A failed replacement leaves the previous destination intact and removes
 the temporary file.
 
-**Scope boundary:** this is a single-file filesystem adapter, not a
-cross-platform transactional storage guarantee. Atomic replacement semantics
-depend on the operating system and filesystem. File fsync and directory fsync
+**Scope boundary:** this is a single-writer, single-file filesystem adapter,
+not a cross-platform transactional storage guarantee. It does not provide
+inter-process locking or compare-and-swap protection against concurrent
+writers. Atomic replacement semantics depend on the operating system and filesystem. File fsync and directory fsync
 are evidence of requested flush operations, not proof against every hardware,
 controller, network-filesystem or power-loss failure. The adapter does not
 authenticate the receipt, verify the event chain, protect the independently
