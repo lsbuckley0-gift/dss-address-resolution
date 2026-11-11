@@ -102,9 +102,13 @@ class CheckpointFloorWitnessTests(unittest.TestCase):
                 )
                 owner.receipt = dict(
                     owner.receipt,
-                    witness_sequence=(\n                        owner.receipt["witness_sequence"] + 1 + self.sequence_jump\n                    ),
+                    witness_sequence=(
+                        owner.receipt["witness_sequence"] + 1 + self.sequence_jump
+                    ),
                     minimum_checkpoint_sequence=advanced_floor,
-                    previous_receipt_sha256=(\n                        "0" * 64 if self.break_previous_link else previous\n                    ),
+                    previous_receipt_sha256=(
+                        "0" * 64 if self.break_previous_link else previous
+                    ),
                 )
                 owner.envelope = dict(
                     owner.envelope,
