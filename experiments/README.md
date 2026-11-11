@@ -289,3 +289,28 @@ The adapter assumes a single writer; it does not provide inter-process locking o
 authenticate the receipt, protect the independent rollback floor, or establish
 a universal filesystem/power-loss guarantee. See the commercial pilot protocol
 for the complete scope boundary.
+
+
+## External checkpoint-floor witness
+
+`experiments/checkpoint_floor_witness.py` defines the signed witness receipt
+contract, provider protocol, witness-first floor coordination and recovery gate.
+A provider must implement atomic compare-and-advance and idempotent retries
+outside the local ledger's failure domain. The verifier binds expected provider
+and witness identifiers, declared failure domain, Ed25519 governance key,
+witness sequence and checkpoint floor. The recovery gate refuses to classify
+when the external and local floors diverge, or when either retained source is
+missing or invalid.
+
+Run the focused tests with:
+
+```bash
+python -m unittest discover -s tests -p 'test_checkpoint_floor_witness.py' -v
+```
+
+These tests use a synthetic in-memory provider; they do not establish a live
+provider's atomicity, idempotency, independent administration or storage
+separation. A distinct failure-domain label is not proof of independence.
+Successful verification remains relative to caller-supplied governance and
+operator configuration; authority authentication and event truth remain
+unestablished. See the commercial pilot protocol before integrating a provider.
