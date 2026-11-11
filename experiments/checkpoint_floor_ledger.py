@@ -131,11 +131,22 @@ def append_checkpoint_floor(
         if recorded_at < previous_time:
             raise ValueError("floor ledger timestamp regression refused.")
         if minimum_checkpoint_sequence == previous_floor:
+            try:
+                descriptor = os.open(destination, os.O_RDONLY)
+                try:
+                    os.fsync(descriptor)
+                finally:
+                    os.close(descriptor)
+            except OSError as exc:
+                raise CheckpointFloorDurabilityUncertain(
+                    "existing floor ledger is visible, but retry fsync failed; "
+                    "durability is uncertain"
+                ) from exc
             return {
                 "append": "NOT_REQUIRED_IDENTICAL_FLOOR",
                 "floor_revision": previous["floor_revision"],
                 "minimum_checkpoint_sequence": previous_floor,
-                "file_fsync": "NOT_PERFORMED",
+                "file_fsync": "CONFIRMED",
             }
         revision = previous["floor_revision"] + 1
         previous_digest = previous["entry_sha256"]
