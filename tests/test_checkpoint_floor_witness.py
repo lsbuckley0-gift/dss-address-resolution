@@ -1,4 +1,4 @@
-"""Tests for signed external checkpoint-floor witness receipts."""
+"""Tests for signed external checkpoint-floor witness receipts and convergence."""
 import base64
 import hashlib
 import unittest
@@ -10,122 +10,10 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from experiments.checkpoint_floor_witness import (
-    CheckpointFloorWitnessLocalCommitUncertain, advance_checkpoint_floor_with_witness,
-    def _fake_provider(self):
-        owner = self
-
-        class FakeProvider:
-            def __init__(self):
-                self.advance_calls = 0
-
-            def read_latest(self):
-                return owner.receipt, owner.envelope
-
-            def advance_floor(self, *, expected_witness_sequence,
-                              minimum_checkpoint_sequence, idempotency_key):
-                self.advance_calls += 1
-                if expected_witness_sequence != owner.receipt["witness_sequence"]:
-                    raise ValueError("witness compare-and-advance conflict")
-                previous = hashlib.sha256(canonical_witness_payload(owner.receipt)).hexdigest()
-                owner.receipt = dict(
-                    owner.receipt,
-                    witness_sequence=owner.receipt["witness_sequence"] + 1,
-                    minimum_checkpoint_sequence=minimum_checkpoint_sequence,
-                    previous_receipt_sha256=previous,
-                )
-                owner.envelope = dict(
-                    owner.envelope,
-                    signature_base64=base64.b64encode(
-                        owner.private.sign(canonical_witness_payload(owner.receipt))
-                    ).decode(),
-                )
-                return owner.receipt, owner.envelope
-
-        return FakeProvider()
-
-    def test_witness_advances_before_local_ledger_and_converges(self):
-        provider = self._fake_provider()
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "floor.jsonl"
-            result = advance_checkpoint_floor_with_witness(
-                provider, path, 15, "2026-11-11T11:30:00Z", self.store,
-                at_utc="2026-11-11T11:00:00Z",
-                expected_witness_id="witness-east-1",
-                expected_provider_id="provider-independent",
-                expected_failure_domain_id="provider-control-plane-east",
-                local_storage_domain_id="local-disk-a",
-                minimum_witness_sequence=8,
-                operator_minimum_checkpoint_sequence=14,
-                idempotency_key="checkpoint-floor-15",
-            )
-            from experiments.checkpoint_floor_ledger import checkpoint_floor_value
-            self.assertEqual(result["coordination"], "WITNESS_VERIFIED_LOCAL_LEDGER_CONVERGED")
-            self.assertEqual(provider.advance_calls, 1)
-            self.assertEqual(provider.read_latest()[0]["minimum_checkpoint_sequence"], 15)
-            self.assertEqual(checkpoint_floor_value(path), 15)
-
-    def test_local_failure_preserves_witness_receipt_for_idempotent_retry(self):
-        provider = self._fake_provider()
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "floor.jsonl"
-            with mock.patch(
-                "experiments.checkpoint_floor_ledger.append_checkpoint_floor",
-                side_effect=OSError("injected local write failure"),
-            ):
-                with self.assertRaises(CheckpointFloorWitnessLocalCommitUncertain) as caught:
-                    advance_checkpoint_floor_with_witness(
-                        provider, path, 15, "2026-11-11T11:30:00Z", self.store,
-                        at_utc="2026-11-11T11:00:00Z",
-                        expected_witness_id="witness-east-1",
-                        expected_provider_id="provider-independent",
-                        expected_failure_domain_id="provider-control-plane-east",
-                        local_storage_domain_id="local-disk-a",
-                        minimum_witness_sequence=8,
-                        operator_minimum_checkpoint_sequence=14,
-                        idempotency_key="checkpoint-floor-15",
-                    )
-            self.assertEqual(caught.exception.receipt["minimum_checkpoint_sequence"], 15)
-            self.assertEqual(caught.exception.idempotency_key, "checkpoint-floor-15")
-            self.assertEqual(provider.advance_calls, 1)
-            result = advance_checkpoint_floor_with_witness(
-                provider, path, 15, "2026-11-11T11:31:00Z", self.store,
-                at_utc="2026-11-11T11:00:00Z",
-                expected_witness_id="witness-east-1",
-                expected_provider_id="provider-independent",
-                expected_failure_domain_id="provider-control-plane-east",
-                local_storage_domain_id="local-disk-a",
-                minimum_witness_sequence=9,
-                operator_minimum_checkpoint_sequence=14,
-                idempotency_key="checkpoint-floor-15",
-            )
-            from experiments.checkpoint_floor_ledger import checkpoint_floor_value
-            self.assertEqual(result["coordination"], "WITNESS_VERIFIED_LOCAL_LEDGER_CONVERGED")
-            self.assertEqual(provider.advance_calls, 1)
-            self.assertEqual(checkpoint_floor_value(path), 15)
-
-    def test_existing_higher_local_floor_is_pushed_to_witness(self):
-        provider = self._fake_provider()
-        from experiments.checkpoint_floor_ledger import append_checkpoint_floor
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "floor.jsonl"
-            append_checkpoint_floor(path, 17, "2026-11-11T10:30:00Z")
-            result = advance_checkpoint_floor_with_witness(
-                provider, path, 15, "2026-11-11T11:30:00Z", self.store,
-                at_utc="2026-11-11T11:00:00Z",
-                expected_witness_id="witness-east-1",
-                expected_provider_id="provider-independent",
-                expected_failure_domain_id="provider-control-plane-east",
-                local_storage_domain_id="local-disk-a",
-                minimum_witness_sequence=8,
-                operator_minimum_checkpoint_sequence=14,
-                idempotency_key="catch-up-local-17",
-            )
-            from experiments.checkpoint_floor_ledger import checkpoint_floor_value
-            self.assertEqual(result["minimum_checkpoint_sequence"], 17)
-            self.assertEqual(provider.read_latest()[0]["minimum_checkpoint_sequence"], 17)
-            self.assertEqual(checkpoint_floor_value(path), 17)
-
-\n    canonical_witness_payload, verify_checkpoint_floor_witness_receipt,
+    CheckpointFloorWitnessLocalCommitUncertain,
+    advance_checkpoint_floor_with_witness,
+    canonical_witness_payload,
+    verify_checkpoint_floor_witness_receipt,
 )
 
 
@@ -182,6 +70,53 @@ class CheckpointFloorWitnessTests(unittest.TestCase):
         args.update(overrides)
         return verify_checkpoint_floor_witness_receipt(
             self.receipt, self.envelope, self.store, **args
+        )
+
+    def _fake_provider(self):
+        owner = self
+
+        class FakeProvider:
+            def __init__(self):
+                self.advance_calls = 0
+
+            def read_latest(self):
+                return owner.receipt, owner.envelope
+
+            def advance_floor(self, *, expected_witness_sequence,
+                              minimum_checkpoint_sequence, idempotency_key):
+                self.advance_calls += 1
+                if expected_witness_sequence != owner.receipt["witness_sequence"]:
+                    raise ValueError("witness compare-and-advance conflict")
+                previous = hashlib.sha256(
+                    canonical_witness_payload(owner.receipt)
+                ).hexdigest()
+                owner.receipt = dict(
+                    owner.receipt,
+                    witness_sequence=owner.receipt["witness_sequence"] + 1,
+                    minimum_checkpoint_sequence=minimum_checkpoint_sequence,
+                    previous_receipt_sha256=previous,
+                )
+                owner.envelope = dict(
+                    owner.envelope,
+                    signature_base64=base64.b64encode(
+                        owner.private.sign(canonical_witness_payload(owner.receipt))
+                    ).decode(),
+                )
+                return owner.receipt, owner.envelope
+
+        return FakeProvider()
+
+    def _coordinate(self, provider, path, floor, key, minimum_witness_sequence=8):
+        return advance_checkpoint_floor_with_witness(
+            provider, path, floor, "2026-11-11T11:30:00Z", self.store,
+            at_utc="2026-11-11T11:00:00Z",
+            expected_witness_id="witness-east-1",
+            expected_provider_id="provider-independent",
+            expected_failure_domain_id="provider-control-plane-east",
+            local_storage_domain_id="local-disk-a",
+            minimum_witness_sequence=minimum_witness_sequence,
+            operator_minimum_checkpoint_sequence=14,
+            idempotency_key=key,
         )
 
     def test_valid_receipt_binds_identity_sequence_and_floor(self):
@@ -282,3 +217,49 @@ class CheckpointFloorWitnessTests(unittest.TestCase):
         self.assertEqual(
             result["witness_verification"], "GOVERNANCE_AUTHORITY_NAME_MISMATCH",
         )
+
+    def test_witness_advances_before_local_ledger_and_converges(self):
+        from experiments.checkpoint_floor_ledger import checkpoint_floor_value
+        provider = self._fake_provider()
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "floor.jsonl"
+            result = self._coordinate(provider, path, 15, "checkpoint-floor-15")
+            self.assertEqual(result["coordination"], "WITNESS_VERIFIED_LOCAL_LEDGER_CONVERGED")
+            self.assertEqual(provider.advance_calls, 1)
+            self.assertEqual(provider.read_latest()[0]["minimum_checkpoint_sequence"], 15)
+            self.assertEqual(checkpoint_floor_value(path), 15)
+
+    def test_local_failure_preserves_witness_receipt_for_idempotent_retry(self):
+        from experiments.checkpoint_floor_ledger import checkpoint_floor_value
+        provider = self._fake_provider()
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "floor.jsonl"
+            with mock.patch(
+                "experiments.checkpoint_floor_ledger.append_checkpoint_floor",
+                side_effect=OSError("injected local write failure"),
+            ):
+                with self.assertRaises(CheckpointFloorWitnessLocalCommitUncertain) as caught:
+                    self._coordinate(provider, path, 15, "checkpoint-floor-15")
+            self.assertEqual(caught.exception.receipt["minimum_checkpoint_sequence"], 15)
+            self.assertEqual(caught.exception.idempotency_key, "checkpoint-floor-15")
+            self.assertEqual(provider.advance_calls, 1)
+            result = self._coordinate(
+                provider, path, 15, "checkpoint-floor-15",
+                minimum_witness_sequence=9,
+            )
+            self.assertEqual(result["coordination"], "WITNESS_VERIFIED_LOCAL_LEDGER_CONVERGED")
+            self.assertEqual(provider.advance_calls, 1)
+            self.assertEqual(checkpoint_floor_value(path), 15)
+
+    def test_existing_higher_local_floor_is_pushed_to_witness(self):
+        from experiments.checkpoint_floor_ledger import (
+            append_checkpoint_floor, checkpoint_floor_value,
+        )
+        provider = self._fake_provider()
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "floor.jsonl"
+            append_checkpoint_floor(path, 17, "2026-11-11T10:30:00Z")
+            result = self._coordinate(provider, path, 15, "catch-up-local-17")
+            self.assertEqual(result["minimum_checkpoint_sequence"], 17)
+            self.assertEqual(provider.read_latest()[0]["minimum_checkpoint_sequence"], 17)
+            self.assertEqual(checkpoint_floor_value(path), 17)
