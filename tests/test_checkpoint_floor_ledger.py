@@ -240,7 +240,10 @@ class CheckpointFloorLedgerTests(unittest.TestCase):
         )
 
     @unittest.skipUnless(
-        hasattr(os, "O_DIRECTORY") and hasattr(multiprocessing, "get_context"),
+        hasattr(os, "O_DIRECTORY")
+        and hasattr(os, "fork")
+        and hasattr(multiprocessing, "get_context")
+        and "fork" in multiprocessing.get_all_start_methods(),
         "POSIX process-locking test requires a fork-capable platform",
     )
     def test_separate_processes_share_one_serialized_ledger_history(self):
