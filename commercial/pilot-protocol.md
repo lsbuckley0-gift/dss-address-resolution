@@ -1063,6 +1063,15 @@ confirmed. Where directory fsync is unavailable, the result says
 A failed replacement leaves the previous destination intact and removes
 the temporary file.
 
+The optional `minimum_sequence` argument to `write_checkpoint_envelope(...)`
+rejects a candidate below the caller-supplied floor before any write begins.
+When supplied and met, the result reports
+`rollback_floor_protection: CALLER_SUPPLIED_FLOOR_CHECKED_NOT_PERSISTED`;
+when omitted, it reports `NOT_PROVIDED`. This is a comparison against the
+value supplied by the caller, not proof that the floor is independently
+retained, authenticated or rollback-resistant. The operator must continue to
+obtain that value from independently protected state.
+
 Before replacement, the adapter validates any existing destination envelope.
 A candidate with a lower checkpoint sequence is rejected, preventing a stale
 single writer from silently replacing a newer retained checkpoint. Reusing
