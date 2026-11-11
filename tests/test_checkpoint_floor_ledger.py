@@ -1,5 +1,6 @@
 """Tests for the append-only checkpoint rollback-floor ledger."""
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -25,6 +26,11 @@ class CheckpointFloorLedgerTests(unittest.TestCase):
         )
         self.assertEqual(result["append"], "APPENDED")
         self.assertEqual(result["floor_revision"], 0)
+        self.assertEqual(result["file_fsync"], "CONFIRMED")
+        self.assertEqual(
+            result["directory_fsync"],
+            "CONFIRMED" if hasattr(os, "O_DIRECTORY") else "UNAVAILABLE",
+        )
         self.assertEqual(checkpoint_floor_value(self.path), 4)
 
     def test_floor_advances_and_forms_digest_chain(self):
@@ -54,7 +60,28 @@ class CheckpointFloorLedgerTests(unittest.TestCase):
         result = append_checkpoint_floor(self.path, 7, "2026-11-11T10:01:00Z")
         self.assertEqual(result["append"], "NOT_REQUIRED_IDENTICAL_FLOOR")
         self.assertEqual(result["file_fsync"], "CONFIRMED")
+        self.assertEqual(
+            result["directory_fsync"],
+            "CONFIRMED" if hasattr(os, "O_DIRECTORY") else "UNAVAILABLE",
+        )
         self.assertEqual(self.path.read_bytes(), previous)
+        self.assertEqual(len(load_checkpoint_floor_ledger(self.path)), 1)
+
+    def test_directory_fsync_failure_is_uncertain_and_retry_reconfirms(self):
+        with mock.patch(
+            "experiments.checkpoint_floor_ledger.os.fsync",
+            side_effect=[None, OSError("injected directory fsync failure")],
+        ):
+            with self.assertRaises(CheckpointFloorDurabilityUncertain):
+                append_checkpoint_floor(
+                    self.path, 5, "2026-11-11T10:00:00Z"
+                )
+        self.assertEqual(checkpoint_floor_value(self.path), 5)
+        result = append_checkpoint_floor(
+            self.path, 5, "2026-11-11T10:01:00Z"
+        )
+        self.assertEqual(result["append"], "NOT_REQUIRED_IDENTICAL_FLOOR")
+        self.assertEqual(result["directory_fsync"], "CONFIRMED")
         self.assertEqual(len(load_checkpoint_floor_ledger(self.path)), 1)
 
     def test_timestamp_regression_is_rejected(self):
