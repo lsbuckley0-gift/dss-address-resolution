@@ -1126,7 +1126,7 @@ provider operation, or prove event truth. The helper
 receipt, advances the witness first using compare-and-advance, verifies the
 returned receipt, then appends the resulting floor locally. The target is the
 maximum of the requested floor, operator floor, current witness floor and
-current local floor; it cannot lower either retained floor. If the local append
+current local floor; it cannot lower either retained floor. If the provider advance call
 times out or returns an unverifiable receipt, it raises
 `CheckpointFloorWitnessAdvanceUncertain` with the idempotency key; the provider
 may already have advanced, so retry by reading its latest state and reusing
