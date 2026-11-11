@@ -684,6 +684,59 @@ class CheckpointFloorWitnessTests(unittest.TestCase):
         self.assertEqual(rejected["signature_verification"], "NOT_PERFORMED")
 
 
+    def test_restoring_provider_and_operator_pin_backups_reopens_rollback(self):
+        provider = self._fake_provider()
+
+        # This is the failure case: both backups contain the same old state.
+        provider_backup = (dict(self.receipt), dict(self.envelope))
+        operator_pin_backup = {
+            "minimum_witness_sequence": 8,
+            "minimum_checkpoint_sequence": 14,
+        }
+        advanced_receipt, advanced_envelope = provider.advance_floor(
+            expected_witness_sequence=8,
+            minimum_checkpoint_sequence=15,
+            idempotency_key="advance-before-joint-restore",
+        )
+        retained_operator_pin = {
+            "minimum_witness_sequence": 9,
+            "minimum_checkpoint_sequence": 15,
+        }
+        accepted_before_restore = verify_checkpoint_floor_witness_receipt(
+            advanced_receipt, advanced_envelope, self.store,
+            at_utc="2026-11-11T11:00:00Z",
+            expected_witness_id="witness-east-1",
+            expected_provider_id="provider-independent",
+            expected_failure_domain_id="provider-control-plane-east",
+            local_storage_domain_id="local-disk-a",
+            **retained_operator_pin,
+        )
+        self.assertEqual(
+            accepted_before_restore["witness_verification"],
+            "VALID_RELATIVE_TO_CALLER_GOVERNANCE_AND_DOMAIN_CONFIGURATION",
+        )
+
+        # Jointly restoring both old backups also restores the old policy.
+        self.receipt, self.envelope = provider_backup
+        restored_policy = dict(operator_pin_backup)
+        accepted_after_joint_restore = verify_checkpoint_floor_witness_receipt(
+            self.receipt, self.envelope, self.store,
+            at_utc="2026-11-11T11:00:00Z",
+            expected_witness_id="witness-east-1",
+            expected_provider_id="provider-independent",
+            expected_failure_domain_id="provider-control-plane-east",
+            local_storage_domain_id="local-disk-a",
+            **restored_policy,
+        )
+        self.assertEqual(
+            accepted_after_joint_restore["witness_verification"],
+            "VALID_RELATIVE_TO_CALLER_GOVERNANCE_AND_DOMAIN_CONFIGURATION",
+        )
+        self.assertEqual(
+            accepted_after_joint_restore["signature_verification"], "VALID"
+        )
+
+
 
     def test_provider_compare_and_advance_rejects_stale_expected_sequence(self):
         provider = self._fake_provider()
