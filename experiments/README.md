@@ -302,7 +302,9 @@ must replay the identical accepted receipt tuple after provider restart, while
 reuse with different request parameters must be rejected. The key binding and
 floor advance must commit atomically. Each returned advance receipt must be
 the immediate next witness sequence and hash-link to the exact prior receipt
-read by the coordinator; a valid signature alone does not establish continuity. The verifier binds expected provider
+read by the coordinator; a valid signature alone does not establish continuity.
+The coordinator also validates the local recording timestamp before external
+advance, so invalid local append metadata is rejected without remote mutation. The verifier binds expected provider
 and witness identifiers, declared failure domain, Ed25519 governance key,
 witness sequence and checkpoint floor. The recovery gate refuses to classify
 when the external and local floors diverge, or when either retained source is
