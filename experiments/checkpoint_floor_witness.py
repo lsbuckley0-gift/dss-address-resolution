@@ -175,7 +175,7 @@ def verify_checkpoint_floor_witness_receipt(
         verify_trust_store_pin(trust_store, trust_store_pin)
         if trust_store_pin is not None else {"trust_policy_pin": "NOT_CHECKED"}
     )
-    if pin["trust_policy_pin"] != "MATCH":
+    if trust_store_pin is not None and pin["trust_policy_pin"] != "MATCH":
         return {
             "witness_verification": "GOVERNANCE_POLICY_PIN_MISMATCH",
             "signature_verification": "NOT_PERFORMED",
