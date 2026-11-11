@@ -277,7 +277,7 @@ checkpoint payload and its acceptance receipt in a single JSON envelope.
 Run its focused tests with:
 
 ```bash
-python -m unittest tests.test_checkpoint_store -v
+python -m unittest discover -s tests -p 'test_checkpoint_store.py' -v
 ```
 
 The adapter fsyncs the temporary file before same-directory `os.replace`,
@@ -285,7 +285,7 @@ then fsyncs the parent directory where `O_DIRECTORY` is available. Its result
 distinguishes replacement, file flush and directory flush. A directory-fsync
 failure after replacement raises `CheckpointEnvelopeDurabilityUncertain`;
 the new file may be visible even though crash durability is unconfirmed.
-The adapter protects only the pair's single-file visibility. It does not
+The adapter assumes a single writer; it does not provide inter-process locking or compare-and-swap protection against concurrent writers. The adapter protects only the pair's single-file visibility. It does not
 authenticate the receipt, protect the independent rollback floor, or establish
 a universal filesystem/power-loss guarantee. See the commercial pilot protocol
 for the complete scope boundary.
