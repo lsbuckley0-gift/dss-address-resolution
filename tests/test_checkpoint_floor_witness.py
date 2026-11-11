@@ -475,3 +475,59 @@ class CheckpointFloorWitnessTests(unittest.TestCase):
             self.assertEqual(result["rollback_floor"], "BELOW_FLOOR")
 
 
+
+    def test_malformed_receipt_is_classified_as_unverified_witness(self):
+        from experiments.checkpoint_floor_ledger import append_checkpoint_floor
+        malformed = dict(self.receipt)
+        malformed.pop("provider_id")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "floor.jsonl"
+            append_checkpoint_floor(path, 14, "2026-11-11T10:30:00Z")
+            result = classify_checkpoint_recovery_with_witness(
+                [], None, None, malformed, self.envelope, self.store, path,
+                at_utc="2026-11-11T11:00:00Z",
+                expected_witness_id="witness-east-1",
+                expected_provider_id="provider-independent",
+                expected_failure_domain_id="provider-control-plane-east",
+                local_storage_domain_id="local-disk-a",
+                minimum_witness_sequence=8,
+                operator_minimum_checkpoint_sequence=14,
+            )
+            self.assertEqual(result["recovery_status"], "WITNESS_NOT_VERIFIED")
+            self.assertEqual(
+                result["witness_verification"]["witness_verification"],
+                "MALFORMED_WITNESS_EVIDENCE",
+            )
+            self.assertEqual(result["rollback_floor"], "NOT_TRUSTED")
+
+    def test_malformed_signature_envelope_is_classified_as_unverified_witness(self):
+        from experiments.checkpoint_floor_ledger import append_checkpoint_floor
+        malformed = dict(self.envelope, signature_base64="not base64!")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "floor.jsonl"
+            append_checkpoint_floor(path, 14, "2026-11-11T10:30:00Z")
+            result = classify_checkpoint_recovery_with_witness(
+                [], None, None, self.receipt, malformed, self.store, path,
+                at_utc="2026-11-11T11:00:00Z",
+                expected_witness_id="witness-east-1",
+                expected_provider_id="provider-independent",
+                expected_failure_domain_id="provider-control-plane-east",
+                local_storage_domain_id="local-disk-a",
+                minimum_witness_sequence=8,
+                operator_minimum_checkpoint_sequence=14,
+            )
+            self.assertEqual(result["recovery_status"], "WITNESS_NOT_VERIFIED")
+            self.assertEqual(
+                result["witness_verification"]["witness_verification"],
+                "MALFORMED_WITNESS_EVIDENCE",
+            )
+
+    def test_invalid_operator_configuration_is_not_mislabelled_as_bad_evidence(self):
+        from experiments.checkpoint_floor_ledger import append_checkpoint_floor
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "floor.jsonl"
+            append_checkpoint_floor(path, 14, "2026-11-11T10:30:00Z")
+            with self.assertRaisesRegex(ValueError, "minimum_witness_sequence"):
+                self._classify(path, minimum_witness_sequence=True)
+
+
