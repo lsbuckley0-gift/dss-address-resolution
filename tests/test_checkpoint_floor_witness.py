@@ -448,3 +448,30 @@ class CheckpointFloorWitnessTests(unittest.TestCase):
                 self._classify(corrupt)
 
 
+
+    def test_witness_floor_is_applied_to_receipt_only_recovery(self):
+        from experiments.checkpoint_floor_ledger import append_checkpoint_floor
+        acceptance = {
+            "record_version": "audit-checkpoint-acceptance/v1",
+            "checkpoint_sequence": 13,
+            "checkpoint_sha256": "a" * 64,
+            "accepted_at_utc": "2026-11-11T10:30:00Z",
+            "receipt_reference": "synthetic://acceptance",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "floor.jsonl"
+            append_checkpoint_floor(path, 14, "2026-11-11T10:31:00Z")
+            result = classify_checkpoint_recovery_with_witness(
+                [], None, acceptance, self.receipt, self.envelope, self.store, path,
+                at_utc="2026-11-11T11:00:00Z",
+                expected_witness_id="witness-east-1",
+                expected_provider_id="provider-independent",
+                expected_failure_domain_id="provider-control-plane-east",
+                local_storage_domain_id="local-disk-a",
+                minimum_witness_sequence=8,
+                operator_minimum_checkpoint_sequence=14,
+            )
+            self.assertEqual(result["recovery_status"], "RECEIPT_WITHOUT_PAYLOAD")
+            self.assertEqual(result["rollback_floor"], "BELOW_FLOOR")
+
+
