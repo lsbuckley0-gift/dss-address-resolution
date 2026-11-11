@@ -6,10 +6,13 @@ import tempfile
 import unittest
 from unittest import mock
 
+from experiments.audit_event_chain import append_audit_event
+from experiments.checkpoint_recovery import _canonical_checkpoint_sha256
 from experiments.checkpoint_floor_ledger import (
     CheckpointFloorDurabilityUncertain,
     append_checkpoint_floor,
     checkpoint_floor_value,
+    classify_checkpoint_recovery_with_floor_ledger,
     load_checkpoint_floor_ledger,
 )
 
@@ -19,6 +22,78 @@ class CheckpointFloorLedgerTests(unittest.TestCase):
         self.tempdir = tempfile.TemporaryDirectory()
         self.addCleanup(self.tempdir.cleanup)
         self.path = Path(self.tempdir.name) / "checkpoint-floor.jsonl"
+
+    def _recovery_fixture(self):
+        events = []
+        for event_id, event_type, timestamp in (
+            ("reg-1", "REGISTRATION_FROZEN", "2026-11-11T09:00:00Z"),
+            ("access-1", "OUTCOME_ACCESS", "2026-11-11T09:01:00Z"),
+            ("analysis-1", "ANALYSIS_STARTED", "2026-11-11T09:02:00Z"),
+        ):
+            events = append_audit_event(
+                events,
+                event_id=event_id,
+                event_type=event_type,
+                occurred_at_utc=timestamp,
+                actor_reference="operator:test",
+                evidence_reference="evidence:test",
+            )
+        checkpoint = {
+            "record_version": "audit-chain-checkpoint/v1",
+            "registration_event_id": "reg-1",
+            "checkpoint_sequence": 2,
+            "checkpoint_event_sha256": events[2]["event_sha256"],
+            "anchored_at_utc": "2026-11-11T09:03:00Z",
+            "anchor_reference": "anchor:test:1",
+        }
+        receipt = {
+            "record_version": "audit-checkpoint-acceptance/v1",
+            "checkpoint_sequence": 2,
+            "checkpoint_sha256": _canonical_checkpoint_sha256(checkpoint),
+            "accepted_at_utc": "2026-11-11T09:04:00Z",
+            "receipt_reference": "receipt:test:1",
+        }
+        return events, checkpoint, receipt
+
+    def test_recovery_uses_floor_ledger_and_returns_provenance(self):
+        events, checkpoint, receipt = self._recovery_fixture()
+        append_checkpoint_floor(self.path, 3, "2026-11-11T09:05:00Z")
+        result = classify_checkpoint_recovery_with_floor_ledger(
+            events, checkpoint, receipt, self.path
+        )
+        self.assertEqual(result["recovery_status"], "BELOW_FLOOR")
+        self.assertEqual(result["rollback_floor"], "BELOW_FLOOR")
+        self.assertEqual(
+            result["rollback_floor_source"],
+            "LOCAL_APPEND_ONLY_LEDGER_NOT_AUTHENTICATED",
+        )
+        self.assertEqual(result["rollback_floor_revision"], 0)
+        self.assertEqual(
+            result["rollback_floor_entry_sha256"],
+            load_checkpoint_floor_ledger(self.path)[-1]["entry_sha256"],
+        )
+
+    def test_recovery_with_matching_ledger_floor_remains_unauthenticated(self):
+        events, checkpoint, receipt = self._recovery_fixture()
+        append_checkpoint_floor(self.path, 2, "2026-11-11T09:05:00Z")
+        result = classify_checkpoint_recovery_with_floor_ledger(
+            events, checkpoint, receipt, self.path
+        )
+        self.assertEqual(
+            result["recovery_status"], "CONSISTENT_UNAUTHENTICATED"
+        )
+        self.assertEqual(result["rollback_floor"], "MEETS_FLOOR")
+        self.assertEqual(
+            result["rollback_floor_source"],
+            "LOCAL_APPEND_ONLY_LEDGER_NOT_AUTHENTICATED",
+        )
+
+    def test_recovery_does_not_default_missing_floor_ledger(self):
+        events, checkpoint, receipt = self._recovery_fixture()
+        with self.assertRaises(FileNotFoundError):
+            classify_checkpoint_recovery_with_floor_ledger(
+                events, checkpoint, receipt, self.path
+            )
 
     def test_first_entry_establishes_floor(self):
         result = append_checkpoint_floor(
