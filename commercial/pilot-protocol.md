@@ -1175,6 +1175,33 @@ the higher or lower source and never classifies recovery from a divergent pair.
 Even a matching pair remains relative to caller-supplied governance material;
 it does not establish authority identity or prove operational independence.
 
+### Independent operator anti-rollback pin: restore test and deployment boundary
+
+The witness verifier accepts minimum witness sequence and checkpoint floor as
+caller-supplied policy inputs. They are not made durable or independent merely
+because a caller labels them as operator values. The deployment must retain
+both values in an operator-controlled trust domain outside the witness
+provider's backup/restore boundary and outside the local checkpoint/ledger
+failure domain. The operator must authenticate that retained state, prevent
+unauthorised rollback, and atomically advance the pin with the corresponding
+acceptance decision. A separately protected recovery copy must preserve the
+latest accepted pin; after loss, restore and authenticate that copy before
+resuming verification. If no trustworthy copy can be established, fail closed
+and re-provision explicitly rather than deriving a new minimum from the
+provider receipt being evaluated.
+
+The test named
+`test_restored_provider_backup_is_rejected_by_independently_retained_operator_floor`
+models the critical rollback case: a valid sequence-8/floor-14 provider backup
+is captured, the provider advances to sequence 9/floor 15, and the operator
+retains minimums 9/15 outside the provider state. Restoring the old signed
+provider backup leaves its signature valid under the old 8/14 policy, but the
+same receipt is rejected as `ROLLBACK_REJECTED` against the retained 9/15
+minimums. This is a verifier-level regression test only. It does not implement
+operator pin storage, atomic acceptance, authenticated backup, or prove a
+real provider's independence; those remain deployment obligations.
+
+
 
 ### Append-only local rollback-floor ledger
 
