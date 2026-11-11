@@ -737,6 +737,36 @@ class CheckpointFloorWitnessTests(unittest.TestCase):
         )
 
 
+    def test_operator_pin_sequence_and_checkpoint_floor_are_independent_rollback_guards(self):
+        policies = (
+            {
+                "minimum_witness_sequence": 9,
+                "minimum_checkpoint_sequence": 14,
+            },
+            {
+                "minimum_witness_sequence": 8,
+                "minimum_checkpoint_sequence": 15,
+            },
+        )
+        for policy in policies:
+            with self.subTest(policy=policy):
+                result = verify_checkpoint_floor_witness_receipt(
+                    self.receipt, self.envelope, self.store,
+                    at_utc="2026-11-11T11:00:00Z",
+                    expected_witness_id="witness-east-1",
+                    expected_provider_id="provider-independent",
+                    expected_failure_domain_id="provider-control-plane-east",
+                    local_storage_domain_id="local-disk-a",
+                    **policy,
+                )
+                self.assertEqual(
+                    result["witness_verification"], "ROLLBACK_REJECTED"
+                )
+                self.assertEqual(
+                    result["signature_verification"], "NOT_PERFORMED"
+                )
+
+
 
     def test_provider_compare_and_advance_rejects_stale_expected_sequence(self):
         provider = self._fake_provider()
