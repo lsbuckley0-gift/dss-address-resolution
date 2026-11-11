@@ -1154,8 +1154,11 @@ The governance key must explicitly allow `CHECKPOINT_FLOOR_WITNESS`.
 `classify_checkpoint_recovery_with_witness(...)` is the recovery-side gate.
 It verifies the supplied witness receipt and requires its checkpoint floor to
 equal the fully validated local ledger floor before invoking the recovery
-classifier. An invalid witness returns `WITNESS_NOT_VERIFIED`; a mismatch
-returns `WITNESS_LOCAL_LEDGER_DIVERGENCE`, distinguishing
+classifier. An invalid witness returns `WITNESS_NOT_VERIFIED`; malformed receipt or
+signature-envelope evidence is reported as `MALFORMED_WITNESS_EVIDENCE`.
+Invalid operator configuration or governance material remains an explicit
+caller error rather than being mislabelled as bad provider evidence. A floor
+mismatch returns `WITNESS_LOCAL_LEDGER_DIVERGENCE`, distinguishing
 `WITNESS_AHEAD_OF_LOCAL_LEDGER` from `LOCAL_LEDGER_AHEAD_OF_WITNESS`.
 Missing or corrupt local history propagates an error. It never silently picks
 the higher or lower source and never classifies recovery from a divergent pair.
