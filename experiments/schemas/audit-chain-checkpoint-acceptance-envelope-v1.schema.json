@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "∂ss atomic checkpoint acceptance envelope",
+  "description": "One persistence record containing the exact checkpoint payload and its consistency receipt. This schema does not authenticate the receipt or guarantee storage durability.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "record_version",
+    "checkpoint",
+    "acceptance_receipt"
+  ],
+  "properties": {
+    "record_version": {
+      "const": "audit-checkpoint-acceptance-envelope/v1"
+    },
+    "checkpoint": {
+      "$ref": "audit-chain-checkpoint-v1.schema.json"
+    },
+    "acceptance_receipt": {
+      "$ref": "audit-chain-checkpoint-acceptance-v1.schema.json"
+    }
+  }
+}
