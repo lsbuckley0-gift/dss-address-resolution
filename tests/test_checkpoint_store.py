@@ -97,6 +97,25 @@ class CheckpointStoreTests(unittest.TestCase):
             ["checkpoint-envelope.json"],
         )
 
+
+    def test_file_fsync_failure_preserves_previous_envelope_and_cleans_temp(self):
+        write_checkpoint_envelope(self.path, self.checkpoint, self.receipt)
+        previous = self.path.read_bytes()
+        changed_checkpoint = dict(self.checkpoint, checkpoint_sequence=3)
+        changed_receipt = dict(
+            self.receipt,
+            checkpoint_sequence=3,
+            checkpoint_sha256=_canonical_checkpoint_sha256(changed_checkpoint),
+        )
+        with mock.patch("experiments.checkpoint_store.os.fsync", side_effect=OSError("injected file fsync failure")):
+            with self.assertRaisesRegex(OSError, "injected file fsync failure"):
+                write_checkpoint_envelope(self.path, changed_checkpoint, changed_receipt)
+        self.assertEqual(self.path.read_bytes(), previous)
+        self.assertEqual(
+            sorted(p.name for p in Path(self.tempdir.name).iterdir()),
+            ["checkpoint-envelope.json"],
+        )
+
     @unittest.skipUnless(hasattr(os, "O_DIRECTORY"), "POSIX directory fsync unavailable")
     def test_directory_fsync_failure_reports_uncertain_after_visible_replace(self):
         calls = 0
