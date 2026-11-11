@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "∂ss external checkpoint-floor witness receipt",
+  "description": "Signed provider assertion of a monotonic checkpoint floor. Distinct failure-domain identifiers are declarations, not proof of operational independence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["record_version", "witness_id", "provider_id", "failure_domain_id", "authority_name", "witness_sequence", "minimum_checkpoint_sequence", "previous_receipt_sha256", "issued_at_utc", "expires_at_utc"],
+  "properties": {
+    "record_version": { "const": "audit-checkpoint-floor-witness/v1" },
+    "witness_id": { "type": "string", "minLength": 1 },
+    "provider_id": { "type": "string", "minLength": 1 },
+    "failure_domain_id": { "type": "string", "minLength": 1 },
+    "authority_name": { "type": "string", "minLength": 1 },
+    "witness_sequence": { "type": "integer", "minimum": 1 },
+    "minimum_checkpoint_sequence": { "type": "integer", "minimum": 0 },
+    "previous_receipt_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "issued_at_utc": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$" },
+    "expires_at_utc": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$" }
+  }
+}
