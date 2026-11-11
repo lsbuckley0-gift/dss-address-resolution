@@ -244,6 +244,18 @@ def verify_checkpoint_floor_witness_receipt(
 
 
 
+class CheckpointFloorWitnessAdvanceUncertain(RuntimeError):
+    """Provider advance outcome is unknown or its returned receipt is unusable."""
+
+    def __init__(self, message, *, idempotency_key, minimum_checkpoint_sequence,
+                 receipt=None, signature_envelope=None):
+        super().__init__(message)
+        self.idempotency_key = idempotency_key
+        self.minimum_checkpoint_sequence = minimum_checkpoint_sequence
+        self.receipt = receipt
+        self.signature_envelope = signature_envelope
+
+
 class CheckpointFloorWitnessLocalCommitUncertain(RuntimeError):
     """The witness advanced but the matching local floor append did not confirm."""
 
@@ -329,28 +341,50 @@ def advance_checkpoint_floor_with_witness(
     )
     accepted_receipt, accepted_signature = current_receipt, current_signature
     if target_floor > current_receipt["minimum_checkpoint_sequence"]:
-        accepted_receipt, accepted_signature = witness.advance_floor(
-            expected_witness_sequence=current_receipt["witness_sequence"],
-            minimum_checkpoint_sequence=target_floor,
-            idempotency_key=key,
-        )
-        advanced_result = verify_checkpoint_floor_witness_receipt(
-            accepted_receipt, accepted_signature, trust_store,
-            at_utc=at_utc,
-            expected_witness_id=expected_witness_id,
-            expected_provider_id=expected_provider_id,
-            expected_failure_domain_id=expected_failure_domain_id,
-            local_storage_domain_id=local_storage_domain_id,
-            minimum_witness_sequence=current_receipt["witness_sequence"] + 1,
-            minimum_checkpoint_sequence=target_floor,
-            trust_store_pin=trust_store_pin,
-        )
+        try:
+            accepted_receipt, accepted_signature = witness.advance_floor(
+                expected_witness_sequence=current_receipt["witness_sequence"],
+                minimum_checkpoint_sequence=target_floor,
+                idempotency_key=key,
+            )
+        except Exception as exc:
+            raise CheckpointFloorWitnessAdvanceUncertain(
+                "provider advance outcome is unknown; retry by reading the witness "
+                "and using the same idempotency key",
+                idempotency_key=key,
+                minimum_checkpoint_sequence=target_floor,
+            ) from exc
+        try:
+            advanced_result = verify_checkpoint_floor_witness_receipt(
+                accepted_receipt, accepted_signature, trust_store,
+                at_utc=at_utc,
+                expected_witness_id=expected_witness_id,
+                expected_provider_id=expected_provider_id,
+                expected_failure_domain_id=expected_failure_domain_id,
+                local_storage_domain_id=local_storage_domain_id,
+                minimum_witness_sequence=current_receipt["witness_sequence"] + 1,
+                minimum_checkpoint_sequence=target_floor,
+                trust_store_pin=trust_store_pin,
+            )
+        except Exception as exc:
+            raise CheckpointFloorWitnessAdvanceUncertain(
+                "provider may have advanced but its returned receipt could not be "
+                "verified; retry by reading the witness and using the same idempotency key",
+                idempotency_key=key,
+                minimum_checkpoint_sequence=target_floor,
+                receipt=accepted_receipt,
+                signature_envelope=accepted_signature,
+            ) from exc
         if advanced_result["witness_verification"] != (
             "VALID_RELATIVE_TO_CALLER_GOVERNANCE_AND_DOMAIN_CONFIGURATION"
         ):
-            raise ValueError(
-                "advanced external witness receipt is not acceptable: "
-                + advanced_result["witness_verification"]
+            raise CheckpointFloorWitnessAdvanceUncertain(
+                "provider may have advanced but its returned receipt was rejected: "
+                + advanced_result["witness_verification"],
+                idempotency_key=key,
+                minimum_checkpoint_sequence=target_floor,
+                receipt=accepted_receipt,
+                signature_envelope=accepted_signature,
             )
         current_result = advanced_result
 
