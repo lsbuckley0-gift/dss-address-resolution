@@ -633,6 +633,57 @@ class CheckpointFloorWitnessTests(unittest.TestCase):
             self.assertFalse(path.exists())
 
 
+    def test_restored_provider_backup_is_rejected_by_independently_retained_operator_floor(self):
+        provider = self._fake_provider()
+
+        # Model provider backup separately from operator-held pins.
+        provider_backup = (dict(self.receipt), dict(self.envelope))
+        advanced_receipt, advanced_envelope = provider.advance_floor(
+            expected_witness_sequence=8,
+            minimum_checkpoint_sequence=15,
+            idempotency_key="advance-before-provider-restore",
+        )
+        operator_pin = {
+            "minimum_witness_sequence": 9,
+            "minimum_checkpoint_sequence": 15,
+        }
+
+        accepted = verify_checkpoint_floor_witness_receipt(
+            advanced_receipt, advanced_envelope, self.store,
+            at_utc="2026-11-11T11:00:00Z",
+            expected_witness_id="witness-east-1",
+            expected_provider_id="provider-independent",
+            expected_failure_domain_id="provider-control-plane-east",
+            local_storage_domain_id="local-disk-a",
+            **operator_pin,
+        )
+        self.assertEqual(
+            accepted["witness_verification"],
+            "VALID_RELATIVE_TO_CALLER_GOVERNANCE_AND_DOMAIN_CONFIGURATION",
+        )
+
+        # Restore the provider's genuine, correctly signed sequence-8 backup.
+        self.receipt, self.envelope = provider_backup
+        old_signature_still_valid = self.verify()
+        self.assertEqual(
+            old_signature_still_valid["witness_verification"],
+            "VALID_RELATIVE_TO_CALLER_GOVERNANCE_AND_DOMAIN_CONFIGURATION",
+        )
+
+        # The operator pin is outside restored provider state and is not reset.
+        rejected = verify_checkpoint_floor_witness_receipt(
+            self.receipt, self.envelope, self.store,
+            at_utc="2026-11-11T11:00:00Z",
+            expected_witness_id="witness-east-1",
+            expected_provider_id="provider-independent",
+            expected_failure_domain_id="provider-control-plane-east",
+            local_storage_domain_id="local-disk-a",
+            **operator_pin,
+        )
+        self.assertEqual(rejected["witness_verification"], "ROLLBACK_REJECTED")
+        self.assertEqual(rejected["signature_verification"], "NOT_PERFORMED")
+
+
 
     def test_provider_compare_and_advance_rejects_stale_expected_sequence(self):
         provider = self._fake_provider()
