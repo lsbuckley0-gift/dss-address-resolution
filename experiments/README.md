@@ -327,6 +327,7 @@ minimums. This demonstrates the verifier's conditional anti-rollback
 behaviour; it does not implement durable operator pin storage or prove
 independent backup protection.
 A companion negative-control regression restores both the old provider backup and the old 8/14 operator-policy backup; the old signature is then accepted again. This deliberately demonstrates that the protection fails if both state sources can be rolled back together. The operator pin's backup and recovery path must be independently protected, not merely separated by filename or declared domain label.
+A focused test also proves that either retained coordinate independently rejects the old receipt: witness-sequence minimum 9 with floor minimum 14, or witness-sequence minimum 8 with floor minimum 15.
 
 These tests use a synthetic provider with a shared idempotency-state fixture
 to simulate adapter recreation with retained state, exact-result replay and
