@@ -1,10 +1,10 @@
 """Append-only local rollback-floor ledger for checkpoint recovery.
 
-The ledger is a separate file from the checkpoint envelope. It detects a
-checkpoint sequence below the latest retained floor when this ledger remains
-available and intact. It is not authenticated, replicated, or protected from
-loss or rollback of the ledger file itself. Writers must be externally
-serialized; this module does not provide inter-process locking.
+The ledger is separate from the checkpoint envelope and detects a checkpoint
+sequence below the latest retained floor while the ledger remains available
+and intact. Cooperating writers are serialized with a persistent sidecar lock
+and POSIX advisory locking. This does not authenticate the ledger, protect it
+from replacement or rollback, or provide distributed-lock guarantees.
 """
 from __future__ import annotations
 
