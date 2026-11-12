@@ -190,6 +190,26 @@ class OperatorPinStoreTests(unittest.TestCase):
         self.assertEqual(result["operator_pin_rollback_guard"],
                          "INDEPENDENT_MINIMA_SUPPLIED_AND_CHECKED")
 
+
+    def test_recovery_wrapper_refuses_to_run_without_independent_minima(self):
+        from unittest import mock
+        self.append(witness=9, checkpoint=15)
+        with mock.patch(
+            "experiments.checkpoint_floor_witness.classify_checkpoint_recovery_with_witness"
+        ) as classifier:
+            with self.assertRaisesRegex(ValueError, "recovery requires independently retained"):
+                classify_checkpoint_recovery_with_operator_pins(
+                    [], None, None, {"receipt": "synthetic"},
+                    {"signature": "synthetic"}, {"record_version": "synthetic"},
+                    self.path.parent / "floor-ledger.jsonl", self.path, KEY,
+                    at_utc="2026-11-12T10:00:00Z",
+                    expected_witness_id="witness:test",
+                    expected_provider_id="provider:test",
+                    expected_failure_domain_id="domain:remote",
+                    local_storage_domain_id="domain:local",
+                )
+        classifier.assert_not_called()
+
     def test_invalid_key_and_boolean_coordinates_are_rejected(self):
         with self.assertRaisesRegex(ValueError, "at least 32 bytes"):
             append_operator_pins(self.path, b"short",
