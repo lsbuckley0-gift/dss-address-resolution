@@ -144,7 +144,7 @@ def _append_unlocked(path: Path, entries: list[dict], *, operation_id: str,
         "previous_entry_sha256": entries[-1]["entry_sha256"] if entries else _ZERO,
     }
     entry = {**payload, "entry_sha256": _digest(payload)}
-    encoded, existed = _canonical(entry) + b"\\n", path.exists()
+    encoded, existed = _canonical(entry) + b"\n", path.exists()
     descriptor = os.open(path, os.O_CREAT | os.O_APPEND | os.O_WRONLY, 0o600)
     try:
         if os.write(descriptor, encoded) != len(encoded):
