@@ -389,6 +389,9 @@ minima or establish that their source is operationally independent.
 The companion helper
 `classify_checkpoint_recovery_with_operator_pins(...)` places the authenticated
 operator ledger in front of the existing witness/local-ledger recovery gate.
+It requires all three independently retained minimums (pin revision and both
+coordinates) and refuses recovery classification if any is absent. The
+verifier-only helper remains available for diagnostic use without this gate.
 It loads and authenticates both operator coordinates, checks any separately
 retained minimum revision and coordinates, then passes the stored minimum
 witness sequence and checkpoint floor into recovery classification. It adds
