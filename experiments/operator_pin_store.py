@@ -378,9 +378,16 @@ def verify_checkpoint_floor_witness_with_operator_pins(
     result["operator_pin_revision"] = latest["pin_revision"]
     result["operator_pin_entry_sha256"] = _entry_digest(latest)
     result["operator_pin_authentication"] = "HMAC_SHA256_VERIFIED"
-    result["operator_pin_rollback_guard"] = "INDEPENDENT_ANCHOR_MINIMA_CHECKED"
-    result["independent_recovery_anchor_id"] = anchor["anchor_id"]
-    result["independent_recovery_anchor_source"] = anchor["source_reference"]
+    independent_checks = (
+        minimum_pin_revision is not None
+        and independent_minimum_witness_sequence is not None
+        and independent_minimum_checkpoint_sequence is not None
+    )
+    result["operator_pin_rollback_guard"] = (
+        "INDEPENDENT_MINIMA_SUPPLIED_AND_CHECKED"
+        if independent_checks
+        else "INDEPENDENT_MINIMA_NOT_ALL_SUPPLIED"
+    )
     return result
 
 
@@ -443,14 +450,7 @@ def classify_checkpoint_recovery_with_operator_pins(
     result["operator_pin_revision"] = latest["pin_revision"]
     result["operator_pin_entry_sha256"] = _entry_digest(latest)
     result["operator_pin_authentication"] = "HMAC_SHA256_VERIFIED"
-    independent_checks = (
-        minimum_pin_revision is not None
-        and independent_minimum_witness_sequence is not None
-        and independent_minimum_checkpoint_sequence is not None
-    )
-    result["operator_pin_rollback_guard"] = (
-        "INDEPENDENT_MINIMA_SUPPLIED_AND_CHECKED"
-        if independent_checks
-        else "INDEPENDENT_MINIMA_NOT_ALL_SUPPLIED"
-    )
+    result["operator_pin_rollback_guard"] = "INDEPENDENT_ANCHOR_MINIMA_CHECKED"
+    result["independent_recovery_anchor_id"] = anchor["anchor_id"]
+    result["independent_recovery_anchor_source"] = anchor["source_reference"]
     return result
