@@ -75,6 +75,27 @@ class RecoveryOperationJournalTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "digest mismatch"):
             inspect_recovery_operations(self.path)
 
+    def test_duplicate_json_keys_fail_closed(self):
+        self.begin()
+        raw = self.path.read_text()
+        self.path.write_text(raw.replace('"state":"RUNNING"', '"state":"RUNNING","state":"COMPLETED"', 1))
+        with self.assertRaisesRegex(ValueError, "duplicate JSON object key"):
+            inspect_recovery_operations(self.path)
+
+    def test_incomplete_final_record_fails_closed(self):
+        self.begin()
+        raw = self.path.read_text()
+        self.path.write_text(raw.rstrip("\\n"))
+        with self.assertRaisesRegex(ValueError, "incomplete.*newline terminator"):
+            inspect_recovery_operations(self.path)
+
+    def test_non_standard_json_constant_fails_closed(self):
+        self.begin()
+        raw = self.path.read_text()
+        self.path.write_text(raw.replace('"result_sha256":null', '"result_sha256":NaN', 1))
+        with self.assertRaisesRegex(ValueError, "non-standard JSON constant"):
+            inspect_recovery_operations(self.path)
+
     def test_boolean_sequence_rejected(self):
         with self.assertRaisesRegex(ValueError, "positive integer"):
             self.begin(attestation_sequence=True)
