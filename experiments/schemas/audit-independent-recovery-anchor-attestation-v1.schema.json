@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:dss:schemas:audit-independent-recovery-anchor-attestation:v1",
+  "title": "Signed independent recovery anchor attestation v1",
+  "description": "Ed25519-signed, sequence-bearing wrapper for the exact independent recovery anchor. Signature trust and anti-replay floor remain external inputs.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["record_version", "attestation_id", "authority_name", "sequence", "issued_at_utc", "expires_at_utc", "anchor"],
+  "properties": {
+    "record_version": {"const": "audit-independent-recovery-anchor-attestation/v1"},
+    "attestation_id": {"type": "string", "minLength": 1},
+    "authority_name": {"type": "string", "minLength": 1},
+    "sequence": {"type": "integer", "minimum": 1},
+    "issued_at_utc": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "expires_at_utc": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "anchor": {"$ref": "audit-independent-recovery-anchor-v1.schema.json"}
+  }
+}
