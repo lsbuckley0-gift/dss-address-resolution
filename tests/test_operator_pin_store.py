@@ -10,6 +10,7 @@ from experiments.operator_pin_store import (
     OperatorPinDurabilityUncertain,
     append_operator_pins,
     load_operator_pins,
+    verify_checkpoint_floor_witness_with_operator_pins,
 )
 
 KEY = b"synthetic-test-key-material-32-bytes-minimum!!"
@@ -120,6 +121,40 @@ class OperatorPinStoreTests(unittest.TestCase):
                 self.append(witness=9, checkpoint=15, second=1)
         with self.assertRaisesRegex(ValueError, "incomplete"):
             load_operator_pins(self.path, KEY)
+
+
+    def test_witness_verification_wrapper_uses_both_authenticated_pins(self):
+        from unittest import mock
+        self.append(witness=8, checkpoint=14)
+        with mock.patch(
+            "experiments.checkpoint_floor_witness.verify_checkpoint_floor_witness_receipt",
+            return_value={"witness_verification": "MOCKED"},
+        ) as verifier:
+            result = verify_checkpoint_floor_witness_with_operator_pins(
+                {"receipt": "synthetic"},
+                {"signature": "synthetic"},
+                {"record_version": "synthetic"},
+                self.path,
+                KEY,
+                at_utc="2026-11-12T10:00:00Z",
+                expected_witness_id="witness:test",
+                expected_provider_id="provider:test",
+                expected_failure_domain_id="domain:remote",
+                local_storage_domain_id="domain:local",
+                minimum_pin_revision=0,
+                independent_minimum_witness_sequence=8,
+                independent_minimum_checkpoint_sequence=14,
+            )
+        self.assertEqual(
+            verifier.call_args.kwargs["minimum_witness_sequence"], 8
+        )
+        self.assertEqual(
+            verifier.call_args.kwargs["minimum_checkpoint_sequence"], 14
+        )
+        self.assertEqual(result["operator_pin_authentication"], "HMAC_SHA256_VERIFIED")
+        self.assertEqual(result["operator_pin_rollback_guard"],
+                         "INDEPENDENT_MINIMA_SUPPLIED_AND_CHECKED")
+        self.assertEqual(result["operator_pin_revision"], 0)
 
     def test_invalid_key_and_boolean_coordinates_are_rejected(self):
         with self.assertRaisesRegex(ValueError, "at least 32 bytes"):
