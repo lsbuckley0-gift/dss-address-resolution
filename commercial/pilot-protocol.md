@@ -1292,3 +1292,12 @@ independent infrastructure.
 
 The focused operator-pin regression command is
 `python -m unittest discover -s tests -p 'test_operator_pin_store.py' -v`.
+
+The helper `verify_checkpoint_floor_witness_with_operator_pins(...)`
+connects the authenticated operator ledger to detached witness verification.
+It supplies the latest authenticated witness-sequence and checkpoint-floor
+pins to the existing verifier and can compare them with independently retained
+minimum revision and coordinate values. A missing/corrupt ledger, wrong key,
+or stale value below any supplied independent minimum raises an error before
+witness verification. If independent minima are omitted, the result explicitly
+reports that the independent rollback guard was not fully checked.
