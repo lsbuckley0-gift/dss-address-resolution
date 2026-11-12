@@ -70,8 +70,17 @@ def _entry_payload(entry: dict) -> dict:
 
 def _validate_history(entries: list[dict]) -> None:
     operations: dict[str, dict] = {}
+    attestation_owners: dict[tuple[str, int], tuple[str, str]] = {}
     for entry in entries:
         op = entry["operation_id"]
+        attestation_key = (entry["attestation_id"], entry["attestation_sequence"])
+        owner = (op, entry["request_sha256"])
+        prior_owner = attestation_owners.get(attestation_key)
+        if prior_owner is not None and prior_owner != owner:
+            raise ValueError(
+                "attestation sequence was reused by a different recovery operation."
+            )
+        attestation_owners[attestation_key] = owner
         prior = operations.get(op)
         binding = (entry["attestation_id"], entry["attestation_sequence"],
                    entry["request_sha256"])
@@ -194,6 +203,15 @@ def begin_or_resume_recovery(journal_path: str | os.PathLike[str], *,
     binding = (att, seq, request)
     with _exclusive(path):
         entries = _read_unlocked(path)
+        if any(
+            e["attestation_id"] == att
+            and e["attestation_sequence"] == seq
+            and e["operation_id"] != op
+            for e in entries
+        ):
+            raise ValueError(
+                "attestation sequence is already bound to a different recovery operation."
+            )
         latest = next((e for e in reversed(entries) if e["operation_id"] == op), None)
         if latest is not None:
             if (latest["attestation_id"], latest["attestation_sequence"], latest["request_sha256"]) != binding:
