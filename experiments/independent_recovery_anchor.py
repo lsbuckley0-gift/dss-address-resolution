@@ -270,9 +270,9 @@ def classify_checkpoint_recovery_with_signed_anchor(
             *args, independent_recovery_anchor=verified["independent_recovery_anchor"],
             at_utc=at_utc, **kwargs,
         )
+        result = dict(result)
     except Exception as exc:
         raise RecoveryClassificationAfterSequenceConsumption(verified) from exc
-    result = dict(result)
     result["recovery_anchor_signature_verification"] = verified
     result["operator_pin_rollback_guard"] = "SIGNED_INDEPENDENT_ANCHOR_MINIMA_CHECKED"
     return result
