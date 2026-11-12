@@ -10,6 +10,7 @@ from experiments.operator_pin_store import (
     OperatorPinDurabilityUncertain,
     append_operator_pins,
     load_operator_pins,
+    validate_independent_recovery_anchor,
     verify_checkpoint_floor_witness_with_operator_pins,
     classify_checkpoint_recovery_with_operator_pins,
 )
@@ -154,7 +155,8 @@ class OperatorPinStoreTests(unittest.TestCase):
         )
         self.assertEqual(result["operator_pin_authentication"], "HMAC_SHA256_VERIFIED")
         self.assertEqual(result["operator_pin_rollback_guard"],
-                         "INDEPENDENT_MINIMA_SUPPLIED_AND_CHECKED")
+                         "INDEPENDENT_ANCHOR_MINIMA_CHECKED")
+        self.assertEqual(result["independent_recovery_anchor_id"], "anchor:primary")
         self.assertEqual(result["operator_pin_revision"], 0)
 
 
@@ -180,9 +182,14 @@ class OperatorPinStoreTests(unittest.TestCase):
                 expected_provider_id="provider:test",
                 expected_failure_domain_id="domain:remote",
                 local_storage_domain_id="domain:local",
-                minimum_pin_revision=0,
-                independent_minimum_witness_sequence=9,
-                independent_minimum_checkpoint_sequence=15,
+                independent_recovery_anchor={
+                    "record_version": "audit-independent-recovery-anchor/v1",
+                    "anchor_id": "anchor:primary",
+                    "source_reference": "vault://recovery/epoch-4",
+                    "minimum_pin_revision": 0,
+                    "minimum_witness_sequence": 9,
+                    "minimum_checkpoint_sequence": 15,
+                },
             )
         self.assertEqual(classifier.call_args.kwargs["minimum_witness_sequence"], 9)
         self.assertEqual(classifier.call_args.kwargs["operator_minimum_checkpoint_sequence"], 15)
@@ -207,8 +214,31 @@ class OperatorPinStoreTests(unittest.TestCase):
                     expected_provider_id="provider:test",
                     expected_failure_domain_id="domain:remote",
                     local_storage_domain_id="domain:local",
+                    independent_recovery_anchor={},
                 )
         classifier.assert_not_called()
+
+    def test_independent_recovery_anchor_is_strict_and_atomic(self):
+        valid = {
+            "record_version": "audit-independent-recovery-anchor/v1",
+            "anchor_id": "anchor:primary",
+            "source_reference": "vault://recovery/epoch-4",
+            "minimum_pin_revision": 4,
+            "minimum_witness_sequence": 19,
+            "minimum_checkpoint_sequence": 27,
+        }
+        self.assertEqual(validate_independent_recovery_anchor(valid)["minimum_checkpoint_sequence"], 27)
+        for invalid in (
+            {**valid, "unexpected": "value"},
+            {key: value for key, value in valid.items() if key != "minimum_witness_sequence"},
+            {**valid, "record_version": "audit-independent-recovery-anchor/v0"},
+            {**valid, "minimum_pin_revision": True},
+            {**valid, "minimum_witness_sequence": 0},
+            {**valid, "minimum_checkpoint_sequence": False},
+            {**valid, "source_reference": " "},
+        ):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                validate_independent_recovery_anchor(invalid)
 
     def test_invalid_key_and_boolean_coordinates_are_rejected(self):
         with self.assertRaisesRegex(ValueError, "at least 32 bytes"):
