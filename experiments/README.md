@@ -552,3 +552,40 @@ does not satisfy this operation-bound contract. Integration must be a separate,
 explicitly versioned change; until then, do not claim operation-bound recovery
 or automatically resume a RUNNING journal entry.
 
+
+
+## Operation-bound recovery resume gate
+
+`experiments/recovery_resume_gate.py` joins the local journal to the
+operation-bound independent sequence result without introducing a second
+verification authority. `evaluate_recovery_resume` re-reads and validates the
+journal on each decision, checks the exact four-field operation binding in its
+latest entry, requires the persisted state to be `RUNNING`, and accepts only a
+typed sequence result carrying that same binding.
+
+The three stabilisers are constraints around one operation identity:
+
+1. **Identity:** the operation ID and its attestation/request binding must match
+   exactly.
+2. **Continuity:** the journal entry and external sequence outcome must carry
+   the same complete binding; a status string or numeric sequence alone is
+   insufficient.
+3. **Exclusion:** the journal's full-history validation rejects a second
+   operation owner for the same attestation ID/sequence pair before the gate
+   can inspect the latest operation.
+
+Only `CONSUMED` returns `AUTHORISED`. `NOT_CONSUMED` and `INDETERMINATE`
+return explicit blocked decisions. Missing, mismatched, completed, malformed,
+or hash-chain-invalid journal state raises an error and cannot authorise
+classification. The gate does not consume a sequence, run a classifier, or
+provide a production sequence service; it is a narrow decision boundary over
+the existing journal and typed contract.
+
+Run focused tests with:
+
+```bash
+python -m unittest discover -s tests -p 'test_recovery_resume_gate.py' -v
+```
+
+These tests are synthetic. Execute them in a suitable local environment before
+treating the new gate as runtime-verified.
