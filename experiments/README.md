@@ -376,3 +376,12 @@ python -m unittest discover -s tests -p 'test_operator_pin_store.py' -v
 The test suite covers independent coordinate monotonicity, HMAC tampering,
 wrong-key rejection, stale-backup detection when independent minima are
 retained, idempotent retries, concurrent writers and partial-append failure.
+
+The integration helper
+`verify_checkpoint_floor_witness_with_operator_pins(...)` loads and
+authenticates the retained operator ledger, then supplies its latest witness
+sequence and checkpoint floor directly to the existing witness verifier.
+Optional independent minima are checked before verification. Its result
+reports the operator pin revision, entry digest, HMAC verification and whether
+all three independent minima were supplied. The helper does not infer those
+minima or establish that their source is operationally independent.
