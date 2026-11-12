@@ -383,6 +383,7 @@ def verify_checkpoint_floor_witness_with_operator_pins(
     result["independent_recovery_anchor_source"] = anchor["source_reference"]
     return result
 
+
 def classify_checkpoint_recovery_with_operator_pins(
     events: list,
     checkpoint: dict | None,
