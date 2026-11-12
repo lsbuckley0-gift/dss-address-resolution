@@ -11,6 +11,7 @@ import binascii
 import json
 import re
 from datetime import datetime
+from collections.abc import Callable
 
 from experiments.operator_pin_store import validate_independent_recovery_anchor
 from experiments.trust_store import resolve_eligible_key
@@ -186,7 +187,7 @@ def classify_checkpoint_recovery_with_signed_anchor(
     recovery_anchor_trust_store: dict,
     at_utc: str,
     minimum_anchor_sequence: int,
-    consume_anchor_sequence,
+    consume_anchor_sequence: Callable[[int, int], bool],
     recovery_anchor_trust_store_pin: dict | None = None,
     **kwargs,
 ) -> dict:
