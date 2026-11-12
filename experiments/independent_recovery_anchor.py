@@ -25,6 +25,18 @@ _DOMAIN = b"\xce\xb4ss-independent-recovery-anchor/v1\n"
 _FIELDS = {"record_version", "attestation_id", "authority_name", "sequence",
            "issued_at_utc", "expires_at_utc", "anchor"}
 _SIGNATURE_FIELDS = {"record_version", "key_id", "signature_base64"}
+class RecoveryClassificationAfterSequenceConsumption(RuntimeError):
+    """Classification failed after the signed anchor sequence was consumed."""
+
+    def __init__(self, verification: dict):
+        self.recovery_anchor_verification = verification
+        self.sequence_consumption = "CONFIRMED_CONSUMED"
+        super().__init__(
+            "recovery classification failed after the anchor sequence was durably "
+            "consumed; reconcile the operation before any retry."
+        )
+
+
 _TIME = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$")
 
 
@@ -253,10 +265,13 @@ def classify_checkpoint_recovery_with_signed_anchor(
             "recovery_classification": "NOT_PERFORMED",
             "sequence_consumption": "REJECTED",
         }
-    result = classify_checkpoint_recovery_with_operator_pins(
-        *args, independent_recovery_anchor=verified["independent_recovery_anchor"],
-        at_utc=at_utc, **kwargs,
-    )
+    try:
+        result = classify_checkpoint_recovery_with_operator_pins(
+            *args, independent_recovery_anchor=verified["independent_recovery_anchor"],
+            at_utc=at_utc, **kwargs,
+        )
+    except Exception as exc:
+        raise RecoveryClassificationAfterSequenceConsumption(verified) from exc
     result = dict(result)
     result["recovery_anchor_signature_verification"] = verified
     result["operator_pin_rollback_guard"] = "SIGNED_INDEPENDENT_ANCHOR_MINIMA_CHECKED"
