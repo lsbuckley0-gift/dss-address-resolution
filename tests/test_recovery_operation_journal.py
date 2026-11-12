@@ -58,6 +58,19 @@ class RecoveryOperationJournalTests(unittest.TestCase):
         self.assertEqual(set(latest), {"op-001"})
         self.assertEqual(latest["op-001"]["state"], "RUNNING")
 
+    def test_concurrent_operations_cannot_claim_the_same_attestation_sequence(self):
+        def attempt(index):
+            try:
+                return self.begin(operation_id=f"op-{index:03d}")["operation_status"]
+            except ValueError:
+                return "REJECTED"
+
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            statuses = list(pool.map(attempt, range(8)))
+        self.assertEqual(statuses.count("STARTED"), 1)
+        self.assertEqual(statuses.count("REJECTED"), 7)
+        self.assertEqual(len(inspect_recovery_operations(self.path)), 1)
+
     def test_operation_id_cannot_be_rebound(self):
         self.begin()
         with self.assertRaisesRegex(ValueError, "reused with different inputs"):
