@@ -40,12 +40,12 @@ class RecoveryResumeGateTests(unittest.TestCase):
     def result(self, outcome, binding=None):
         return SequenceConsumptionResult(binding or self.binding, outcome)
 
-    def test_exact_running_journal_and_consumed_binding_authorise(self):
+    def test_exact_running_journal_and_consumed_binding_are_eligible_at_check(self):
         self.assertEqual(
             evaluate_recovery_resume(
                 self.path, self.binding, self.result(SequenceConsumptionOutcome.CONSUMED)
             ),
-            RecoveryResumeDecision.AUTHORISED,
+            RecoveryResumeDecision.ELIGIBLE_AT_CHECK,
         )
 
     def test_not_consumed_never_authorises_classification(self):
