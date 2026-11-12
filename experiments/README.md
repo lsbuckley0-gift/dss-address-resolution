@@ -461,6 +461,8 @@ independence of the source, or event truth. An independently retained
 sequence floor prevents replay only if its own storage and recovery path
 cannot be rolled back with the attestation.
 
+A negative-control regression now changes the governance trust store while retaining its original digest pin and confirms that the mismatch blocks signature verification. It then restores the old trust store and old pin together: the old signature verifies again, while `authority_authentication` remains `NOT_ESTABLISHED`. This is deliberate evidence that a digest pin detects policy drift only while the pin itself is independently retained; co-rollback of the trust root and pin is not prevented by this software.
+
 Machine-readable contract:
 `experiments/schemas/audit-independent-recovery-anchor-attestation-v1.schema.json`.
 
