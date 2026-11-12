@@ -463,6 +463,16 @@ cannot be rolled back with the attestation.
 
 A negative-control regression now changes the governance trust store while retaining its original digest pin and confirms that the mismatch blocks signature verification. It then restores the old trust store and old pin together: the old signature verifies again, while `authority_authentication` remains `NOT_ESTABLISHED`. This is deliberate evidence that a digest pin detects policy drift only while the pin itself is independently retained; co-rollback of the trust root and pin is not prevented by this software.
 
+The recovery wrapper also requires a caller-supplied `consume_anchor_sequence(expected_floor, next_floor)`
+callback. After signature, purpose, validity and current-floor checks succeed, the wrapper
+must atomically advance an independently retained monotonic sequence from the supplied
+floor to `attestation.sequence + 1` **before** recovery classification. The callback must
+return exactly `True` only after durable compare-and-advance; rejection or an exception
+prevents recovery classification. This closes the same-floor replay gap in the wrapper
+when the callback's storage contract is honoured. The standalone verifier is diagnostic
+and does not consume state. The callback's durability, atomicity and independent failure
+domain remain deployment obligations, not properties established by these unit tests.
+
 Machine-readable contract:
 `experiments/schemas/audit-independent-recovery-anchor-attestation-v1.schema.json`.
 
