@@ -144,7 +144,7 @@ class RecoveryOperationJournalTests(unittest.TestCase):
     def test_incomplete_final_record_fails_closed(self):
         self.begin()
         raw = self.path.read_text()
-        self.path.write_text(raw.rstrip("\\n"))
+        self.path.write_text(raw.rstrip("\n"))
         with self.assertRaisesRegex(ValueError, "incomplete.*newline terminator"):
             inspect_recovery_operations(self.path)
 
