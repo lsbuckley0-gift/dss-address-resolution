@@ -81,6 +81,11 @@ class OperatorPinStoreTests(unittest.TestCase):
         self.append()
         result = self.append(second=1)
         self.assertEqual(result["append"], "NOT_REQUIRED_IDENTICAL_PINS")
+        self.assertEqual(result["authentication"], "HMAC_SHA256_VERIFIED")
+        self.assertEqual(
+            result["directory_fsync"],
+            "CONFIRMED" if hasattr(os, "O_DIRECTORY") else "UNAVAILABLE",
+        )
         self.assertEqual(len(load_operator_pins(self.path, KEY)), 1)
 
     def test_concurrent_writers_preserve_valid_monotonic_history(self):
