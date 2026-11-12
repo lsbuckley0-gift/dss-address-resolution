@@ -108,9 +108,9 @@ def _read_unlocked(path: Path) -> list[dict]:
         return []
     entries, previous = [], _ZERO
     for index, raw in enumerate(path.read_bytes().splitlines(keepends=True), 1):
-        if not raw.endswith(b"\\n"):
+        if not raw.endswith(b"\n"):
             raise ValueError(f"recovery journal entry {index} is incomplete (missing newline terminator).")
-        if raw == b"\\n":
+        if raw == b"\n":
             raise ValueError(f"recovery journal contains an empty line at {index}.")
         try:
             entry = json.loads(
