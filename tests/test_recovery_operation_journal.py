@@ -164,10 +164,10 @@ class RecoveryOperationJournalTests(unittest.TestCase):
         canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"),
                                ensure_ascii=False, allow_nan=False).encode("utf-8")
         records[0]["entry_sha256"] = hashlib.sha256(canonical).hexdigest()
-        self.path.write_text("\\n".join(
+        self.path.write_text("\n".join(
             json.dumps(record, sort_keys=True, separators=(",", ":"))
             for record in records
-        ) + "\\n")
+        ) + "\n")
         with self.assertRaisesRegex(ValueError, "invalid state"):
             inspect_recovery_operations(self.path)
 
