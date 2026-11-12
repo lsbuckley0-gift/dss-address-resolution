@@ -574,12 +574,15 @@ The three stabilisers are constraints around one operation identity:
    operation owner for the same attestation ID/sequence pair before the gate
    can inspect the latest operation.
 
-Only `CONSUMED` returns `AUTHORISED`. `NOT_CONSUMED` and `INDETERMINATE`
+Only `CONSUMED` returns `ELIGIBLE_AT_CHECK`. `NOT_CONSUMED` and `INDETERMINATE`
 return explicit blocked decisions. Missing, mismatched, completed, malformed,
 or hash-chain-invalid journal state raises an error and cannot authorise
 classification. The gate does not consume a sequence, run a classifier, or
 provide a production sequence service; it is a narrow decision boundary over
-the existing journal and typed contract.
+the existing journal and typed contract. Its result is a point-in-time check,
+not an execution lock or lease: callers must serialize classification for a
+given operation and make external side effects idempotent or independently
+reconcilable.
 
 Run focused tests with:
 
