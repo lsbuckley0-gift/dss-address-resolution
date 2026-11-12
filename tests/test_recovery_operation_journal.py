@@ -99,6 +99,20 @@ class RecoveryOperationJournalTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "digest mismatch"):
             inspect_recovery_operations(self.path)
 
+    def test_boolean_event_sequence_fails_closed(self):
+        self.begin()
+        raw = self.path.read_text()
+        self.path.write_text(raw.replace('"event_sequence":1', '"event_sequence":true', 1))
+        with self.assertRaisesRegex(ValueError, "invalid or non-contiguous sequence"):
+            inspect_recovery_operations(self.path)
+
+    def test_float_event_sequence_fails_closed(self):
+        self.begin()
+        raw = self.path.read_text()
+        self.path.write_text(raw.replace('"event_sequence":1', '"event_sequence":1.0', 1))
+        with self.assertRaisesRegex(ValueError, "invalid or non-contiguous sequence"):
+            inspect_recovery_operations(self.path)
+
     def test_duplicate_json_keys_fail_closed(self):
         self.begin()
         raw = self.path.read_text()
