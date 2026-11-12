@@ -54,9 +54,11 @@ class IndependentRecoveryAnchorTests(unittest.TestCase):
         }
 
     def verify(self, **kwargs):
+        floor = kwargs.pop("minimum_anchor_sequence", 7)
         return verify_independent_recovery_anchor(
             self.attestation, self.envelope, self.store,
-            at_utc="2026-11-12T12:00:00Z", minimum_anchor_sequence=7, **kwargs
+            at_utc="2026-11-12T12:00:00Z",
+            minimum_anchor_sequence=floor, **kwargs
         )
 
     def test_valid_signature_binds_anchor_and_distinct_purpose(self):
