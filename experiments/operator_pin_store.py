@@ -371,12 +371,19 @@ def classify_checkpoint_recovery_with_operator_pins(
     independent_minimum_checkpoint_sequence: int | None = None,
     trust_store_pin: dict | None = None,
 ) -> dict:
-    """Gate recovery classification on authenticated operator pins and witness.
+    """Gate recovery on authenticated operator pins and independent minima.
 
-    The operator ledger is authenticated first. Its two retained coordinates
-    become the minimums passed to the existing witness/local-ledger recovery
-    gate. Optional independent minima detect a valid but stale operator backup.
+    All three independent minima are mandatory here: without a separately
+    retained revision and both coordinates, a valid stale backup is not
+    distinguishable from current state. The verifier-only helper remains
+    available for diagnostic use without this recovery authorization.
     """
+    if (minimum_pin_revision is None
+            or independent_minimum_witness_sequence is None
+            or independent_minimum_checkpoint_sequence is None):
+        raise ValueError(
+            "recovery requires independently retained pin revision and both coordinate minima."
+        )
     entries = load_operator_pins(
         operator_pin_ledger_path,
         operator_pin_hmac_key,
