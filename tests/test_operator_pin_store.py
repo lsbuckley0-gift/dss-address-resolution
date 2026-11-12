@@ -155,8 +155,7 @@ class OperatorPinStoreTests(unittest.TestCase):
         )
         self.assertEqual(result["operator_pin_authentication"], "HMAC_SHA256_VERIFIED")
         self.assertEqual(result["operator_pin_rollback_guard"],
-                         "INDEPENDENT_ANCHOR_MINIMA_CHECKED")
-        self.assertEqual(result["independent_recovery_anchor_id"], "anchor:primary")
+                         "INDEPENDENT_MINIMA_SUPPLIED_AND_CHECKED")
         self.assertEqual(result["operator_pin_revision"], 0)
 
 
@@ -195,7 +194,8 @@ class OperatorPinStoreTests(unittest.TestCase):
         self.assertEqual(classifier.call_args.kwargs["operator_minimum_checkpoint_sequence"], 15)
         self.assertEqual(result["recovery_status"], "WITNESS_LOCAL_LEDGER_DIVERGENCE")
         self.assertEqual(result["operator_pin_rollback_guard"],
-                         "INDEPENDENT_MINIMA_SUPPLIED_AND_CHECKED")
+                         "INDEPENDENT_ANCHOR_MINIMA_CHECKED")
+        self.assertEqual(result["independent_recovery_anchor_id"], "anchor:primary")
 
 
     def test_recovery_wrapper_refuses_to_run_without_independent_minima(self):
@@ -204,7 +204,7 @@ class OperatorPinStoreTests(unittest.TestCase):
         with mock.patch(
             "experiments.checkpoint_floor_witness.classify_checkpoint_recovery_with_witness"
         ) as classifier:
-            with self.assertRaisesRegex(ValueError, "recovery requires independently retained"):
+            with self.assertRaisesRegex(ValueError, "independent recovery anchor missing field"):
                 classify_checkpoint_recovery_with_operator_pins(
                     [], None, None, {"receipt": "synthetic"},
                     {"signature": "synthetic"}, {"record_version": "synthetic"},
