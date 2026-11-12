@@ -1303,9 +1303,10 @@ witness verification. If independent minima are omitted, the result explicitly
 reports that the independent rollback guard was not fully checked.
 
 Recovery integration uses
-`classify_checkpoint_recovery_with_operator_pins(...)`. This wrapper loads
-and authenticates the operator ledger before invoking the existing external-
-witness/local-ledger recovery gate. It supplies both stored operator minimums
-and refuses to classify if the operator ledger is missing, malformed, has an
-invalid HMAC, or falls below any independently retained minimum supplied by
-the deployment.
+`classify_checkpoint_recovery_with_operator_pins(...)`. This wrapper requires
+all three independently retained minimums (pin revision and both coordinates),
+then loads and authenticates the operator ledger before invoking the existing
+external-witness/local-ledger recovery gate. It supplies both stored operator
+minimums and refuses to classify if an independent minimum is absent, or if
+the operator ledger is missing, malformed, has an invalid HMAC, or falls below
+any independently retained minimum supplied by the deployment.
