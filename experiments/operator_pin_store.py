@@ -225,6 +225,7 @@ def append_operator_pins(
                     "minimum_witness_sequence": witness,
                     "minimum_checkpoint_sequence": checkpoint,
                     "authentication": "HMAC_SHA256_VERIFIED",
+                    "directory_fsync": directory_status,
                 }
             revision = previous["pin_revision"] + 1
             previous_digest = _entry_digest(previous)
@@ -270,7 +271,7 @@ def append_operator_pins(
             "minimum_witness_sequence": witness,
             "minimum_checkpoint_sequence": checkpoint,
             "entry_sha256": _entry_digest(entry),
-            "authentication": "HMAC_SHA256_CONFIRMED",
+            "authentication": "HMAC_SHA256_TAG_WRITTEN",
             "directory_fsync": directory_status,
         }
 
