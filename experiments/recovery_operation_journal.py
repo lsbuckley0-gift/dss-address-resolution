@@ -137,7 +137,7 @@ def _read_unlocked(path: Path) -> list[dict]:
         _identifier(entry["attestation_id"], "attestation_id")
         _positive(entry["attestation_sequence"], "attestation_sequence")
         _hash(entry["request_sha256"], "request_sha256")
-        if entry["state"] not in {"RESERVED", "RUNNING", "COMPLETED"}:
+        if not isinstance(entry["state"], str) or entry["state"] not in {"RESERVED", "RUNNING", "COMPLETED"}:
             raise ValueError(f"recovery journal entry {index} has an invalid state.")
         result = entry["result_sha256"]
         if result is not None:
