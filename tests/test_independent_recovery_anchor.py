@@ -242,6 +242,29 @@ class IndependentRecoveryAnchorTests(unittest.TestCase):
         self.assertEqual(result["recovery_classification"], "NOT_PERFORMED")
         classifier.assert_not_called()
 
+    def test_sequence_consumer_exception_prevents_recovery(self):
+        from unittest.mock import patch
+        args = ([], None, None, {}, {}, {}, "floor.jsonl", "pins.jsonl", b"x" * 32)
+        def unavailable(expected, next_value):
+            raise OSError("independent store unavailable")
+        with patch(
+            "experiments.operator_pin_store.classify_checkpoint_recovery_with_operator_pins"
+        ) as classifier:
+            result = classify_checkpoint_recovery_with_signed_anchor(
+                *args,
+                recovery_anchor_attestation=self.attestation,
+                recovery_anchor_signature_envelope=self.envelope,
+                recovery_anchor_trust_store=self.store,
+                at_utc="2026-11-12T12:00:00Z",
+                minimum_anchor_sequence=7,
+                consume_anchor_sequence=unavailable,
+            )
+        self.assertEqual(
+            result["recovery_status"], "RECOVERY_ANCHOR_SEQUENCE_NOT_CONSUMED"
+        )
+        self.assertEqual(result["sequence_consumption"], "FAILED")
+        classifier.assert_not_called()
+
     def test_boolean_sequence_and_floor_rejected(self):
         changed = {**self.attestation, "sequence": True}
         with self.assertRaisesRegex(ValueError, "positive integer"):
