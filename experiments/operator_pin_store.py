@@ -24,6 +24,11 @@ import re
 from experiments.audit_event_chain import _timestamp
 
 _VERSION = "audit-operator-pin-entry/v1"
+_RECOVERY_ANCHOR_VERSION = "audit-independent-recovery-anchor/v1"
+_RECOVERY_ANCHOR_FIELDS = {
+    "record_version", "anchor_id", "source_reference", "minimum_pin_revision",
+    "minimum_witness_sequence", "minimum_checkpoint_sequence",
+}
 _GENESIS = "0" * 64
 _FIELDS = {
     "record_version", "pin_revision", "minimum_witness_sequence",
@@ -33,6 +38,41 @@ _FIELDS = {
 
 class OperatorPinDurabilityUncertain(OSError):
     """An operator-pin append may be visible, but durability is unconfirmed."""
+
+
+def validate_independent_recovery_anchor(anchor: object) -> dict:
+    """Validate one externally authenticated recovery anchor's exact schema.
+
+    This checks structure and coordinate types only. The caller must authenticate
+    the anchor and its source independently before passing it here; a source label
+    is provenance metadata, not proof of independence or authenticity.
+    """
+    if not isinstance(anchor, dict):
+        raise ValueError("independent recovery anchor must be an object.")
+    missing = _RECOVERY_ANCHOR_FIELDS - set(anchor)
+    extra = set(anchor) - _RECOVERY_ANCHOR_FIELDS
+    if missing:
+        raise ValueError("independent recovery anchor missing field(s): " + ", ".join(sorted(missing)))
+    if extra:
+        raise ValueError("independent recovery anchor has unsupported field(s): " + ", ".join(sorted(extra)))
+    if anchor["record_version"] != _RECOVERY_ANCHOR_VERSION:
+        raise ValueError(f"independent recovery anchor record_version must be {_RECOVERY_ANCHOR_VERSION}.")
+    for field in ("anchor_id", "source_reference"):
+        value = anchor[field]
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"independent recovery anchor {field} must be a non-empty string.")
+    return {
+        "record_version": _RECOVERY_ANCHOR_VERSION,
+        "anchor_id": anchor["anchor_id"],
+        "source_reference": anchor["source_reference"],
+        "minimum_pin_revision": _integer(anchor["minimum_pin_revision"], "minimum_pin_revision"),
+        "minimum_witness_sequence": _integer(
+            anchor["minimum_witness_sequence"], "minimum_witness_sequence", positive=True
+        ),
+        "minimum_checkpoint_sequence": _integer(
+            anchor["minimum_checkpoint_sequence"], "minimum_checkpoint_sequence"
+        ),
+    }
 
 
 def _key_bytes(key: object) -> bytes:
@@ -338,16 +378,9 @@ def verify_checkpoint_floor_witness_with_operator_pins(
     result["operator_pin_revision"] = latest["pin_revision"]
     result["operator_pin_entry_sha256"] = _entry_digest(latest)
     result["operator_pin_authentication"] = "HMAC_SHA256_VERIFIED"
-    independent_checks = (
-        minimum_pin_revision is not None
-        and independent_minimum_witness_sequence is not None
-        and independent_minimum_checkpoint_sequence is not None
-    )
-    result["operator_pin_rollback_guard"] = (
-        "INDEPENDENT_MINIMA_SUPPLIED_AND_CHECKED"
-        if independent_checks
-        else "INDEPENDENT_MINIMA_NOT_ALL_SUPPLIED"
-    )
+    result["operator_pin_rollback_guard"] = "INDEPENDENT_ANCHOR_MINIMA_CHECKED"
+    result["independent_recovery_anchor_id"] = anchor["anchor_id"]
+    result["independent_recovery_anchor_source"] = anchor["source_reference"]
     return result
 
 def classify_checkpoint_recovery_with_operator_pins(
@@ -366,30 +399,22 @@ def classify_checkpoint_recovery_with_operator_pins(
     expected_provider_id: str,
     expected_failure_domain_id: str,
     local_storage_domain_id: str,
-    minimum_pin_revision: int | None = None,
-    independent_minimum_witness_sequence: int | None = None,
-    independent_minimum_checkpoint_sequence: int | None = None,
+    independent_recovery_anchor: dict,
     trust_store_pin: dict | None = None,
 ) -> dict:
-    """Gate recovery on authenticated operator pins and independent minima.
+    """Gate recovery on authenticated operator pins and one independent anchor.
 
-    All three independent minima are mandatory here: without a separately
-    retained revision and both coordinates, a valid stale backup is not
-    distinguishable from current state. The verifier-only helper remains
-    available for diagnostic use without this recovery authorization.
+    The anchor's schema is validated here, but its authenticity and independent
+    provenance must be established by the caller before invocation. A stale
+    authenticated ledger remains indistinguishable without that external check.
     """
-    if (minimum_pin_revision is None
-            or independent_minimum_witness_sequence is None
-            or independent_minimum_checkpoint_sequence is None):
-        raise ValueError(
-            "recovery requires independently retained pin revision and both coordinate minima."
-        )
+    anchor = validate_independent_recovery_anchor(independent_recovery_anchor)
     entries = load_operator_pins(
         operator_pin_ledger_path,
         operator_pin_hmac_key,
-        minimum_revision=minimum_pin_revision,
-        minimum_witness_sequence=independent_minimum_witness_sequence,
-        minimum_checkpoint_sequence=independent_minimum_checkpoint_sequence,
+        minimum_revision=anchor["minimum_pin_revision"],
+        minimum_witness_sequence=anchor["minimum_witness_sequence"],
+        minimum_checkpoint_sequence=anchor["minimum_checkpoint_sequence"],
     )
     latest = entries[-1]
     from experiments.checkpoint_floor_witness import (
