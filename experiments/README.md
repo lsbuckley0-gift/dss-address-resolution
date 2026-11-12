@@ -522,3 +522,33 @@ This is a local durability primitive, not a distributed transaction manager. The
 8. Call complete_recovery only after classification and required output checks succeed. Store a digest of the canonical result.
 
 A crash after sequence consumption but before classification leaves a RUNNING record that can be resumed with the same operation ID. A crash after classification but before completion recording may require re-running classification; therefore the classifier and its side effects must be idempotent or independently reconcilable. This journal alone cannot guarantee exactly-once external effects.
+
+## Operation-bound independent recovery sequence contract
+
+`experiments/recovery_sequence_contract.py` formalises the identity that a
+production anti-replay sequence service must consume and later query. Its
+immutable `RecoverySequenceBinding` contains all four fields:
+
+- `operation_id`
+- `attestation_id`
+- `attestation_sequence`
+- `request_sha256`
+
+The service protocol exposes `consume(binding)` and `query(binding)`, both
+returning a typed `SequenceConsumptionResult` bound to that exact identity.
+The only accepted outcomes are `CONSUMED`, `NOT_CONSUMED`, and
+`INDETERMINATE`. A response attributed to a different binding, or an untyped
+response, is rejected. If consume raises, the helper queries the same binding;
+if that query also fails, the result is `INDETERMINATE`, never an assumed
+success or permission to proceed.
+
+This is a contract and validation layer, **not** a production sequence store.
+The test double is not durable and is not evidence of independent failure-domain
+operation. A real service must implement atomic compare-and-consume, durable
+operation-keyed idempotency, and queryable outcomes across process and host
+failures. The existing signed-anchor callback accepting only
+`(expected_floor, next_floor) -> bool` remains unchanged for compatibility and
+does not satisfy this operation-bound contract. Integration must be a separate,
+explicitly versioned change; until then, do not claim operation-bound recovery
+or automatically resume a RUNNING journal entry.
+
