@@ -385,3 +385,13 @@ Optional independent minima are checked before verification. Its result
 reports the operator pin revision, entry digest, HMAC verification and whether
 all three independent minima were supplied. The helper does not infer those
 minima or establish that their source is operationally independent.
+
+The companion helper
+`classify_checkpoint_recovery_with_operator_pins(...)` places the authenticated
+operator ledger in front of the existing witness/local-ledger recovery gate.
+It loads and authenticates both operator coordinates, checks any separately
+retained minimum revision and coordinates, then passes the stored minimum
+witness sequence and checkpoint floor into recovery classification. It adds
+the operator pin revision, entry digest, authentication state and independent-
+minimum status to the recovery result. Missing, invalid or stale operator pin
+state fails before recovery classification.
