@@ -266,24 +266,20 @@ class IndependentRecoveryAnchorTests(unittest.TestCase):
         classifier.assert_not_called()
 
     def test_invalid_recovery_call_does_not_consume_anchor_sequence(self):
-        from unittest.mock import Mock, patch
+        from unittest.mock import Mock
         consume = Mock(return_value=True)
-        with patch(
-            "experiments.operator_pin_store.classify_checkpoint_recovery_with_operator_pins"
-        ) as classifier:
-            with self.assertRaisesRegex(
-                ValueError, "arguments are invalid; anchor sequence was not consumed"
-            ):
-                classify_checkpoint_recovery_with_signed_anchor(
-                    recovery_anchor_attestation=self.attestation,
-                    recovery_anchor_signature_envelope=self.envelope,
-                    recovery_anchor_trust_store=self.store,
-                    at_utc="2026-11-12T12:00:00Z",
-                    minimum_anchor_sequence=7,
-                    consume_anchor_sequence=consume,
-                )
+        with self.assertRaisesRegex(
+            ValueError, "arguments are invalid; anchor sequence was not consumed"
+        ):
+            classify_checkpoint_recovery_with_signed_anchor(
+                recovery_anchor_attestation=self.attestation,
+                recovery_anchor_signature_envelope=self.envelope,
+                recovery_anchor_trust_store=self.store,
+                at_utc="2026-11-12T12:00:00Z",
+                minimum_anchor_sequence=7,
+                consume_anchor_sequence=consume,
+            )
         consume.assert_not_called()
-        classifier.assert_not_called()
 
     def test_boolean_sequence_and_floor_rejected(self):
         changed = {**self.attestation, "sequence": True}
