@@ -11,6 +11,7 @@ from experiments.operator_pin_store import (
     append_operator_pins,
     load_operator_pins,
     verify_checkpoint_floor_witness_with_operator_pins,
+    classify_checkpoint_recovery_with_operator_pins,
 )
 
 KEY = b"synthetic-test-key-material-32-bytes-minimum!!"
@@ -155,6 +156,39 @@ class OperatorPinStoreTests(unittest.TestCase):
         self.assertEqual(result["operator_pin_rollback_guard"],
                          "INDEPENDENT_MINIMA_SUPPLIED_AND_CHECKED")
         self.assertEqual(result["operator_pin_revision"], 0)
+
+
+    def test_recovery_wrapper_gates_on_authenticated_operator_pins(self):
+        from unittest import mock
+        self.append(witness=9, checkpoint=15)
+        with mock.patch(
+            "experiments.checkpoint_floor_witness.classify_checkpoint_recovery_with_witness",
+            return_value={"recovery_status": "WITNESS_LOCAL_LEDGER_DIVERGENCE"},
+        ) as classifier:
+            result = classify_checkpoint_recovery_with_operator_pins(
+                [],
+                None,
+                None,
+                {"receipt": "synthetic"},
+                {"signature": "synthetic"},
+                {"record_version": "synthetic"},
+                self.path.parent / "floor-ledger.jsonl",
+                self.path,
+                KEY,
+                at_utc="2026-11-12T10:00:00Z",
+                expected_witness_id="witness:test",
+                expected_provider_id="provider:test",
+                expected_failure_domain_id="domain:remote",
+                local_storage_domain_id="domain:local",
+                minimum_pin_revision=0,
+                independent_minimum_witness_sequence=9,
+                independent_minimum_checkpoint_sequence=15,
+            )
+        self.assertEqual(classifier.call_args.kwargs["minimum_witness_sequence"], 9)
+        self.assertEqual(classifier.call_args.kwargs["operator_minimum_checkpoint_sequence"], 15)
+        self.assertEqual(result["recovery_status"], "WITNESS_LOCAL_LEDGER_DIVERGENCE")
+        self.assertEqual(result["operator_pin_rollback_guard"],
+                         "INDEPENDENT_MINIMA_SUPPLIED_AND_CHECKED")
 
     def test_invalid_key_and_boolean_coordinates_are_rejected(self):
         with self.assertRaisesRegex(ValueError, "at least 32 bytes"):
