@@ -475,6 +475,8 @@ domain remain deployment obligations, not properties established by these unit t
 
 Before consuming that sequence, the wrapper imports and signature-binds the downstream recovery classifier call. Missing or unexpected caller arguments therefore fail before the irreversible compare-and-advance operation, rather than burning a valid anchor on a malformed invocation. This preflight checks argument shape only; it does not prove that downstream storage or recovery checks will succeed.
 
+If the downstream classifier raises after the callback has returned `True`, the wrapper raises `RecoveryClassificationAfterSequenceConsumption`. The exception carries the verified anchor result and sets `sequence_consumption` to `CONFIRMED_CONSUMED`, preserving the original exception as its cause. Callers must reconcile the interrupted operation before retrying; this signal does not provide operation-bound sequence idempotency or guarantee that classification can be resumed safely.
+
 Machine-readable contract:
 `experiments/schemas/audit-independent-recovery-anchor-attestation-v1.schema.json`.
 
