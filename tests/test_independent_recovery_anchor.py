@@ -153,6 +153,9 @@ class IndependentRecoveryAnchorTests(unittest.TestCase):
                 recovery_anchor_trust_store=self.store,
                 at_utc="2026-11-12T12:00:00Z",
                 minimum_anchor_sequence=7,
+                consume_anchor_sequence=lambda expected, next_value: (
+                    expected == 7 and next_value == 8
+                ),
                 expected_witness_id="witness:test",
                 expected_provider_id="provider:test",
                 expected_failure_domain_id="domain:remote",
@@ -181,8 +184,61 @@ class IndependentRecoveryAnchorTests(unittest.TestCase):
                 recovery_anchor_trust_store=self.store,
                 at_utc="2026-11-12T12:00:00Z",
                 minimum_anchor_sequence=7,
+                consume_anchor_sequence=lambda expected, next_value: self.fail(
+                    "invalid signature must not consume the external sequence"
+                ),
             )
         self.assertEqual(result["recovery_status"], "RECOVERY_ANCHOR_NOT_VERIFIED")
+        self.assertEqual(result["recovery_classification"], "NOT_PERFORMED")
+        classifier.assert_not_called()
+
+    def test_valid_anchor_sequence_is_consumed_before_recovery(self):
+        from unittest.mock import Mock, patch
+        events = []
+        consume = Mock(side_effect=lambda expected, next_value: events.append(
+            ("consume", expected, next_value)
+        ) or True)
+        args = ([], None, None, {}, {}, {}, "floor.jsonl", "pins.jsonl", b"x" * 32)
+        with patch(
+            "experiments.operator_pin_store.classify_checkpoint_recovery_with_operator_pins",
+            side_effect=lambda *a, **kw: (
+                events.append(("classify",)) or {"recovery_status": "MOCKED"}
+            ),
+        ):
+            result = classify_checkpoint_recovery_with_signed_anchor(
+                *args,
+                recovery_anchor_attestation=self.attestation,
+                recovery_anchor_signature_envelope=self.envelope,
+                recovery_anchor_trust_store=self.store,
+                at_utc="2026-11-12T12:00:00Z",
+                minimum_anchor_sequence=7,
+                consume_anchor_sequence=consume,
+                expected_witness_id="witness:test",
+                expected_provider_id="provider:test",
+                expected_failure_domain_id="domain:remote",
+                local_storage_domain_id="domain:local",
+            )
+        self.assertEqual(events, [("consume", 7, 8), ("classify",)])
+        self.assertEqual(result["recovery_status"], "MOCKED")
+
+    def test_unconsumed_anchor_sequence_prevents_recovery(self):
+        from unittest.mock import patch
+        args = ([], None, None, {}, {}, {}, "floor.jsonl", "pins.jsonl", b"x" * 32)
+        with patch(
+            "experiments.operator_pin_store.classify_checkpoint_recovery_with_operator_pins"
+        ) as classifier:
+            result = classify_checkpoint_recovery_with_signed_anchor(
+                *args,
+                recovery_anchor_attestation=self.attestation,
+                recovery_anchor_signature_envelope=self.envelope,
+                recovery_anchor_trust_store=self.store,
+                at_utc="2026-11-12T12:00:00Z",
+                minimum_anchor_sequence=7,
+                consume_anchor_sequence=lambda expected, next_value: False,
+            )
+        self.assertEqual(
+            result["recovery_status"], "RECOVERY_ANCHOR_SEQUENCE_NOT_CONSUMED"
+        )
         self.assertEqual(result["recovery_classification"], "NOT_PERFORMED")
         classifier.assert_not_called()
 
