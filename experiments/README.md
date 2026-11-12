@@ -336,3 +336,33 @@ atomicity, independent administration or storage separation. A distinct failure-
 Successful verification remains relative to caller-supplied governance and
 operator configuration; authority authentication and event truth remain
 unestablished. See the commercial pilot protocol before integrating a provider.
+
+## Authenticated operator pin ledger
+
+`experiments/operator_pin_store.py` adds an append-only operator record for
+the two independent checkpoint-witness rollback coordinates:
+`minimum_witness_sequence` and `minimum_checkpoint_sequence`. Each entry
+has a contiguous revision, non-decreasing coordinates, a non-decreasing UTC
+recording time, a SHA-256 link to the preceding entry and an HMAC-SHA256
+authentication tag. The HMAC key is supplied by the caller and must be
+obtained from a separately managed secret store; it is never written to the
+ledger. POSIX advisory locking serialises cooperating readers and writers.
+A partial append, malformed tail, bad MAC, wrong key, coordinate regression
+or missing/empty ledger fails closed. File and parent-directory fsync outcomes
+are treated as durability boundaries, not universal power-loss guarantees.
+
+The loader accepts optional `minimum_revision`,
+`minimum_witness_sequence` and `minimum_checkpoint_sequence` arguments.
+These values must come from a separately protected source. They detect a
+restored older ledger even when its HMAC remains valid. Supplying values read
+from the same ledger is not independent protection.
+
+**Rollback boundary:** HMAC authenticates ledger content; it does not prevent
+replay of an older correctly authenticated backup. The key must be protected
+outside the ledger's storage and backup domain, and at least one independent
+monotonic recovery source must retain the latest accepted revision and both
+coordinates. If that independent source is unavailable or cannot be
+authenticated, do not reset pins from the restored ledger or from the witness
+receipt under evaluation; fail closed and explicitly re-provision. This module
+is a persistence primitive, not a deployed key-management service or proof of
+independent infrastructure.
