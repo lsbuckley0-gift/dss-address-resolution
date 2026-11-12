@@ -165,6 +165,7 @@ def verify_independent_recovery_anchor(
         "attestation_id": attestation["attestation_id"],
         "attestation_sequence": sequence,
         "minimum_anchor_sequence": minimum_anchor_sequence,
+        "next_minimum_anchor_sequence": sequence + 1,
         "independent_recovery_anchor": anchor,
         "authority_authentication": "NOT_ESTABLISHED",
         "governance_trust_store_pin": pin_result,
@@ -185,15 +186,17 @@ def classify_checkpoint_recovery_with_signed_anchor(
     recovery_anchor_trust_store: dict,
     at_utc: str,
     minimum_anchor_sequence: int,
+    consume_anchor_sequence,
     recovery_anchor_trust_store_pin: dict | None = None,
     **kwargs,
 ) -> dict:
-    """Verify the signed anchor before entering the existing recovery gate.
+    """Verify and consume an anchor sequence before entering the recovery gate.
 
-    The positional/keyword arguments otherwise match
-    classify_checkpoint_recovery_with_operator_pins. A caller-supplied
-    independent_recovery_anchor is forbidden; only the verified embedded anchor
-    is forwarded.
+    consume_anchor_sequence(expected_floor, next_floor) must atomically compare
+    and advance a monotonic value in storage independent of the attestation,
+    governance trust store and operator-pin ledger. It must return exactly True
+    only after durable advancement. A verifier-only call does not consume a
+    sequence and must not authorise recovery.
     """
     if "independent_recovery_anchor" in kwargs:
         raise ValueError("do not supply independent_recovery_anchor; it is bound by the signed attestation.")
@@ -210,6 +213,26 @@ def classify_checkpoint_recovery_with_signed_anchor(
             "recovery_status": "RECOVERY_ANCHOR_NOT_VERIFIED",
             "recovery_anchor": verified,
             "recovery_classification": "NOT_PERFORMED",
+        }
+    if not callable(consume_anchor_sequence):
+        raise ValueError("consume_anchor_sequence must be an atomic durable compare-and-advance callback.")
+    try:
+        consumed = consume_anchor_sequence(
+            minimum_anchor_sequence, verified["next_minimum_anchor_sequence"]
+        )
+    except Exception:
+        return {
+            "recovery_status": "RECOVERY_ANCHOR_SEQUENCE_NOT_CONSUMED",
+            "recovery_anchor": verified,
+            "recovery_classification": "NOT_PERFORMED",
+            "sequence_consumption": "FAILED",
+        }
+    if consumed is not True:
+        return {
+            "recovery_status": "RECOVERY_ANCHOR_SEQUENCE_NOT_CONSUMED",
+            "recovery_anchor": verified,
+            "recovery_classification": "NOT_PERFORMED",
+            "sequence_consumption": "REJECTED",
         }
     from experiments.operator_pin_store import classify_checkpoint_recovery_with_operator_pins
     result = classify_checkpoint_recovery_with_operator_pins(
