@@ -473,6 +473,8 @@ when the callback's storage contract is honoured. The standalone verifier is dia
 and does not consume state. The callback's durability, atomicity and independent failure
 domain remain deployment obligations, not properties established by these unit tests.
 
+Before consuming that sequence, the wrapper imports and signature-binds the downstream recovery classifier call. Missing or unexpected caller arguments therefore fail before the irreversible compare-and-advance operation, rather than burning a valid anchor on a malformed invocation. This preflight checks argument shape only; it does not prove that downstream storage or recovery checks will succeed.
+
 Machine-readable contract:
 `experiments/schemas/audit-independent-recovery-anchor-attestation-v1.schema.json`.
 
