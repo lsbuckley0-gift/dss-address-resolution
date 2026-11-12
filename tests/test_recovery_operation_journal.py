@@ -1,5 +1,6 @@
 """Tests for the durable resumable recovery-operation journal."""
 import hashlib
+import json
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
@@ -153,6 +154,21 @@ class RecoveryOperationJournalTests(unittest.TestCase):
         raw = self.path.read_text()
         self.path.write_text(raw.replace('"result_sha256":null', '"result_sha256":NaN', 1))
         with self.assertRaisesRegex(ValueError, "non-standard JSON constant"):
+            inspect_recovery_operations(self.path)
+
+    def test_non_string_state_fails_closed(self):
+        self.begin()
+        records = [json.loads(line) for line in self.path.read_text().splitlines()]
+        records[0]["state"] = []
+        payload = {key: value for key, value in records[0].items() if key != "entry_sha256"}
+        canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"),
+                               ensure_ascii=False, allow_nan=False).encode("utf-8")
+        records[0]["entry_sha256"] = hashlib.sha256(canonical).hexdigest()
+        self.path.write_text("\\n".join(
+            json.dumps(record, sort_keys=True, separators=(",", ":"))
+            for record in records
+        ) + "\\n")
+        with self.assertRaisesRegex(ValueError, "invalid state"):
             inspect_recovery_operations(self.path)
 
     def test_boolean_sequence_rejected(self):
