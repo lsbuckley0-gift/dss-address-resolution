@@ -398,3 +398,28 @@ witness sequence and checkpoint floor into recovery classification. It adds
 the operator pin revision, entry digest, authentication state and independent-
 minimum status to the recovery result. Missing, invalid or stale operator pin
 state fails before recovery classification.
+
+
+### Independent recovery-anchor contract
+
+Recovery authorisation now accepts one exact-schema
+`audit-independent-recovery-anchor/v1` object rather than three unrelated
+minimum arguments. It binds an `anchor_id`, a `source_reference`, the minimum
+operator-pin revision, the minimum witness sequence and the minimum checkpoint
+sequence. The validator rejects missing or extra fields, an unsupported
+version, blank identifiers/references, booleans masquerading as integers,
+negative coordinates and a zero witness sequence. The recovery wrapper checks
+all three minima against the authenticated operator-pin ledger before calling
+the recovery classifier.
+
+The contract is a **structural boundary, not a cryptographic credential**.
+The caller must authenticate the anchor and establish that its source is
+independently controlled before passing it to the wrapper. A URI, source label,
+anchor ID or successful schema check does not prove provenance, authenticity,
+freshness, or separation from the operator-ledger backup domain. The anchor
+must be retained outside that domain; if it cannot be authenticated, recovery
+must not proceed. The diagnostic witness-verification helper retains its
+separate optional-minima interface and does not authorise recovery.
+
+The focused regression suite includes strict anchor-schema and coordinate
+type checks, alongside the existing stale-backup and recovery-gate cases.
