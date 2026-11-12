@@ -2,11 +2,21 @@
 import hashlib
 import tempfile
 import unittest
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from pathlib import Path
 from experiments.recovery_operation_journal import (
     begin_or_resume_recovery, complete_recovery, inspect_recovery_operations,
 )
+
+
+def _begin_in_subprocess(path, request_sha256):
+    return begin_or_resume_recovery(
+        path,
+        operation_id="op-process",
+        attestation_id="attestation-7",
+        attestation_sequence=7,
+        request_sha256=request_sha256,
+    )
 
 
 class RecoveryOperationJournalTests(unittest.TestCase):
@@ -67,6 +77,20 @@ class RecoveryOperationJournalTests(unittest.TestCase):
         self.assertEqual(statuses.count("STARTED"), 1)
         self.assertEqual(statuses.count("RESUME_REQUIRED"), 7)
         self.assertEqual(inspect_recovery_operations(self.path)["op-001"]["state"], "RUNNING")
+
+    def test_concurrent_processes_create_one_operation(self):
+        with ProcessPoolExecutor(max_workers=4) as pool:
+            results = list(pool.map(
+                _begin_in_subprocess,
+                [str(self.path)] * 4,
+                [self.request] * 4,
+            ))
+        statuses = [result["operation_status"] for result in results]
+        self.assertEqual(statuses.count("STARTED"), 1)
+        self.assertEqual(statuses.count("RESUME_REQUIRED"), 3)
+        latest = inspect_recovery_operations(self.path)["op-process"]
+        self.assertEqual(latest["state"], "RUNNING")
+        self.assertEqual(latest["event_sequence"], 2)
 
     def test_corrupted_hash_chain_fails_closed(self):
         self.begin()
