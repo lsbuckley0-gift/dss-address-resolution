@@ -486,3 +486,35 @@ python -m unittest discover -s tests -p 'test_independent_recovery_anchor.py' -v
 
 Tests are synthetic and must be executed in a suitable local environment before
 this implementation is considered runtime-verified.
+
+
+## Resumable recovery-operation journal
+
+`experiments/recovery_operation_journal.py` adds a durable, append-only operation journal. It separates sequence consumption from recovery completion. The journal records an operation ID, attestation ID and sequence, canonical request digest, state, and (on completion) a result digest. It does not store recovery payloads.
+
+### State model
+
+- `RESERVED`: operation identity and immutable input binding recorded.
+- `RUNNING`: recovery may proceed or resume after interruption.
+- `COMPLETED`: a result digest has been durably recorded.
+
+A new operation writes RESERVED then RUNNING. A repeated begin with the same operation ID and identical binding returns RESUME_REQUIRED without consuming another attestation sequence. Rebinding the operation ID is rejected. Completion is idempotent only for the same result digest; conflicting completion is rejected.
+
+### Durability and limits
+
+Each append is protected by a POSIX advisory lock and followed by file fsync; first creation also fsyncs the parent directory. Entries are canonical JSON, sequence-numbered, and SHA-256 hash-chained. Invalid schema, sequence gaps, illegal state transitions, or digest mismatches fail closed.
+
+This is a local durability primitive, not a distributed transaction manager. The lock and journal must be on storage with the stated POSIX semantics and protected in a failure domain appropriate to deployment. A hash chain detects alteration relative to retained later entries; it does not prevent truncation, whole-file rollback, privileged replacement, or host compromise. The journal is not an independent anti-rollback anchor.
+
+### Integration contract
+
+1. Derive a stable operation ID and canonical request digest.
+2. Verify the signed attestation and externally retained sequence floor.
+3. Call begin_or_resume_recovery before any irreversible sequence advance.
+4. On a fresh STARTED operation, atomically consume the attestation sequence.
+5. If consumption is rejected, stop and preserve the operation record for explicit reconciliation; do not silently mint a new operation ID.
+6. On RESUME_REQUIRED, first reconcile the independent sequence store: determine whether the operation's attestation sequence was consumed. Never consume it twice and never assume it was consumed merely because the journal says RUNNING.
+7. Run the recovery classifier. If interrupted, call begin again with the same binding and resume the same operation.
+8. Call complete_recovery only after classification and required output checks succeed. Store a digest of the canonical result.
+
+A crash after sequence consumption but before classification leaves a RUNNING record that can be resumed with the same operation ID. A crash after classification but before completion recording may require re-running classification; therefore the classifier and its side effects must be idempotent or independently reconcilable. This journal alone cannot guarantee exactly-once external effects.
