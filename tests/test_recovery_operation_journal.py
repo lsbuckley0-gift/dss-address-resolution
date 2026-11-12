@@ -50,6 +50,14 @@ class RecoveryOperationJournalTests(unittest.TestCase):
         self.assertEqual(latest["attestation_sequence"], 7)
         self.assertEqual(latest["event_sequence"], 2)
 
+    def test_attestation_sequence_cannot_be_rebound_to_another_operation(self):
+        self.begin(operation_id="op-001")
+        with self.assertRaisesRegex(ValueError, "already bound to a different recovery operation"):
+            self.begin(operation_id="op-002")
+        latest = inspect_recovery_operations(self.path)
+        self.assertEqual(set(latest), {"op-001"})
+        self.assertEqual(latest["op-001"]["state"], "RUNNING")
+
     def test_operation_id_cannot_be_rebound(self):
         self.begin()
         with self.assertRaisesRegex(ValueError, "reused with different inputs"):
