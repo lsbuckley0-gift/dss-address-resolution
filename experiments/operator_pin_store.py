@@ -89,6 +89,16 @@ def _integer(value: object, field: str, *, positive: bool = False) -> int:
     return value
 
 
+def _unique_json_object(pairs: list[tuple[str, object]]) -> dict:
+    """Reject duplicate keys before JSON objects become ordinary dictionaries."""
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON object key: {key}")
+        result[key] = value
+    return result
+
+
 def _canonical(value: dict) -> bytes:
     return json.dumps(
         value, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
@@ -157,9 +167,11 @@ def _load_unlocked(path: Path, key: bytes) -> list[dict]:
             if not line.endswith("\n"):
                 raise ValueError(f"operator pin line {line_number} is incomplete.")
             try:
-                entry = json.loads(line)
-            except json.JSONDecodeError as exc:
-                raise ValueError(f"operator pin line {line_number} is invalid JSON.") from exc
+                entry = json.loads(line, object_pairs_hook=_unique_json_object)
+            except ValueError as exc:
+                raise ValueError(
+                    f"operator pin line {line_number} is invalid JSON: {exc}"
+                ) from exc
             _validate_entry(
                 entry, key=key, revision=len(entries),
                 previous_digest=previous_digest, previous_time=previous_time,
