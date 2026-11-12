@@ -17,7 +17,7 @@ from experiments.recovery_sequence_contract import (
 
 
 class RecoveryResumeDecision(str, Enum):
-    ELIGIBLE_AT_CHECK = "AUTHORISED"
+    ELIGIBLE_AT_CHECK = "ELIGIBLE_AT_CHECK"
     BLOCKED_NOT_CONSUMED = "BLOCKED_NOT_CONSUMED"
     BLOCKED_INDETERMINATE = "BLOCKED_INDETERMINATE"
 
@@ -29,7 +29,10 @@ def evaluate_recovery_resume(
 ) -> RecoveryResumeDecision:
     """Authorise classification only for the exact RUNNING operation and CONSUMED result.
 
-    The journal is re-read and fully validated on every call. The returned decision\n    is a point-in-time eligibility result, not a lock or execution lease; callers\n    must serialize classification for an operation and make external side effects\n    idempotent or independently reconcilable. Its history
+    The journal is re-read and fully validated on every call. The returned decision
+    is a point-in-time eligibility result, not a lock or execution lease; callers
+    must serialize classification for an operation and make external side effects
+    idempotent or independently reconcilable. Its history
     validation also enforces that an attestation ID/sequence pair has one
     operation owner. A caller-supplied status dictionary is deliberately not
     accepted: the gate derives state from the persisted journal.
