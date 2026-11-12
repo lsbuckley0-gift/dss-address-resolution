@@ -285,3 +285,67 @@ def _fsync_directory(parent: Path) -> str:
     finally:
         os.close(descriptor)
     return "CONFIRMED"
+
+def verify_checkpoint_floor_witness_with_operator_pins(
+    receipt: dict,
+    signature_envelope: dict,
+    trust_store: dict,
+    pin_ledger_path: str | os.PathLike,
+    pin_hmac_key: bytes,
+    *,
+    at_utc: str,
+    expected_witness_id: str,
+    expected_provider_id: str,
+    expected_failure_domain_id: str,
+    local_storage_domain_id: str,
+    minimum_pin_revision: int | None = None,
+    independent_minimum_witness_sequence: int | None = None,
+    independent_minimum_checkpoint_sequence: int | None = None,
+    trust_store_pin: dict | None = None,
+) -> dict:
+    """Verify a witness receipt using authenticated retained operator pins.
+
+    Optional independent minima must come from a separately protected recovery
+    source. If all three are supplied, the loader checks the retained revision
+    and both coordinates against that source before the receipt is verified.
+    """
+    entries = load_operator_pins(
+        pin_ledger_path,
+        pin_hmac_key,
+        minimum_revision=minimum_pin_revision,
+        minimum_witness_sequence=independent_minimum_witness_sequence,
+        minimum_checkpoint_sequence=independent_minimum_checkpoint_sequence,
+    )
+    latest = entries[-1]
+    from experiments.checkpoint_floor_witness import (
+        verify_checkpoint_floor_witness_receipt,
+    )
+
+    result = verify_checkpoint_floor_witness_receipt(
+        receipt,
+        signature_envelope,
+        trust_store,
+        at_utc=at_utc,
+        expected_witness_id=expected_witness_id,
+        expected_provider_id=expected_provider_id,
+        expected_failure_domain_id=expected_failure_domain_id,
+        local_storage_domain_id=local_storage_domain_id,
+        minimum_witness_sequence=latest["minimum_witness_sequence"],
+        minimum_checkpoint_sequence=latest["minimum_checkpoint_sequence"],
+        trust_store_pin=trust_store_pin,
+    )
+    result = dict(result)
+    result["operator_pin_revision"] = latest["pin_revision"]
+    result["operator_pin_entry_sha256"] = _entry_digest(latest)
+    result["operator_pin_authentication"] = "HMAC_SHA256_VERIFIED"
+    independent_checks = (
+        minimum_pin_revision is not None
+        and independent_minimum_witness_sequence is not None
+        and independent_minimum_checkpoint_sequence is not None
+    )
+    result["operator_pin_rollback_guard"] = (
+        "INDEPENDENT_MINIMA_SUPPLIED_AND_CHECKED"
+        if independent_checks
+        else "INDEPENDENT_MINIMA_NOT_ALL_SUPPLIED"
+    )
+    return result
