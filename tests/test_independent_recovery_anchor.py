@@ -10,6 +10,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from experiments.independent_recovery_anchor import (
     RECORD_VERSION, SIGNATURE_VERSION, PURPOSE,
+    RecoveryClassificationAfterSequenceConsumption,
     canonical_recovery_anchor_payload, verify_independent_recovery_anchor,
     classify_checkpoint_recovery_with_signed_anchor,
 )
@@ -191,6 +192,39 @@ class IndependentRecoveryAnchorTests(unittest.TestCase):
         self.assertEqual(result["recovery_status"], "RECOVERY_ANCHOR_NOT_VERIFIED")
         self.assertEqual(result["recovery_classification"], "NOT_PERFORMED")
         classifier.assert_not_called()
+
+    def test_classifier_failure_reports_sequence_already_consumed(self):
+        from unittest.mock import Mock, patch
+        events = []
+        consume = Mock(side_effect=lambda expected, next_value: events.append(
+            ("consume", expected, next_value)
+        ) or True)
+        args = ([], None, None, {}, {}, {}, "floor.jsonl", "pins.jsonl", b"x" * 32)
+        with patch(
+            "experiments.operator_pin_store.classify_checkpoint_recovery_with_operator_pins",
+            side_effect=OSError("operator pin ledger unavailable"),
+        ):
+            with self.assertRaises(RecoveryClassificationAfterSequenceConsumption) as caught:
+                classify_checkpoint_recovery_with_signed_anchor(
+                    *args,
+                    recovery_anchor_attestation=self.attestation,
+                    recovery_anchor_signature_envelope=self.envelope,
+                    recovery_anchor_trust_store=self.store,
+                    at_utc="2026-11-12T12:00:00Z",
+                    minimum_anchor_sequence=7,
+                    consume_anchor_sequence=consume,
+                    expected_witness_id="witness:test",
+                    expected_provider_id="provider:test",
+                    expected_failure_domain_id="domain:remote",
+                    local_storage_domain_id="domain:local",
+                )
+        self.assertEqual(events, [("consume", 7, 8)])
+        self.assertEqual(caught.exception.sequence_consumption, "CONFIRMED_CONSUMED")
+        self.assertEqual(
+            caught.exception.recovery_anchor_verification["anchor_verification"],
+            "VALID_RELATIVE_TO_CALLER_GOVERNANCE_STORE",
+        )
+        self.assertIsInstance(caught.exception.__cause__, OSError)
 
     def test_valid_anchor_sequence_is_consumed_before_recovery(self):
         from unittest.mock import Mock, patch
