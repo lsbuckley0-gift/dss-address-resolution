@@ -1301,3 +1301,11 @@ minimum revision and coordinate values. A missing/corrupt ledger, wrong key,
 or stale value below any supplied independent minimum raises an error before
 witness verification. If independent minima are omitted, the result explicitly
 reports that the independent rollback guard was not fully checked.
+
+Recovery integration uses
+`classify_checkpoint_recovery_with_operator_pins(...)`. This wrapper loads
+and authenticates the operator ledger before invoking the existing external-
+witness/local-ledger recovery gate. It supplies both stored operator minimums
+and refuses to classify if the operator ledger is missing, malformed, has an
+invalid HMAC, or falls below any independently retained minimum supplied by
+the deployment.
