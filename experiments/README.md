@@ -347,8 +347,11 @@ recording time, a SHA-256 link to the preceding entry and an HMAC-SHA256
 authentication tag. The HMAC key is supplied by the caller and must be
 obtained from a separately managed secret store; it is never written to the
 ledger. POSIX advisory locking serialises cooperating readers and writers.
-A partial append, malformed tail, bad MAC, wrong key, coordinate regression
-or missing/empty ledger fails closed. File and parent-directory fsync outcomes
+A partial append, malformed tail, duplicate JSON object key, bad MAC,
+wrong key, coordinate regression or missing/empty ledger fails closed.
+Duplicate keys are rejected during parsing rather than silently collapsed by
+a last-key-wins JSON decoder; this prevents multiple textual records from
+sharing one apparently canonical in-memory meaning. File and parent-directory fsync outcomes
 are treated as durability boundaries, not universal power-loss guarantees.
 
 The loader accepts optional `minimum_revision`,
