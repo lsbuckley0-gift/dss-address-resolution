@@ -31,6 +31,21 @@ def _digest(value: dict) -> str:
     return hashlib.sha256(_canonical(value)).hexdigest()
 
 
+def _unique_json_object(pairs: list[tuple[str, object]]) -> dict:
+    """Reject duplicate keys instead of silently accepting the last value."""
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON object key: {key}")
+        result[key] = value
+    return result
+
+
+def _reject_json_constant(value: str):
+    """Reject JavaScript-style NaN and Infinity tokens accepted by json.loads."""
+    raise ValueError(f"non-standard JSON constant is not permitted: {value}")
+
+
 def _positive(value: object, field: str) -> int:
     if not isinstance(value, int) or isinstance(value, bool) or value < 1:
         raise ValueError(f"{field} must be a positive integer.")
@@ -83,13 +98,19 @@ def _read_unlocked(path: Path) -> list[dict]:
     if not path.exists():
         return []
     entries, previous = [], _ZERO
-    for index, raw in enumerate(path.read_bytes().splitlines(), 1):
-        if not raw:
+    for index, raw in enumerate(path.read_bytes().splitlines(keepends=True), 1):
+        if not raw.endswith(b"\\n"):
+            raise ValueError(f"recovery journal entry {index} is incomplete (missing newline terminator).")
+        if raw == b"\\n":
             raise ValueError(f"recovery journal contains an empty line at {index}.")
         try:
-            entry = json.loads(raw)
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise ValueError(f"recovery journal entry {index} is malformed.") from exc
+            entry = json.loads(
+                raw,
+                object_pairs_hook=_unique_json_object,
+                parse_constant=_reject_json_constant,
+            )
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+            raise ValueError(f"recovery journal entry {index} is malformed: {exc}") from exc
         if not isinstance(entry, dict) or set(entry) != _FIELDS:
             raise ValueError(f"recovery journal entry {index} has an invalid schema.")
         if entry["record_version"] != _VERSION:
