@@ -349,3 +349,75 @@ def verify_checkpoint_floor_witness_with_operator_pins(
         else "INDEPENDENT_MINIMA_NOT_ALL_SUPPLIED"
     )
     return result
+
+def classify_checkpoint_recovery_with_operator_pins(
+    events: list,
+    checkpoint: dict | None,
+    acceptance_receipt: dict | None,
+    witness_receipt: dict,
+    witness_signature_envelope: dict,
+    trust_store: dict,
+    floor_ledger_path: str | os.PathLike,
+    operator_pin_ledger_path: str | os.PathLike,
+    operator_pin_hmac_key: bytes,
+    *,
+    at_utc: str,
+    expected_witness_id: str,
+    expected_provider_id: str,
+    expected_failure_domain_id: str,
+    local_storage_domain_id: str,
+    minimum_pin_revision: int | None = None,
+    independent_minimum_witness_sequence: int | None = None,
+    independent_minimum_checkpoint_sequence: int | None = None,
+    trust_store_pin: dict | None = None,
+) -> dict:
+    """Gate recovery classification on authenticated operator pins and witness.
+
+    The operator ledger is authenticated first. Its two retained coordinates
+    become the minimums passed to the existing witness/local-ledger recovery
+    gate. Optional independent minima detect a valid but stale operator backup.
+    """
+    entries = load_operator_pins(
+        operator_pin_ledger_path,
+        operator_pin_hmac_key,
+        minimum_revision=minimum_pin_revision,
+        minimum_witness_sequence=independent_minimum_witness_sequence,
+        minimum_checkpoint_sequence=independent_minimum_checkpoint_sequence,
+    )
+    latest = entries[-1]
+    from experiments.checkpoint_floor_witness import (
+        classify_checkpoint_recovery_with_witness,
+    )
+
+    result = classify_checkpoint_recovery_with_witness(
+        events,
+        checkpoint,
+        acceptance_receipt,
+        witness_receipt,
+        witness_signature_envelope,
+        trust_store,
+        floor_ledger_path,
+        at_utc=at_utc,
+        expected_witness_id=expected_witness_id,
+        expected_provider_id=expected_provider_id,
+        expected_failure_domain_id=expected_failure_domain_id,
+        local_storage_domain_id=local_storage_domain_id,
+        minimum_witness_sequence=latest["minimum_witness_sequence"],
+        operator_minimum_checkpoint_sequence=latest["minimum_checkpoint_sequence"],
+        trust_store_pin=trust_store_pin,
+    )
+    result = dict(result)
+    result["operator_pin_revision"] = latest["pin_revision"]
+    result["operator_pin_entry_sha256"] = _entry_digest(latest)
+    result["operator_pin_authentication"] = "HMAC_SHA256_VERIFIED"
+    independent_checks = (
+        minimum_pin_revision is not None
+        and independent_minimum_witness_sequence is not None
+        and independent_minimum_checkpoint_sequence is not None
+    )
+    result["operator_pin_rollback_guard"] = (
+        "INDEPENDENT_MINIMA_SUPPLIED_AND_CHECKED"
+        if independent_checks
+        else "INDEPENDENT_MINIMA_NOT_ALL_SUPPLIED"
+    )
+    return result
