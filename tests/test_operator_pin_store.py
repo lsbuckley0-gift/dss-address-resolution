@@ -70,6 +70,8 @@ class OperatorPinStoreTests(unittest.TestCase):
         backup = self.path.read_bytes()
         self.append(witness=9, checkpoint=15, second=1)
         self.path.write_bytes(backup)
+        # A valid HMAC does not reveal that this complete old backup is stale.
+        self.assertEqual(load_operator_pins(self.path, KEY)[-1]["minimum_witness_sequence"], 8)
         with self.assertRaisesRegex(ValueError, "independently retained minimum_revision"):
             load_operator_pins(self.path, KEY, minimum_revision=1)
         with self.assertRaisesRegex(ValueError, "independently retained minimum_witness_sequence"):
@@ -111,8 +113,9 @@ class OperatorPinStoreTests(unittest.TestCase):
     def test_partial_append_fails_closed(self):
         from unittest import mock
         self.append()
+        real_write = os.write
         with mock.patch("experiments.operator_pin_store.os.write",
-                        side_effect=lambda fd, data: len(data) - 1):
+                        side_effect=lambda fd, data: real_write(fd, data[:-1])):
             with self.assertRaises(OperatorPinDurabilityUncertain):
                 self.append(witness=9, checkpoint=15, second=1)
         with self.assertRaisesRegex(ValueError, "incomplete"):
