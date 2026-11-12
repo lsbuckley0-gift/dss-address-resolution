@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.invalid/dss/schemas/audit-independent-recovery-anchor-v1.schema.json",
+  "$id": "urn:dss:schemas:audit-independent-recovery-anchor:v1",
   "title": "Independent recovery anchor v1",
   "description": "Structural contract for caller-authenticated, independently retained recovery minima. This schema does not authenticate the anchor or prove source independence.",
   "type": "object",
