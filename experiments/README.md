@@ -498,7 +498,7 @@ this implementation is considered runtime-verified.
 - `RUNNING`: recovery may proceed or resume after interruption.
 - `COMPLETED`: a result digest has been durably recorded.
 
-A new operation writes RESERVED then RUNNING. A repeated begin with the same operation ID and identical binding returns RESUME_REQUIRED without consuming another attestation sequence. Rebinding the operation ID is rejected. Completion is idempotent only for the same result digest; conflicting completion is rejected.
+A new operation writes RESERVED then RUNNING. A repeated begin with the same operation ID and identical binding returns RESUME_REQUIRED without consuming another attestation sequence. Rebinding the operation ID is rejected. A signed attestation ID/sequence pair is also bound to exactly one operation ID and request digest, preventing two differently named operations from racing the same anti-replay sequence. Completion is idempotent only for the same result digest; conflicting completion is rejected.
 
 ### Durability and limits
 
