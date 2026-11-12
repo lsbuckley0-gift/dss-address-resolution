@@ -80,7 +80,9 @@ def _validate_entry(entry: object, *, key: bytes, revision: int,
         raise ValueError("operator pin entry has unsupported field(s): " + ", ".join(sorted(extra)))
     if entry["record_version"] != _VERSION:
         raise ValueError("operator pin entry has an unsupported record_version.")
-    if isinstance(entry["pin_revision"], bool) or entry["pin_revision"] != revision:
+    if (isinstance(entry["pin_revision"], bool)
+            or not isinstance(entry["pin_revision"], int)
+            or entry["pin_revision"] != revision):
         raise ValueError("operator pin revision is not contiguous.")
     witness = _integer(entry["minimum_witness_sequence"], "minimum_witness_sequence", positive=True)
     checkpoint = _integer(entry["minimum_checkpoint_sequence"], "minimum_checkpoint_sequence")
@@ -256,7 +258,12 @@ def append_operator_pins(
                 ) from exc
         finally:
             os.close(descriptor)
-        _fsync_directory(destination.parent)
+        try:
+            directory_status = _fsync_directory(destination.parent)
+        except OSError as exc:
+            raise OperatorPinDurabilityUncertain(
+                "operator pin entry may be visible, but parent-directory fsync failed."
+            ) from exc
         return {
             "append": "APPENDED",
             "pin_revision": revision,
@@ -264,6 +271,7 @@ def append_operator_pins(
             "minimum_checkpoint_sequence": checkpoint,
             "entry_sha256": _entry_digest(entry),
             "authentication": "HMAC_SHA256_CONFIRMED",
+            "directory_fsync": directory_status,
         }
 
 
