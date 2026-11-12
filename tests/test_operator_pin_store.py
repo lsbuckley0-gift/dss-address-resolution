@@ -58,6 +58,22 @@ class OperatorPinStoreTests(unittest.TestCase):
                                         separators=(",", ":"), ensure_ascii=False).encode()
                          ).hexdigest())
 
+    def test_duplicate_json_object_keys_fail_closed(self):
+        self.append()
+        raw = self.path.read_text(encoding="utf-8")
+        needle = '"minimum_witness_sequence":8'
+        self.assertIn(needle, raw)
+        self.path.write_text(
+            raw.replace(
+                needle,
+                '"minimum_witness_sequence":8,"minimum_witness_sequence":8',
+                1,
+            ),
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(ValueError, "duplicate JSON object key"):
+            load_operator_pins(self.path, KEY)
+
     def test_wrong_key_and_mac_tampering_fail_closed(self):
         self.append()
         with self.assertRaisesRegex(ValueError, "HMAC authentication failed"):
