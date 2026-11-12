@@ -8,6 +8,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from experiments.independent_recovery_anchor import (
     RECORD_VERSION, SIGNATURE_VERSION, PURPOSE,
     canonical_recovery_anchor_payload, verify_independent_recovery_anchor,
+    classify_checkpoint_recovery_with_signed_anchor,
 )
 
 
@@ -98,6 +99,54 @@ class IndependentRecoveryAnchorTests(unittest.TestCase):
             at_utc="2026-12-01T00:00:00Z", minimum_anchor_sequence=7,
         )
         self.assertEqual(result["anchor_verification"], "ATTESTATION_OUTSIDE_VALIDITY")
+
+
+    def test_signed_recovery_wrapper_forwards_only_verified_anchor(self):
+        from unittest.mock import patch
+        args = ([], None, None, {}, {}, {}, "floor.jsonl", "pins.jsonl", b"x" * 32)
+        with patch(
+            "experiments.operator_pin_store.classify_checkpoint_recovery_with_operator_pins",
+            return_value={"recovery_status": "MOCKED"},
+        ) as classifier:
+            result = classify_checkpoint_recovery_with_signed_anchor(
+                *args,
+                recovery_anchor_attestation=self.attestation,
+                recovery_anchor_signature_envelope=self.envelope,
+                recovery_anchor_trust_store=self.store,
+                at_utc="2026-11-12T12:00:00Z",
+                minimum_anchor_sequence=7,
+                expected_witness_id="witness:test",
+                expected_provider_id="provider:test",
+                expected_failure_domain_id="domain:remote",
+                local_storage_domain_id="domain:local",
+            )
+        self.assertEqual(result["recovery_status"], "MOCKED")
+        self.assertEqual(
+            classifier.call_args.kwargs["independent_recovery_anchor"]["anchor_id"],
+            "anchor:primary",
+        )
+        self.assertEqual(classifier.call_args.kwargs["at_utc"], "2026-11-12T12:00:00Z")
+        self.assertEqual(
+            result["operator_pin_rollback_guard"],
+            "SIGNED_INDEPENDENT_ANCHOR_MINIMA_CHECKED",
+        )
+
+    def test_invalid_signature_prevents_recovery_classification(self):
+        from unittest.mock import patch
+        envelope = dict(self.envelope, signature_base64=base64.b64encode(b"z" * 64).decode())
+        with patch(
+            "experiments.operator_pin_store.classify_checkpoint_recovery_with_operator_pins"
+        ) as classifier:
+            result = classify_checkpoint_recovery_with_signed_anchor(
+                recovery_anchor_attestation=self.attestation,
+                recovery_anchor_signature_envelope=envelope,
+                recovery_anchor_trust_store=self.store,
+                at_utc="2026-11-12T12:00:00Z",
+                minimum_anchor_sequence=7,
+            )
+        self.assertEqual(result["recovery_status"], "RECOVERY_ANCHOR_NOT_VERIFIED")
+        self.assertEqual(result["recovery_classification"], "NOT_PERFORMED")
+        classifier.assert_not_called()
 
     def test_boolean_sequence_and_floor_rejected(self):
         changed = {**self.attestation, "sequence": True}
