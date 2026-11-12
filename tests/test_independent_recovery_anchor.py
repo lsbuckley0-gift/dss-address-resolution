@@ -1,6 +1,9 @@
 """Tests for signed, anti-replay independent recovery anchors."""
 import base64
+import copy
 import unittest
+
+from experiments.trust_policy_pin import trust_store_sha256
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -86,6 +89,41 @@ class IndependentRecoveryAnchorTests(unittest.TestCase):
         )
         self.assertEqual(result["anchor_verification"], "ROLLBACK_REJECTED")
         self.assertEqual(result["attestation_signature"], "NOT_PERFORMED")
+
+    def test_trust_store_pin_detects_drift_but_not_joint_rollback(self):
+        original_store = copy.deepcopy(self.store)
+        original_pin = {
+            "sha256": trust_store_sha256(original_store),
+            "source_reference": "synthetic://independently-held-pin",
+        }
+
+        # A changed policy is detected while the original pin is retained.
+        changed_store = copy.deepcopy(original_store)
+        changed_store["keys"][0]["public_key_base64"] = base64.b64encode(
+            bytes([153]) * 32
+        ).decode()
+        drift = verify_independent_recovery_anchor(
+            self.attestation, self.envelope, changed_store,
+            at_utc="2026-11-12T12:00:00Z", minimum_anchor_sequence=7,
+            trust_store_pin=original_pin,
+        )
+        self.assertEqual(
+            drift["anchor_verification"], "GOVERNANCE_POLICY_PIN_MISMATCH"
+        )
+
+        # Restoring the old store and its old pin together passes again. The
+        # pin detects drift only while its own source remains independently
+        # retained; it does not authenticate a root restored with that pin.
+        restored = verify_independent_recovery_anchor(
+            self.attestation, self.envelope, original_store,
+            at_utc="2026-11-12T12:00:00Z", minimum_anchor_sequence=7,
+            trust_store_pin=original_pin,
+        )
+        self.assertEqual(
+            restored["governance_trust_store_pin"]["trust_policy_pin"], "MATCH"
+        )
+        self.assertEqual(restored["attestation_signature"], "VALID")
+        self.assertEqual(restored["authority_authentication"], "NOT_ESTABLISHED")
 
     def test_wrong_key_purpose_rejected(self):
         self.store["keys"][0]["purposes"] = ["AUDIT_CHAIN_CHECKPOINT"]
