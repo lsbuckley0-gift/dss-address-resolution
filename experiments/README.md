@@ -366,3 +366,13 @@ authenticated, do not reset pins from the restored ledger or from the witness
 receipt under evaluation; fail closed and explicitly re-provision. This module
 is a persistence primitive, not a deployed key-management service or proof of
 independent infrastructure.
+
+Run its focused regression tests with:
+
+```bash
+python -m unittest discover -s tests -p 'test_operator_pin_store.py' -v
+```
+
+The test suite covers independent coordinate monotonicity, HMAC tampering,
+wrong-key rejection, stale-backup detection when independent minima are
+retained, idempotent retries, concurrent writers and partial-append failure.
