@@ -23,7 +23,7 @@ _DOMAIN = b"\xce\xb4ss-independent-recovery-anchor/v1\n"
 _FIELDS = {"record_version", "attestation_id", "authority_name", "sequence",
            "issued_at_utc", "expires_at_utc", "anchor"}
 _SIGNATURE_FIELDS = {"record_version", "key_id", "signature_base64"}
-_TIME = re.compile(r"^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$")
+_TIME = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$")
 
 
 def _time(value: object, field: str) -> datetime:
@@ -214,7 +214,7 @@ def classify_checkpoint_recovery_with_signed_anchor(
     from experiments.operator_pin_store import classify_checkpoint_recovery_with_operator_pins
     result = classify_checkpoint_recovery_with_operator_pins(
         *args, independent_recovery_anchor=verified["independent_recovery_anchor"],
-        **kwargs,
+        at_utc=at_utc, **kwargs,
     )
     result = dict(result)
     result["recovery_anchor_signature_verification"] = verified
