@@ -10,6 +10,7 @@ import base64
 import binascii
 import json
 import re
+import inspect
 from datetime import datetime
 from collections.abc import Callable
 
@@ -217,6 +218,23 @@ def classify_checkpoint_recovery_with_signed_anchor(
         }
     if not callable(consume_anchor_sequence):
         raise ValueError("consume_anchor_sequence must be an atomic durable compare-and-advance callback.")
+
+    # Resolve and bind the downstream recovery call before consuming an
+    # irreversible sequence. This catches missing/extra arguments and import
+    # failures without burning a valid anchor on a malformed caller invocation.
+    from experiments.operator_pin_store import classify_checkpoint_recovery_with_operator_pins
+    try:
+        inspect.signature(classify_checkpoint_recovery_with_operator_pins).bind(
+            *args,
+            independent_recovery_anchor=verified["independent_recovery_anchor"],
+            at_utc=at_utc,
+            **kwargs,
+        )
+    except TypeError as exc:
+        raise ValueError(
+            "recovery classifier arguments are invalid; anchor sequence was not consumed."
+        ) from exc
+
     try:
         consumed = consume_anchor_sequence(
             minimum_anchor_sequence, verified["next_minimum_anchor_sequence"]
@@ -235,7 +253,6 @@ def classify_checkpoint_recovery_with_signed_anchor(
             "recovery_classification": "NOT_PERFORMED",
             "sequence_consumption": "REJECTED",
         }
-    from experiments.operator_pin_store import classify_checkpoint_recovery_with_operator_pins
     result = classify_checkpoint_recovery_with_operator_pins(
         *args, independent_recovery_anchor=verified["independent_recovery_anchor"],
         at_utc=at_utc, **kwargs,
