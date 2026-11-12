@@ -115,8 +115,10 @@ def _read_unlocked(path: Path) -> list[dict]:
             raise ValueError(f"recovery journal entry {index} has an invalid schema.")
         if entry["record_version"] != _VERSION:
             raise ValueError(f"recovery journal entry {index} has an unsupported version.")
-        if entry["event_sequence"] != index:
-            raise ValueError(f"recovery journal entry {index} has a sequence gap.")
+        if (isinstance(entry["event_sequence"], bool)
+                or not isinstance(entry["event_sequence"], int)
+                or entry["event_sequence"] != index):
+            raise ValueError(f"recovery journal entry {index} has an invalid or non-contiguous sequence.")
         if entry["previous_entry_sha256"] != previous:
             raise ValueError(f"recovery journal entry {index} breaks the hash chain.")
         claimed = _hash(entry["entry_sha256"], "entry_sha256")
