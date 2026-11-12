@@ -427,3 +427,48 @@ separate optional-minima interface and does not authorise recovery.
 
 The focused regression suite includes strict anchor-schema and coordinate
 type checks, alongside the existing stale-backup and recovery-gate cases.
+
+
+### Signed independent recovery-anchor attestation
+
+The structural anchor above is now wrapped by
+`experiments/independent_recovery_anchor.py`. The signed attestation binds
+the complete six-field anchor, an authority name, a positive attestation
+sequence and a UTC validity interval. Its Ed25519 signature uses the distinct
+key purpose `INDEPENDENT_RECOVERY_ANCHOR` and domain separator
+`dss-independent-recovery-anchor/v1`; it cannot be substituted with a
+signature issued for the RFC 3161 provenance or checkpoint-witness purpose.
+
+Use `classify_checkpoint_recovery_with_signed_anchor(...)` as the recovery
+entry point when cryptographic anchor verification is required. It verifies
+the signature and external sequence floor before forwarding the embedded,
+validated anchor to the operator-pin recovery gate. A failed signature,
+ineligible key, expired attestation, policy-pin mismatch or stale sequence
+returns `RECOVERY_ANCHOR_NOT_VERIFIED` and does not invoke recovery
+classification. The separate
+`classify_checkpoint_recovery_with_operator_pins(...)` helper remains a
+structural-only lower-level primitive: it validates anchor shape and minima,
+but does not authenticate the anchor. Do not treat it as an authenticated
+recovery entry point.
+
+The `minimum_anchor_sequence` is mandatory and must be retained outside both
+the signed attestation and the operator-pin ledger's backup/failure domain.
+The trust store, optional trust-store pin, claimed verification time and
+authority identity remain caller-supplied. A valid signature therefore means
+only valid relative to that configured key and claimed time; it does not
+authenticate the governance root, the named authority, the claimed
+independence of the source, or event truth. An independently retained
+sequence floor prevents replay only if its own storage and recovery path
+cannot be rolled back with the attestation.
+
+Machine-readable contract:
+`experiments/schemas/audit-independent-recovery-anchor-attestation-v1.schema.json`.
+
+Run focused tests with:
+
+```bash
+python -m unittest discover -s tests -p 'test_independent_recovery_anchor.py' -v
+```
+
+Tests are synthetic and must be executed in a suitable local environment before
+this implementation is considered runtime-verified.
