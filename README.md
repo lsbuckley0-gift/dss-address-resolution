@@ -93,3 +93,8 @@ Production use requires representative, lawfully obtained and labelled data; agr
 ## Status
 
 The repository describes the method and contains a synthetic demonstration with automated tests. Customer performance, operational readiness and commercial value remain to be established through a controlled pilot.
+
+The authenticated operator-pin persistence primitive is documented in
+[the experiment notes](experiments/README.md#authenticated-operator-pin-ledger).
+It is a synthetic reference adapter, not a deployed key-management or
+independent recovery service.
