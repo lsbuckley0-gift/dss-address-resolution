@@ -214,7 +214,7 @@ def append_operator_pins(
                         os.fsync(descriptor)
                     finally:
                         os.close(descriptor)
-                        _fsync_directory(destination.parent)
+                        directory_status = _fsync_directory(destination.parent)
                 except OSError as exc:
                     raise OperatorPinDurabilityUncertain(
                         "existing operator pins are visible, but retry fsync failed."
