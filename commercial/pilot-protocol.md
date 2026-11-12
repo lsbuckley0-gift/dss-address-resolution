@@ -1289,3 +1289,6 @@ authenticated, do not reset pins from the restored ledger or from the witness
 receipt under evaluation; fail closed and explicitly re-provision. This module
 is a persistence primitive, not a deployed key-management service or proof of
 independent infrastructure.
+
+The focused operator-pin regression command is
+`python -m unittest discover -s tests -p 'test_operator_pin_store.py' -v`.
